@@ -17,8 +17,7 @@ from app.core.logger import logger
 
 
 def import_module(module: str, desc: str) -> Any:
-    """
-    动态导入模块
+    """动态导入模块
 
     参数:
     - module (str): 模块名称。
@@ -40,8 +39,7 @@ def import_module(module: str, desc: str) -> Any:
 
 
 async def import_modules_async(modules: list, desc: str, **kwargs) -> None:
-    """
-    异步导入模块列表
+    """异步导入模块列表
 
     参数:
     - modules (list[str]): 模块列表。
@@ -68,8 +66,7 @@ async def import_modules_async(modules: list, desc: str, **kwargs) -> None:
 
 
 def get_random_character() -> str:
-    """
-    生成随机字符串
+    """生成随机字符串
 
     返回:
     - str: 随机字符串。
@@ -78,8 +75,7 @@ def get_random_character() -> str:
 
 
 def uuid4_str() -> str:
-    """
-    数据库引擎 UUID 类型兼容：返回无连字符的 UUID 字符串。
+    """数据库引擎 UUID 类型兼容：返回无连字符的 UUID 字符串。
 
     返回:
     - str: UUID 字符串。
@@ -87,9 +83,24 @@ def uuid4_str() -> str:
     return str(uuid.uuid4())
 
 
-def get_parent_id_map(model_list: Sequence[DeclarativeBase]) -> dict[int, int]:
+def search_to_dict(search: Any, default: Any = None) -> dict | None:
+    """将 Pydantic 查询模型转为参数字典。
+
+    - search 为 None 时返回 default（默认 None）。
+    - search 非空时调用 vars() 提取字段字典。
+
+    参数:
+    - search: Pydantic 查询模型或 None。
+    - default: search 为 None 时的返回值，默认 None。
+
+    返回:
+    - dict | None: 查询参数字典或 None。
     """
-    获取父级 ID 映射字典
+    return vars(search) if search else default
+
+
+def get_parent_id_map(model_list: Sequence[DeclarativeBase]) -> dict[int, int]:
+    """获取父级 ID 映射字典
 
     参数:
     - model_list (Sequence[DeclarativeBase]): 模型列表。
@@ -100,11 +111,8 @@ def get_parent_id_map(model_list: Sequence[DeclarativeBase]) -> dict[int, int]:
     return {item.id: item.parent_id for item in model_list}  # pyright: ignore[reportAttributeAccessIssue]
 
 
-def get_parent_recursion(
-    id: int, id_map: dict[int, int], ids: list[int] | None = None
-) -> list[int]:
-    """
-    递归获取所有父级 ID
+def get_parent_recursion(id: int, id_map: dict[int, int], ids: list[int] | None = None) -> list[int]:
+    """递归获取所有父级 ID
 
     参数:
     - id (int): 当前 ID。
@@ -127,8 +135,7 @@ def get_parent_recursion(
 def get_child_id_map(
     model_list: Sequence[DeclarativeBase],
 ) -> dict[int, list[int]]:
-    """
-    获取子级 ID 映射字典
+    """获取子级 ID 映射字典
 
     参数:
     - model_list (Sequence[DeclarativeBase]): 模型列表。
@@ -144,11 +151,8 @@ def get_child_id_map(
     return data_map
 
 
-def get_child_recursion(
-    id: int, id_map: dict[int, list[int]], ids: list[int] | None = None
-) -> list[int]:
-    """
-    递归获取所有子级 ID
+def get_child_recursion(id: int, id_map: dict[int, list[int]], ids: list[int] | None = None) -> list[int]:
+    """递归获取所有子级 ID
 
     参数:
     - id (int): 当前 ID。
@@ -166,8 +170,7 @@ def get_child_recursion(
 
 
 def traversal_to_tree(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """
-    通过遍历算法构造树形结构
+    """通过遍历算法构造树形结构
 
     参数:
     - nodes (list[dict[str, Any]]): 树节点列表。
@@ -193,9 +196,8 @@ def traversal_to_tree(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     parent_node["children"] = []
                 if node not in parent_node["children"]:
                     parent_node["children"].append(node)
-            else:
-                if node not in tree:
-                    tree.append(node)
+            elif node not in tree:
+                tree.append(node)
 
     # 确保所有节点都有children字段
     for node in tree:
@@ -205,11 +207,8 @@ def traversal_to_tree(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return tree
 
 
-def recursive_to_tree(
-    nodes: list[dict[str, Any]], *, parent_id: int | None = None
-) -> list[dict[str, Any]]:
-    """
-    通过递归算法构造树形结构（性能影响较大）
+def recursive_to_tree(nodes: list[dict[str, Any]], *, parent_id: int | None = None) -> list[dict[str, Any]]:
+    """通过递归算法构造树形结构（性能影响较大）
 
     参数:
     - nodes (list[dict[str, Any]]): 树节点列表。
@@ -229,8 +228,7 @@ def recursive_to_tree(
 
 
 def bytes2human(n: int, format_str: str = "%(value).1f%(symbol)s") -> str:
-    """
-    字节数转人类可读格式
+    """字节数转人类可读格式
     Used by various scripts. See:
     http://goo.gl/zeJZl
 
@@ -256,8 +254,7 @@ def bytes2human(n: int, format_str: str = "%(value).1f%(symbol)s") -> str:
 
 
 def bytes2file_response(bytes_info: bytes) -> Generator[bytes, Any, None]:
-    """
-    将字节内容封装为单块流式生成器，供文件下载响应使用。
+    """将字节内容封装为单块流式生成器，供文件下载响应使用。
 
     参数:
     - bytes_info (bytes): 文件二进制内容。
@@ -269,8 +266,7 @@ def bytes2file_response(bytes_info: bytes) -> Generator[bytes, Any, None]:
 
 
 def get_filepath_from_url(url: str) -> Path:
-    """
-    工具方法：根据请求参数获取文件路径
+    """工具方法：根据请求参数获取文件路径
 
     参数:
     - url (str): 请求参数中的 url 参数。
@@ -287,9 +283,24 @@ def get_filepath_from_url(url: str) -> Path:
     return filepath
 
 
-class SqlalchemyUtil:
+def compute_menu_route_first_segment(
+    parent_catalog_id: int | None,  # noqa: ARG001
+    package_name: str,
+    module_name: str | None,  # noqa: ARG001
+) -> str:
+    """前端页面路由首段 — 始终使用 ``module_xxx`` 作为路由首段。
+
+    中性位置函数，供 ``Jinja2TemplateUtil`` 和 ``GenTableService``
+    双方模块级安全导入，避免 ``jinja2_template_util ↔ gencode.service`` 循环依赖。
     """
-    sqlalchemy工具类
+    pn = (package_name or "").strip()
+    if not pn:
+        raise CustomException(msg="包名不能为空")
+    return pn if pn.startswith("module_") else f"module_{pn}"
+
+
+class SqlalchemyUtil:
+    """sqlalchemy工具类
     """
 
     @classmethod
@@ -298,8 +309,7 @@ class SqlalchemyUtil:
         obj: DeclarativeBase | dict[str, Any],
         transform_case: Literal["no_case", "snake_to_camel", "camel_to_snake"] = "no_case",
     ):
-        """
-        将 SQLAlchemy 模型或字典转为普通 dict，并可做键名大小写转换。
+        """将 SQLAlchemy 模型或字典转为普通 dict，并可做键名大小写转换。
 
         参数:
         - obj (DeclarativeBase | dict[str, Any]): 模型实例或字典。
@@ -329,8 +339,7 @@ class SqlalchemyUtil:
         result: Any,
         transform_case: Literal["no_case", "snake_to_camel", "camel_to_snake"] = "no_case",
     ):
-        """
-        将 SQLAlchemy 查询结果（模型、列表、Row 等）递归序列化为可 JSON 化结构。
+        """将 SQLAlchemy 查询结果（模型、列表、Row 等）递归序列化为可 JSON 化结构。
 
         参数:
         - result (Any): ORM 对象、列表、Row 等。
@@ -357,11 +366,8 @@ class SqlalchemyUtil:
         return result
 
     @classmethod
-    def get_server_default_null(
-        cls, dialect_name: str, need_explicit_null: bool = True
-    ) -> Null | None:
-        """
-        按方言返回列默认值中的 NULL 表达（PostgreSQL 可显式 DEFAULT NULL）。
+    def get_server_default_null(cls, dialect_name: str, need_explicit_null: bool = True) -> Null | None:
+        """按方言返回列默认值中的 NULL 表达（PostgreSQL 可显式 DEFAULT NULL）。
 
         参数:
         - dialect_name (str): 数据库方言名。
@@ -376,14 +382,12 @@ class SqlalchemyUtil:
 
 
 class CamelCaseUtil:
-    """
-    下划线形式(snake_case)转小驼峰形式(camelCase)工具方法
+    """下划线形式(snake_case)转小驼峰形式(camelCase)工具方法
     """
 
     @classmethod
     def snake_to_camel(cls, snake_str: str):
-        """
-        下划线形式 (snake_case) 转为小驼峰形式 (camelCase)。
+        """下划线形式 (snake_case) 转为大驼峰形式 (PascalCase)。
 
         参数:
         - snake_str (str): 下划线分隔字符串。
@@ -391,17 +395,12 @@ class CamelCaseUtil:
         返回:
         - str: 合并首字母大写后的驼峰字符串。
         """
-        # 分割字符串
         words = snake_str.split("_")
-        # 小驼峰命名，第一个词首字母小写，其余词首字母大写
-        # return words[0] + ''.join(word.capitalize() for word in words[1:])
-        # 大驼峰命名，所有词首字母大写
         return "".join(word.capitalize() for word in words)
 
     @classmethod
     def transform_result(cls, result: Any):
-        """
-        将查询结果递归序列化并将键名转为小驼峰。
+        """将查询结果递归序列化并将键名转为小驼峰。
 
         参数:
         - result (Any): ORM 查询结果或嵌套结构。
@@ -413,14 +412,12 @@ class CamelCaseUtil:
 
 
 class SnakeCaseUtil:
-    """
-    小驼峰形式(camelCase)转下划线形式(snake_case)工具方法
+    """小驼峰形式(camelCase)转下划线形式(snake_case)工具方法
     """
 
     @classmethod
     def camel_to_snake(cls, camel_str: str):
-        """
-        小驼峰形式 (camelCase) 转为下划线形式 (snake_case)。
+        """小驼峰形式 (camelCase) 转为下划线形式 (snake_case)。
 
         参数:
         - camel_str (str): 驼峰字符串。
@@ -434,8 +431,7 @@ class SnakeCaseUtil:
 
     @classmethod
     def transform_result(cls, result: Any):
-        """
-        将查询结果递归序列化并将键名转为下划线形式。
+        """将查询结果递归序列化并将键名转为下划线形式。
 
         参数:
         - result (Any): ORM 查询结果或嵌套结构。

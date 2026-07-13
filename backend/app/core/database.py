@@ -19,8 +19,7 @@ from app.core.logger import logger
 def create_engine_and_session(
     db_url: str = settings.DB_URI,
 ) -> tuple[Engine, sessionmaker]:
-    """
-    创建同步数据库引擎和会话工厂。
+    """创建同步数据库引擎和会话工厂。
 
     参数:
     - db_url (str): 数据库连接URL,默认从配置中获取。
@@ -53,8 +52,7 @@ def create_engine_and_session(
 def create_async_engine_and_session(
     db_url: str = settings.ASYNC_DB_URI,
 ) -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
-    """
-    获取异步数据库会话连接。
+    """获取异步数据库会话连接。
 
     参数:
     - db_url (str): 异步数据库 URL，默认取配置项 ASYNC_DB_URI。
@@ -106,13 +104,12 @@ def create_async_engine_and_session(
         return async_engine, AsyncSessionLocal
 
 
-engine, db_session = create_engine_and_session(settings.DB_URI)
-async_engine, async_db_session = create_async_engine_and_session(settings.ASYNC_DB_URI)
+engine, db_session = create_engine_and_session()
+async_engine, async_db_session = create_async_engine_and_session()
 
 
 async def create_tables() -> None:
-    """
-    创建数据库表（根据 ORM metadata）。
+    """创建数据库表（根据 ORM metadata）。
 
     返回:
     - None
@@ -122,8 +119,7 @@ async def create_tables() -> None:
 
 
 async def drop_tables() -> None:
-    """
-    删除数据库表（根据 ORM metadata）。
+    """删除数据库表（根据 ORM metadata）。
 
     返回:
     - None
@@ -133,8 +129,7 @@ async def drop_tables() -> None:
 
 
 async def redis_connect(app: FastAPI, status: bool) -> Redis | None:
-    """
-    创建或关闭Redis连接。
+    """创建或关闭Redis连接。
 
     参数:
     - app (FastAPI): FastAPI应用实例。
@@ -155,7 +150,7 @@ async def redis_connect(app: FastAPI, status: bool) -> Redis | None:
                 url=settings.REDIS_URI,
                 encoding="utf-8",
                 decode_responses=True,
-                health_check_interval=20,
+                health_check_interval=settings.REDIS_HEALTH_CHECK_INTERVAL,
                 max_connections=settings.POOL_SIZE,
                 socket_timeout=settings.POOL_TIMEOUT,
             )

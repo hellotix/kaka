@@ -1,8 +1,8 @@
 <!-- 登录页：顶栏固定；仅插画列与表单区随布局切换 -->
 <template>
-  <div class="login-page-root flex h-screen w-full flex-col overflow-hidden">
+  <div class="login-page-root flex h-screen w-full flex-col overflow-hidden" :style="loginBgStyle">
     <FaLoginCenterBackdrop v-if="panelAlign === 'center'" viewport-fixed />
-    <FaAuthTopBar v-model:panel-align="panelAlign" />
+    <FaAuthTopBar v-model:panel-align="panelAlign" @tenant-change="handleTopBarTenantChange" />
 
     <div
       class="login-auth-split relative z-1 flex min-h-0 flex-1 overflow-hidden"
@@ -264,7 +264,6 @@ function backToAccountLogin() {
   loginFlowMode.value = "account";
   nextTick(() => {
     getCaptcha();
-    loginForm.captcha = "";
     accountFormRef.value?.resetDragVerify?.();
     isPassing.value = false;
     isClickPass.value = false;
@@ -330,7 +329,6 @@ watch(authPanel, (panel) => {
   if (panel !== "login") return;
   if (loginFlowMode.value !== "account") return;
   getCaptcha();
-  loginForm.captcha = "";
   accountFormRef.value?.resetDragVerify?.();
   isPassing.value = false;
   isClickPass.value = false;
@@ -379,6 +377,7 @@ const codeLoading = ref(false);
 const registerAgreementRead = ref(false);
 
 const registerForm = reactive<RegisterForm & { email: string }>({
+  tenant_name: "",
   username: "",
   password: "",
   confirmPassword: "",
@@ -386,6 +385,7 @@ const registerForm = reactive<RegisterForm & { email: string }>({
 });
 
 const forgetForm = reactive<ForgetPasswordForm>({
+  tenant_name: "",
   username: "",
   new_password: "",
   confirmPassword: "",
@@ -414,7 +414,10 @@ const validateRegisterConfirm = (_rule: unknown, value: string, callback: (e?: E
   callback();
 };
 
-const registerRules = computed<FormRules<RegisterForm>>(() => ({
+const registerRules = computed<FormRules<RegisterForm & { email: string }>>(() => ({
+  tenant_name: [
+    { required: true, message: t("login.message.tenantName.required"), trigger: "blur" },
+  ],
   username: [{ required: true, message: t("login.message.username.required"), trigger: "blur" }],
   password: [
     { required: true, validator: validateRegisterPassword, trigger: "blur" },
@@ -424,6 +427,14 @@ const registerRules = computed<FormRules<RegisterForm>>(() => ({
     { required: true, message: t("login.message.password.required"), trigger: "blur" },
     { min: 6, message: t("login.message.password.min"), trigger: "blur" },
     { validator: validateRegisterConfirm, trigger: "blur" },
+  ],
+  email: [
+    { required: true, message: t("login.email.required"), trigger: "blur" },
+    {
+      type: "email",
+      message: t("login.email.invalid"),
+      trigger: "blur",
+    },
   ],
 }));
 
@@ -440,6 +451,9 @@ const validateForgetConfirm = (_rule: unknown, value: string, callback: (e?: Err
 };
 
 const forgetRules = computed<FormRules<ForgetPasswordForm>>(() => ({
+  tenant_name: [
+    { required: true, message: t("login.message.tenantName.required"), trigger: "blur" },
+  ],
   username: [{ required: true, message: t("login.message.username.required"), trigger: "blur" }],
   new_password: [
     { required: true, message: t("login.message.password.required"), trigger: "blur" },
@@ -455,11 +469,100 @@ const forgetRules = computed<FormRules<ForgetPasswordForm>>(() => ({
 const loginForm = reactive<LoginFormData>({
   username: "",
   password: "",
-  captcha: "",
   captcha_key: "",
   remember: true,
   login_type: "PC端",
 });
+
+// ── 租户品牌 ──
+const loginBgStyle = computed(() => {
+  const bg = configStore.configData?.login_bg?.config_value?.trim();
+  return bg
+    ? { backgroundImage: `url(${bg})`, backgroundSize: "cover", backgroundPosition: "center" }
+    : {};
+});
+const currentTenantId = ref(1);
+const isTenantResolved = ref(false); // 是否已自动识别到租户
+
+/** 解析当前域名，提取子域名作为租户编码 */
+function extractSubdomain(hostname: string): string | null {
+  if (
+    !hostname ||
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    /^\d+\.\d+\.\d+\.\d+$/.test(hostname)
+  ) {
+    return null;
+  }
+  const parts = hostname.split(".");
+  // 排除二级域名如 "xxx.com"、"xxx.cn"（只有两段）
+  // 排除 "www.xxx.com"（子域名为 www）
+  if (parts.length < 3) return null;
+  const sub = (parts[0] as string).toLowerCase();
+  // 排除常见系统前缀
+  if (["www", "admin", "app", "api", "mail", "dev", "test", "stage"].includes(sub)) return null;
+  return sub;
+}
+
+/** 自动识别租户（四级策略：URL 参数 > 自定义域名 > 通配符子域名 > 默认） */
+async function autoDetectTenant() {
+  // 优先级 1：URL 参数 ?tenant=xxx
+  const queryTenant = route.query.tenant as string | undefined;
+  if (queryTenant?.trim()) {
+    await loadTenantByCode(queryTenant.trim());
+    return;
+  }
+
+  const hostname = window.location.hostname;
+
+  // 优先级 2：自定义域名 — 完整域名匹配 TenantModel.domain
+  if (
+    hostname &&
+    hostname !== "localhost" &&
+    hostname !== "127.0.0.1" &&
+    !/^\d+\.\d+\.\d+\.\d+$/.test(hostname)
+  ) {
+    try {
+      const { data: res } = await AuthAPI.lookupTenantByDomain(hostname);
+      const info = res?.data as Record<string, any> | undefined;
+      if (info?.id) {
+        currentTenantId.value = Number(info.id);
+        await configStore.getConfig(true, currentTenantId.value);
+        isTenantResolved.value = true;
+        return;
+      }
+    } catch {
+      // 未匹配自定义域名，继续下一步
+    }
+  }
+
+  // 优先级 3：通配符子域名 — 提取子域名匹配 TenantModel.code
+  const subdomain = extractSubdomain(hostname);
+  if (subdomain) {
+    await loadTenantByCode(subdomain, false);
+    if (isTenantResolved.value) return;
+  }
+
+  // 优先级 4：使用系统默认配置
+  isTenantResolved.value = false;
+}
+
+/** 根据编码查询租户并加载配置 */
+async function loadTenantByCode(code: string, markResolved = true) {
+  try {
+    const { data: res } = await AuthAPI.lookupTenant(code);
+    const info = res?.data as Record<string, any> | undefined;
+    if (info?.id) {
+      currentTenantId.value = Number(info.id);
+      await configStore.getConfig(true, currentTenantId.value);
+      if (markResolved) isTenantResolved.value = true;
+      return;
+    }
+  } catch {
+    // 静默失败
+  }
+  if (markResolved) isTenantResolved.value = false;
+}
 
 const captchaState = reactive<CaptchaInfo>({
   enable: false,
@@ -489,15 +592,6 @@ const rules = computed<FormRules>(() => {
       },
     ],
   };
-  if (captchaState.enable) {
-    base.captcha = [
-      {
-        required: true,
-        trigger: "blur",
-        message: t("login.message.captchaCode.required"),
-      },
-    ];
-  }
   return base;
 });
 
@@ -516,13 +610,38 @@ async function getCaptcha() {
     loginForm.captcha_key = data.key;
     captchaState.img_base = data.img_base;
     captchaState.enable = data.enable;
+    // 重置滑块状态
+    isPassing.value = false;
+    isClickPass.value = false;
   } catch {
     captchaState.enable = false;
-    loginForm.captcha = "";
     loginForm.captcha_key = "";
   } finally {
     codeLoading.value = false;
   }
+}
+
+/** 滑块验证完成后通知后端标记 */
+async function handleSliderPass(passed: boolean) {
+  if (!passed || !loginForm.captcha_key) return;
+  try {
+    await AuthAPI.sliderComplete(loginForm.captcha_key);
+  } catch {
+    isPassing.value = false;
+    await getCaptcha();
+  }
+}
+
+/** 监听滑块通过状态 */
+watch(isPassing, (val) => {
+  handleSliderPass(val);
+});
+
+/** 顶部栏租户切换 */
+async function handleTopBarTenantChange(tenantId: number) {
+  currentTenantId.value = tenantId;
+  isTenantResolved.value = true;
+  await configStore.getConfig(true, tenantId);
 }
 
 function resolveRedirectTarget(query: LocationQuery): RouteLocationRaw {
@@ -562,6 +681,7 @@ let voteTimer: ReturnType<typeof setTimeout> | null = null;
 onMounted(async () => {
   setupAccount("super");
   await configStore.getConfig(true);
+  await autoDetectTenant();
   await tryConsumeOAuthCallback();
   if (userStore.isLogin) {
     await router.replace(resolveRedirectTarget(route.query));
@@ -574,7 +694,6 @@ onMounted(async () => {
 onActivated(() => {
   if (authPanel.value !== "login" || loginFlowMode.value !== "account") return;
   getCaptcha();
-  loginForm.captcha = "";
 });
 
 onBeforeUnmount(() => {
@@ -588,7 +707,6 @@ watch(
   () => {
     if (authPanel.value !== "login" || loginFlowMode.value !== "account") return;
     getCaptcha();
-    loginForm.captcha = "";
   }
 );
 
@@ -613,6 +731,8 @@ const handleSubmit = async () => {
       appStore.showGuide(true);
     }
   } catch (error) {
+    // 自增 formKey 强制重新挂载表单（滑块自动重置为初始状态）
+    formKey.value++;
     await getCaptcha();
     if (!(error instanceof HttpError)) {
       console.error("[Login] Unexpected error:", error);
@@ -624,7 +744,6 @@ const handleSubmit = async () => {
     }
   } finally {
     loading.value = false;
-    accountFormRef.value?.resetDragVerify?.();
   }
 };
 
@@ -639,19 +758,23 @@ async function submitRegister() {
     registerLoading.value = true;
     // 租户自助注册（PRD §4.5）
     const regData: TenantRegisterForm = {
+      tenant_name: registerForm.tenant_name,
       username: registerForm.username,
       password: registerForm.password,
-      email: registerForm.email || `${registerForm.username}@temp.com`,
+      email: registerForm.email,
     };
     await AuthAPI.tenantRegister(regData);
+    // 注册成功后自动填充登录表单并提交
     loginForm.username = registerForm.username;
     loginForm.password = registerForm.password;
+    registerForm.tenant_name = "";
     registerForm.username = "";
     registerForm.password = "";
     registerForm.confirmPassword = "";
     registerForm.email = "";
     registerAgreementRead.value = false;
     setAuthPanel("login");
+    await handleSubmit();
   } catch (error) {
     console.error("[Login] register:", error);
   } finally {
@@ -667,6 +790,7 @@ async function submitForget() {
     await UserAPI.forgetPassword(forgetForm);
     loginForm.username = forgetForm.username;
     loginForm.password = forgetForm.new_password;
+    forgetForm.tenant_name = "";
     forgetForm.username = "";
     forgetForm.new_password = "";
     forgetForm.confirmPassword = "";

@@ -13,16 +13,12 @@
       :show-search="true"
       :disabled-search="false"
       :default-expanded="false"
-      :button-left-limit="0"
+      include-audit
       @search="handleSearchBarSearch"
       @reset="onResetSearch"
     />
 
-    <ElCard
-      shadow="hover"
-      class="fa-table-card"
-      :style="{ 'margin-top': showSearchBar ? '12px' : '0' }"
-    >
+    <ElCard class="fa-table-card" :style="{ 'margin-top': showSearchBar ? '12px' : '0' }">
       <FaTableHeader
         v-model:columns="columnChecks"
         v-model:showSearchBar="showSearchBar"
@@ -343,6 +339,20 @@ const nodeSearchItems = computed<SearchFormItem[]>(() => [
     clearable: true,
     span: 6,
   },
+  {
+    label: "状态",
+    key: "status",
+    type: "select",
+    props: {
+      placeholder: "请选择状态",
+      options: [
+        { label: "启用", value: 0 },
+        { label: "停用", value: 1 },
+      ],
+      clearable: true,
+    },
+    span: 6,
+  },
 ]);
 
 const faTableRef = ref<{ elTableRef?: { clearSelection: () => void } } | null>(null);
@@ -492,7 +502,7 @@ const {
         label: "操作",
         width: 220,
         fixed: "right",
-        align: "right",
+        align: "center",
         formatter: (row: NodeTable) => formatNodeOperationCell(row),
       },
     ],

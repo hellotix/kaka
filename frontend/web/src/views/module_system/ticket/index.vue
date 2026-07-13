@@ -1,80 +1,172 @@
-<!-- 工单管理：Fa 布局 + useTable，与公告通知页一致 -->
 <template>
   <div class="fa-full-height">
     <FaSearchBar
       v-show="showSearchBar"
-      ref="searchBarRef"
       v-model="searchForm"
       :items="ticketSearchItems"
-      :rules="searchBarRules"
       :is-expand="false"
       :show-expand="true"
       :show-reset="true"
       :show-search="true"
       :disabled-search="false"
       :default-expanded="false"
+      include-audit
+      :audit-item-options="{ showTenantId: true }"
       @search="handleSearchBarSearch"
       @reset="onResetSearch"
-    >
-      <template #created_id>
-        <FaUserTableSelect
-          :model-value="searchForm.created_id == null ? undefined : searchForm.created_id"
-          @update:model-value="(v: number | undefined) => (searchForm.created_id = v)"
-          @confirm-click="afterUserSelectSearch"
-          @clear-click="afterUserSelectSearch"
-        />
-      </template>
-      <template #assigned_id>
-        <FaUserTableSelect
-          :model-value="searchForm.assigned_id == null ? undefined : searchForm.assigned_id"
-          @update:model-value="(v: number | undefined) => (searchForm.assigned_id = v)"
-          @confirm-click="afterUserSelectSearch"
-          @clear-click="afterUserSelectSearch"
-        />
-      </template>
-    </FaSearchBar>
+    />
 
-    <ElCard
-      shadow="hover"
-      class="fa-table-card"
-      :style="{ 'margin-top': showSearchBar ? '12px' : '0' }"
-    >
+    <ElCard class="fa-table-card" :style="{ 'margin-top': showSearchBar ? '12px' : '0' }">
       <FaTableHeader
         v-model:columns="columnChecks"
         v-model:showSearchBar="showSearchBar"
         :loading="loading"
-        @refresh="refreshData"
+        layout="search,refresh"
+        @refresh="fetchData"
       >
         <template #left>
-          <FaTableHeaderLeft
-            :remove-ids="selectedIds"
-            :perm-create="['module_system:ticket:create']"
-            :perm-export="['module_system:ticket:export']"
-            :perm-delete="['module_system:ticket:delete']"
-            :perm-patch="['module_system:ticket:patch']"
-            :delete-loading="batchDeleting"
-            :create-loading="createLoading"
-            :more-loading="moreLoading"
-            @add="handleAdd"
-            @export="openExport"
-            @delete="handleBatchDelete"
-            @more="handleMoreClick"
-          />
+          <ElButton
+            v-if="hasAuth('module_system:ticket:create')"
+            type="primary"
+            @click="handleOpenDialog('create')"
+          >
+            <ElIcon><Plus /></ElIcon>
+            提交工单
+          </ElButton>
+          <ElButton
+            v-if="hasAuth('module_system:ticket:delete') && selectedIds.length"
+            type="danger"
+            :loading="batchDeleting"
+            @click="handleBatchDelete"
+          >
+            <ElIcon><Delete /></ElIcon>
+            批量删除
+          </ElButton>
         </template>
       </FaTableHeader>
 
-      <FaTable
-        ref="faTableRef"
-        :loading="loading"
-        :data="data"
-        :columns="columns"
-        :pagination="pagination"
-        @selection-change="onTableSelectionChange"
-        @pagination:size-change="handleSizeChange"
-        @pagination:current-change="handleCurrentChange"
-      />
+      <!-- 加载骨架 -->
+      <ElSkeleton v-if="loading && !data.length" :rows="4" animated style="margin-top: 16px">
+        <template #template>
+          <div class="ticket-skeleton-grid">
+            <div v-for="i in 6" :key="i" style="height: 320px">
+              <ElSkeletonItem
+                variant="rect"
+                style="width: 100%; height: 100%; border-radius: var(--custom-radius)"
+              />
+            </div>
+          </div>
+        </template>
+      </ElSkeleton>
+
+      <!-- 卡片网格 -->
+      <ElScrollbar v-else-if="data.length" class="ticket-scroll">
+        <div class="ticket-grid">
+          <div
+            v-for="item in data"
+            :key="item.id"
+            class="ticket-card fa-card"
+            :class="[`status-${item.status}`]"
+          >
+            <!-- 头部：类型图标 + 标题 + 状态徽章 -->
+            <div class="card-header">
+              <span class="card-icon" :class="typeIconClass(item.ticket_type!)">
+                <FaSvgIcon :icon="typeIcon(item.ticket_type!)" />
+              </span>
+              <div class="card-title-group">
+                <span class="card-title" :title="item.title">{{ item.title }}</span>
+                <ElTag size="small" :type="statusTagType(String(item.status))" effect="plain">
+                  {{ statusLabel(String(item.status)) }}
+                </ElTag>
+              </div>
+            </div>
+
+            <!-- 内容摘要 -->
+            <p class="card-desc">{{ contentSummary(item.ticket_content) }}</p>
+
+            <!-- 标签行 -->
+            <div class="card-tags">
+              <ElTag size="small" effect="plain" :type="typeTag(item.ticket_type!)">
+                {{ typeLabel(item.ticket_type!) }}
+              </ElTag>
+              <span v-if="item.assigned_by" class="tag-assignee">
+                <FaSvgIcon icon="ri:user-3-line" />
+                {{ item.assigned_by.name }}
+              </span>
+              <span v-else class="tag-unassigned">未分配</span>
+              <span v-if="item.reply" class="tag-replied">
+                <FaSvgIcon icon="ri:chat-1-line" />已回复
+              </span>
+            </div>
+
+            <!-- 底部 -->
+            <div class="card-footer">
+              <span class="footer-meta">
+                {{ item.created_by?.name ?? "—" }}
+                &nbsp;·&nbsp;
+                {{ item.created_time?.slice(0, 10) ?? "" }}
+              </span>
+              <div class="footer-actions">
+                <ElButton
+                  size="small"
+                  link
+                  type="primary"
+                  @click="handleOpenDialog('detail', item.id!)"
+                >
+                  详情
+                </ElButton>
+                <ElButton
+                  v-if="hasAuth('module_system:ticket:update') && item.status! < 3"
+                  size="small"
+                  type="primary"
+                  @click="handleOpenDialog('update', item.id!)"
+                >
+                  处理
+                </ElButton>
+                <ElDropdown v-if="showCardMore(item)" trigger="click">
+                  <ElButton size="small" link type="primary" class="more-btn">
+                    <ElIcon><MoreFilled /></ElIcon>
+                  </ElButton>
+                  <template #dropdown>
+                    <ElDropdownMenu>
+                      <ElDropdownItem
+                        v-if="hasAuth('module_system:ticket:update') && item.status! < 3"
+                        @click="closeTicket(item.id!)"
+                      >
+                        <ElIcon><CircleClose /></ElIcon>关闭
+                      </ElDropdownItem>
+                      <ElDropdownItem
+                        v-if="hasAuth('module_system:ticket:delete')"
+                        divided
+                        @click="deleteTicketRow(item.id!)"
+                      >
+                        <ElIcon><Delete /></ElIcon>删除
+                      </ElDropdownItem>
+                    </ElDropdownMenu>
+                  </template>
+                </ElDropdown>
+              </div>
+            </div>
+          </div>
+        </div>
+      </ElScrollbar>
+
+      <ElEmpty v-else-if="!loading" description="暂无工单" style="margin-top: 40px" />
+
+      <!-- 分页 -->
+      <div v-if="total > 0" class="ticket-pagination">
+        <FaPagination
+          :page="pageNo"
+          :limit="pageSize"
+          :total="total"
+          :page-sizes="[12, 24, 48]"
+          :disabled="loading"
+          @pagination="onPaginationChange"
+        />
+      </div>
     </ElCard>
 
+    <!-- ─── 对话框 ─── -->
     <FaDialog
       v-model="dialogVisible.visible"
       :title="dialogVisible.title"
@@ -92,7 +184,7 @@
           :data="detailFormData"
           :items="ticketDetailItems"
           label-width="120px"
-          max-height="75vh"
+          max-height="40vh"
         >
           <template #ticket_type="{ row }">
             <FaStatusTag
@@ -102,8 +194,8 @@
           </template>
           <template #status="{ row }">
             <FaStatusTag
-              :type="statusTag(row?.status as string)"
-              :label="statusLabel(row?.status as string)"
+              :type="statusTagType(String(row?.status ?? 0))"
+              :label="statusLabel(String(row?.status ?? 0))"
             />
           </template>
           <template #ticket_content>
@@ -121,6 +213,58 @@
             <p v-else class="ticket-html-empty">暂无回复</p>
           </template>
         </FaDescriptions>
+
+        <!-- ── 评论区 ── -->
+        <ElDivider content-position="left">
+          <span class="comment-divider-title">
+            <FaSvgIcon icon="ri:chat-3-line" style="margin-right: 6px" />
+            评论（{{ commentsTotal }}）
+          </span>
+        </ElDivider>
+        <div class="comment-section">
+          <ElScrollbar max-height="280px" class="comment-list-scroll">
+            <div v-if="commentsLoading" class="comment-loading">
+              <ElSkeleton :rows="2" animated />
+            </div>
+            <template v-else-if="comments.length">
+              <div v-for="c in comments" :key="c.id" class="comment-item">
+                <div class="comment-avatar">
+                  <FaSvgIcon icon="ri:user-6-fill" />
+                </div>
+                <div class="comment-body">
+                  <div class="comment-meta">
+                    <span class="comment-author">{{
+                      c.created_by_name || c.created_by?.name || "匿名"
+                    }}</span>
+                    <span class="comment-time">{{ c.created_time?.slice(0, 16) ?? "" }}</span>
+                  </div>
+                  <div class="comment-content" v-html="sanitizeComment(c.content)" />
+                </div>
+              </div>
+            </template>
+            <ElEmpty v-else description="暂无评论" :image-size="60" />
+          </ElScrollbar>
+
+          <!-- 提交评论 -->
+          <div class="comment-input-row">
+            <ElInput
+              v-model="commentInput"
+              type="textarea"
+              :rows="2"
+              placeholder="输入评论内容..."
+              :disabled="commentSubmitting"
+              resize="none"
+            />
+            <ElButton
+              type="primary"
+              :loading="commentSubmitting"
+              :disabled="!commentInput.trim()"
+              @click="handleSubmitComment"
+            >
+              发表评论
+            </ElButton>
+          </div>
+        </div>
       </template>
       <template v-else>
         <FaForm
@@ -185,100 +329,69 @@
         </FaForm>
       </template>
     </FaDialog>
-
-    <FaExportDialog
-      v-model="exportVisible"
-      :content-config="ticketExportContentConfig"
-      :query-params="exportQueryParams"
-      :page-data="data"
-      :selection-data="selectedRows"
-    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { useTable } from "@/hooks/core/useTable";
-import { useImportExport } from "@/hooks/core/useImportExport";
+import { ref, computed, watch, onMounted } from "vue";
 import { useCrudDialog } from "@/hooks/core/useCrudDialog";
-import { useTableSelection } from "@/hooks/core/useTableSelection";
 import { useCrudForm } from "@/hooks/core/useCrudForm";
-import { confirmDelete, confirmBatchDelete, confirmToggleStatus } from "@/hooks/core/useConfirm";
-import { cleanEmptyArrayParams, stripPaginationParams } from "@/utils/query";
-import type { ColumnOption } from "@/types/component";
+import { confirmDelete, confirmBatchDelete } from "@/hooks/core/useConfirm";
 import TicketAPI, {
+  getTicketComments,
+  createTicketComment,
   type TicketForm,
   type TicketPageQuery,
   type TicketTable,
+  type TicketCommentTable,
 } from "@/api/module_system/ticket";
 import { useAuth } from "@/hooks/core/useAuth";
-import { renderTableOperationCell, type TableOperationAction, resolveStatusColumns } from "@utils";
-import type { IObject } from "@/components/modal/types";
 import type { SearchFormItem } from "@/components/forms/fa-search-bar/index.vue";
-import type FaSearchBar from "@/components/forms/fa-search-bar/index.vue";
 import type { FormItem } from "@/components/forms/fa-form/index.vue";
 import type FaForm from "@/components/forms/fa-form/index.vue";
-import { ElMessage, ElSelect, ElOption, ElRadioGroup, ElRadio, ElScrollbar } from "element-plus";
+import {
+  ElTag,
+  ElButton,
+  ElIcon,
+  ElDropdown,
+  ElDropdownMenu,
+  ElDropdownItem,
+  ElSelect,
+  ElOption,
+  ElRadioGroup,
+  ElRadio,
+  ElScrollbar,
+  ElDivider,
+  ElInput,
+  ElMessageBox,
+} from "element-plus";
+import { Plus, Delete, MoreFilled, CircleClose } from "@element-plus/icons-vue";
 import DOMPurify from "dompurify";
 
 defineOptions({
-  name: "Ticket",
+  name: "TicketCard",
   inheritAttrs: false,
 });
 
 const { hasAuth } = useAuth();
 
+// ─── 搜索表单 ───
 type TicketSearchForm = {
   title?: string;
   ticket_type?: string;
   status?: number;
-  created_time?: string[];
   created_id?: number;
   assigned_id?: number;
 };
 
-function normalizeTicketQuery(params: Record<string, unknown>): TicketPageQuery {
-  return cleanEmptyArrayParams({ ...params }) as unknown as TicketPageQuery;
-}
-
-const TYPE_MAP: Record<string, string> = {
-  suggestion: "建议",
-  bug: "缺陷",
-  optimize: "优化",
-  other: "其他",
-};
-
-const STATUS_MAP: Record<string, string> = {
-  "0": "待处理",
-  "1": "处理中",
-  "2": "已完成",
-  "3": "已关闭",
-};
-
-function typeLabel(t: string) {
-  return TYPE_MAP[t] || t;
-}
-function statusLabel(s: string) {
-  return STATUS_MAP[s] || s;
-}
-function typeTag(t: string): any {
-  return { suggestion: "success", bug: "danger", optimize: "warning", other: "info" }[t] || "info";
-}
-function statusTag(s: string): any {
-  return { "0": "warning", "1": "", "2": "success", "3": "info" }[s] || "info";
-}
-
 const searchForm = ref<TicketSearchForm>({
-  title: undefined,
-  ticket_type: undefined,
+  title: "",
+  ticket_type: "",
   status: undefined,
-  created_time: undefined,
   created_id: undefined,
   assigned_id: undefined,
 });
-
 const showSearchBar = ref(true);
-const searchBarRef = ref<InstanceType<typeof FaSearchBar> | null>(null);
-const searchBarRules: Record<string, unknown> = {};
 
 const statusOptions = ref([
   { label: "待处理", value: "0" },
@@ -326,27 +439,6 @@ const ticketSearchItems = computed<SearchFormItem[]>(() => [
     span: 6,
   },
   {
-    label: "创建时间",
-    key: "created_time",
-    type: "datetimerange",
-    span: 6,
-    props: {
-      type: "datetimerange",
-      rangeSeparator: "至",
-      startPlaceholder: "开始日期",
-      endPlaceholder: "结束日期",
-      format: "YYYY-MM-DD HH:mm:ss",
-      valueFormat: "YYYY-MM-DD HH:mm:ss",
-      style: { width: "100%" },
-    },
-  },
-  {
-    label: "创建人",
-    key: "created_id",
-    type: "input",
-    span: 6,
-  },
-  {
     label: "处理人",
     key: "assigned_id",
     type: "input",
@@ -354,16 +446,140 @@ const ticketSearchItems = computed<SearchFormItem[]>(() => [
   },
 ]);
 
-const faTableRef = ref<{ elTableRef?: { clearSelection: () => void } } | null>(null);
+// ─── 数据管理 ───
+const data = ref<TicketTable[]>([]);
+const loading = ref(false);
+const pageNo = ref(1);
+const pageSize = ref(12);
+const total = ref(0);
 
-// ─── 表格多选 ───
-const { selectedRows, selectedIds, batchDeleting, onTableSelectionChange } =
-  useTableSelection<TicketTable>();
+function normalizeTicketQuery(params: Record<string, unknown>): TicketPageQuery {
+  const r: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null && v !== "") {
+      r[k] = v;
+    }
+  }
+  return r as unknown as TicketPageQuery;
+}
 
-const createLoading = ref(false);
-const moreLoading = ref(false);
+async function fetchData() {
+  loading.value = true;
+  try {
+    const res = await TicketAPI.listTicket({
+      ...normalizeTicketQuery(searchForm.value as unknown as Record<string, unknown>),
+      page_no: pageNo.value,
+      page_size: pageSize.value,
+    });
+    const result = res.data?.data;
+    data.value = (result?.items as TicketTable[]) || [];
+    total.value = result?.total || 0;
+  } catch {
+    // ignore
+  } finally {
+    loading.value = false;
+  }
+}
 
-// ─── 对话框状态 ───
+function onPaginationChange({ page, limit }: { page: number; limit: number }) {
+  pageNo.value = page;
+  pageSize.value = limit;
+  fetchData();
+}
+
+const columnChecks = ref([]);
+
+async function handleSearchBarSearch(params: Record<string, unknown>) {
+  searchForm.value = {
+    title: (params.title as string) ?? "",
+    ticket_type: (params.ticket_type as string) ?? "",
+    status: params.status !== undefined ? Number(params.status) : undefined,
+    created_id: params.created_id as number | undefined,
+    assigned_id: params.assigned_id as number | undefined,
+  };
+  pageNo.value = 1;
+  await fetchData();
+}
+
+async function onResetSearch() {
+  searchForm.value = {
+    title: "",
+    ticket_type: "",
+    status: undefined,
+    created_id: undefined,
+    assigned_id: undefined,
+  };
+  pageNo.value = 1;
+  await fetchData();
+}
+
+// ─── 类型/状态辅助 ───
+const TYPE_MAP: Record<string, string> = {
+  suggestion: "建议",
+  bug: "缺陷",
+  optimize: "优化",
+  other: "其他",
+};
+
+const STATUS_MAP: Record<string, string> = {
+  "0": "待处理",
+  "1": "处理中",
+  "2": "已完成",
+  "3": "已关闭",
+};
+
+function typeLabel(t: string) {
+  return TYPE_MAP[t] || t;
+}
+function statusLabel(s: string) {
+  return STATUS_MAP[s] || s;
+}
+function typeTag(t: string): any {
+  return { suggestion: "success", bug: "danger", optimize: "warning", other: "info" }[t] || "info";
+}
+function statusTagType(s: string): "warning" | "info" | "success" | "danger" | undefined {
+  return { "0": "warning", "1": "info", "2": "success", "3": "info" }[s] as any;
+}
+function typeIcon(t: string): string {
+  return (
+    {
+      suggestion: "ri:lightbulb-line",
+      bug: "ri:bug-line",
+      optimize: "ri:rocket-line",
+      other: "ri:file-list-3-line",
+    }[t] || "ri:file-list-3-line"
+  );
+}
+function typeIconClass(t: string): string {
+  return (
+    {
+      suggestion: "icon-bg-warning",
+      bug: "icon-bg-danger",
+      optimize: "icon-bg-success",
+      other: "icon-bg-info",
+    }[t] || "icon-bg-info"
+  );
+}
+function contentSummary(html?: string): string {
+  if (!html) return "暂无内容";
+  const plain = html
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return plain.length > 120 ? plain.slice(0, 120) + "…" : plain || "暂无内容";
+}
+function showCardMore(row: TicketTable): boolean {
+  return (
+    (hasAuth("module_system:ticket:update") && row.status! < 3) ||
+    hasAuth("module_system:ticket:delete")
+  );
+}
+
+// ─── 多选 ───
+const selectedIds = ref<number[]>([]);
+const batchDeleting = ref(false);
+
+// ─── 对话框 ───
 const { dialogVisible } = useCrudDialog();
 
 const detailFormData = ref<TicketTable & { reply_content?: string }>(
@@ -374,11 +590,7 @@ const ticketDetailItems: import("@/components/others/fa-descriptions/index.vue")
   [
     { label: "工单标题", prop: "title", span: 4 },
     { label: "工单类型", prop: "ticket_type", slot: "ticket_type" },
-    {
-      label: "状态",
-      prop: "status",
-      slot: "status",
-    },
+    { label: "状态", prop: "status", slot: "status" },
     { label: "处理人", prop: "assigned_by.name" },
     { label: "描述", prop: "description", span: 4 },
     { label: "详细内容", prop: "ticket_content", slot: "ticket_content", span: 4 },
@@ -387,26 +599,21 @@ const ticketDetailItems: import("@/components/others/fa-descriptions/index.vue")
     { label: "更新人", prop: "updated_by.name" },
     { label: "创建时间", prop: "created_time" },
     { label: "更新时间", prop: "updated_time" },
+    { label: "所属租户", prop: "tenant_by.name" },
   ];
 
-/** 详情富文本 HTML（用于预览，已做 XSS 净化） */
 const detailContentHtml = computed({
-  get: () => {
-    const raw = detailFormData.value.ticket_content ?? "";
-    return DOMPurify.sanitize(raw);
-  },
+  get: () => DOMPurify.sanitize(detailFormData.value.ticket_content ?? ""),
   set: (v: string) => {
     detailFormData.value.ticket_content = v;
   },
 });
 
-/** 回复富文本 HTML（已做 XSS 净化） */
 const sanitizedReply = computed(() => {
   const raw = detailFormData.value.reply ?? "";
   return raw ? DOMPurify.sanitize(raw) : "";
 });
 
-/** 详情是否有可视文本 */
 const detailHasRenderableContent = computed(() => {
   const raw = detailFormData.value.ticket_content ?? "";
   if (!raw.trim()) return false;
@@ -449,7 +656,6 @@ const initialFormData: TicketForm & { reply_content?: string } = {
   reply_content: undefined,
 };
 
-// ─── CRUD 表单 ───
 const { submitLoading, handleCloseDialog, handleOpenDialog, handleSubmit } = useCrudForm<
   TicketForm & { reply_content?: string }
 >({
@@ -464,24 +670,15 @@ const { submitLoading, handleCloseDialog, handleOpenDialog, handleSubmit } = use
   titles: { create: "提交工单", update: "处理工单", detail: "工单详情" },
   detailFormData,
   onCreateSuccess: async () => {
-    await refreshCreate();
+    await fetchData();
   },
   onUpdateSuccess: async () => {
-    await refreshUpdate();
+    await fetchData();
   },
   onSubmitSuccess: async () => {
-    await refreshData();
+    await fetchData();
   },
 });
-
-async function handleAdd() {
-  createLoading.value = true;
-  try {
-    await handleOpenDialog("create");
-  } finally {
-    createLoading.value = false;
-  }
-}
 
 const ticketDialogFormItems = computed<FormItem[]>(() => [
   {
@@ -496,10 +693,7 @@ const ticketDialogFormItems = computed<FormItem[]>(() => [
     key: "ticket_type",
     type: "select",
     span: 12,
-    props: {
-      placeholder: "请选择类型",
-      clearable: true,
-    },
+    props: { placeholder: "请选择类型", clearable: true },
   },
   {
     label: "状态",
@@ -531,223 +725,28 @@ const ticketDialogFormItems = computed<FormItem[]>(() => [
   },
 ]);
 
-const {
-  columns,
-  columnChecks,
-  data,
-  loading,
-  pagination,
-  searchParams,
-  getData,
-  replaceSearchParams,
-  resetSearchParams,
-  handleSizeChange,
-  handleCurrentChange,
-  refreshData,
-  refreshCreate,
-  refreshUpdate,
-  refreshRemove,
-} = useTable({
-  core: {
-    apiFn: TicketAPI.listTicket,
-    apiParams: {
-      page_no: 1,
-      page_size: 10,
-    },
-    columnsFactory: resolveStatusColumns<TicketTable>(() => [
-      { type: "selection", width: 48, fixed: "left" },
-      { type: "globalIndex", width: 56, label: "序号" },
-      { prop: "title", label: "工单标题", minWidth: 180, showOverflowTooltip: true },
-      {
-        prop: "ticket_type",
-        label: "工单类型",
-        width: 100,
-        status: {
-          suggestion: { type: "success", text: "建议" },
-          bug: { type: "danger", text: "缺陷" },
-          optimize: { type: "warning", text: "优化" },
-          other: { type: "info", text: "其他" },
-        },
-      },
-      {
-        prop: "status",
-        label: "状态",
-        width: 100,
-        status: {
-          "0": { type: "warning", text: "待处理" },
-          "1": { type: "info", text: "处理中" },
-          "2": { type: "success", text: "已完成" },
-          "3": { type: "info", text: "已关闭" },
-        },
-      },
-      {
-        prop: "assigned_by",
-        label: "处理人",
-        minWidth: 100,
-        formatter: (row: TicketTable) => row.assigned_by?.name ?? "—",
-      },
-      { prop: "ticket_content", label: "内容摘要", minWidth: 200, showOverflowTooltip: true },
-      { prop: "created_time", label: "创建时间", width: 168, showOverflowTooltip: true },
-      {
-        prop: "created_by",
-        label: "创建人",
-        minWidth: 100,
-        formatter: (row: TicketTable) => row.created_by?.name ?? "—",
-      },
-      {
-        prop: "operation",
-        label: "操作",
-        width: 280,
-        fixed: "right",
-        align: "right",
-        formatter: (row: TicketTable) => formatTicketOperationCell(row),
-      },
-    ]),
-  },
-});
-
-const ticketCrudCols = computed(() =>
-  columns.value.map((c: ColumnOption<TicketTable>) => {
-    const t = (c as { type?: string }).type;
-    return {
-      prop: c.prop,
-      label: c.label,
-      type: t === "selection" ? ("selection" as const) : ("default" as const),
-      show: true,
-    };
-  })
-);
-
-const exportQueryParams = computed(() => {
-  const sp = stripPaginationParams(searchParams as Record<string, unknown>);
-  return normalizeTicketQuery(sp);
-});
-
-const ticketExportContentConfig = computed(() => ({
-  permPrefix: "module_system:ticket",
-  cols: ticketCrudCols.value,
-  exportsBlobAction: async (params: IObject) => {
-    const merged = normalizeTicketQuery({
-      ...(exportQueryParams.value as unknown as Record<string, unknown>),
-      ...params,
-    } as Record<string, unknown>);
-    const res = await TicketAPI.exportTicket(merged as TicketPageQuery);
-    return res.data as unknown as Blob;
-  },
-}));
-
-const { exportVisible, openExport } = useImportExport();
-
-function buildTicketReplaceParams(p: TicketSearchForm): Record<string, unknown> {
-  return {
-    title: p.title,
-    ticket_type: p.ticket_type,
-    status: p.status,
-    created_id: p.created_id,
-    assigned_id: p.assigned_id,
-    created_time:
-      Array.isArray(p.created_time) && p.created_time.length === 2 ? p.created_time : undefined,
-  };
-}
-
-async function handleSearchBarSearch(params: TicketSearchForm) {
-  await searchBarRef.value?.validate?.();
-  replaceSearchParams(buildTicketReplaceParams(params));
-  getData();
-}
-
-async function applyTicketSearchFromForm() {
-  await searchBarRef.value?.validate?.();
-  replaceSearchParams(buildTicketReplaceParams(searchForm.value));
-  getData();
-}
-
-async function afterUserSelectSearch() {
-  await nextTick();
-  await applyTicketSearchFromForm();
-}
-
-function onResetSearch() {
-  searchForm.value = {
-    title: undefined,
-    ticket_type: undefined,
-    status: undefined,
-    created_time: undefined,
-    created_id: undefined,
-    assigned_id: undefined,
-  };
-  void resetSearchParams();
-}
-
+// ─── 操作 ───
 async function deleteTicketRow(id: number) {
   try {
     await confirmDelete();
     await TicketAPI.deleteTicket([id]);
-    faTableRef.value?.elTableRef?.clearSelection();
-    await refreshRemove();
+    await fetchData();
   } catch {
     // 用户取消
   }
 }
 
-function buildTicketRowActions(row: TicketTable): TableOperationAction[] {
-  const all: TableOperationAction[] = [
-    {
-      key: "detail",
-      label: "详情",
-      artType: "view",
-      perm: "module_system:ticket:detail",
-      run: () => {
-        if (row.id != null) void handleOpenDialog("detail", row.id);
-      },
-    },
-    {
-      key: "process",
-      label: "处理",
-      artType: "edit",
-      icon: "ri:settings-line",
-      perm: "module_system:ticket:update",
-      run: () => {
-        if (row.id != null) void handleOpenDialog("update", row.id);
-      },
-    },
-    {
-      key: "close",
-      label: "关闭",
-      artType: "delete",
-      icon: "ri:close-circle-line",
-      perm: "module_system:ticket:update",
-      run: () => {
-        if (row.id != null) void closeTicket(row.id);
-      },
-    },
-    {
-      key: "delete",
-      label: "删除",
-      artType: "delete",
-      icon: "ri:delete-bin-4-line",
-      perm: "module_system:ticket:delete",
-      run: () => {
-        if (row.id != null) deleteTicketRow(row.id);
-      },
-    },
-  ];
-  return all.filter((a) => a.perm != null && hasAuth(a.perm));
-}
-
-function formatTicketOperationCell(row: TicketTable) {
-  return renderTableOperationCell(buildTicketRowActions(row), {
-    wrapperClass: "inline-flex flex-wrap items-center justify-end gap-1 ticket-table-actions",
-  });
-}
-
 async function closeTicket(id: number) {
   try {
+    await ElMessageBox.confirm("确认关闭该工单?", "警告", {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      type: "warning",
+    });
     await TicketAPI.updateTicket(id, { status: 3 });
-    ElMessage.success("工单已关闭");
-    await refreshData();
+    await fetchData();
   } catch {
-    ElMessage.error("关闭失败");
+    /* 用户取消或接口错误已由拦截器提示 */
   }
 }
 
@@ -757,9 +756,9 @@ async function handleBatchDelete() {
   try {
     await confirmBatchDelete(ids.length);
     batchDeleting.value = true;
+    selectedIds.value = [];
     await TicketAPI.deleteTicket(ids);
-    faTableRef.value?.elTableRef?.clearSelection();
-    await refreshRemove();
+    await fetchData();
   } catch {
     // 用户取消
   } finally {
@@ -767,27 +766,258 @@ async function handleBatchDelete() {
   }
 }
 
-async function handleMoreClick(status: number) {
-  const ids = selectedIds.value;
-  if (!ids.length) {
-    ElMessage.warning("请先选择要操作的数据");
-    return;
+onMounted(() => {
+  fetchData();
+});
+
+// ─── 评论 ───
+const comments = ref<TicketCommentTable[]>([]);
+const commentsTotal = ref(0);
+const commentsLoading = ref(false);
+const commentInput = ref("");
+const commentSubmitting = ref(false);
+
+// 打开详情时自动加载评论
+watch(
+  () => detailFormData.value.id,
+  (newId) => {
+    if (newId && dialogVisible.visible && dialogVisible.type === "detail") {
+      loadComments(newId);
+    }
   }
+);
+
+async function loadComments(ticketId: number) {
+  commentsLoading.value = true;
   try {
-    await confirmToggleStatus(status);
-    moreLoading.value = true;
-    await TicketAPI.batchTicket({ ids, status });
-    await refreshData();
+    const res = await getTicketComments(ticketId, { page_no: 1, page_size: 50 });
+    const result = res.data?.data;
+    comments.value = (result?.items as TicketCommentTable[]) || [];
+    commentsTotal.value = result?.total || 0;
   } catch {
-    // 用户取消
+    // ignore
   } finally {
-    moreLoading.value = false;
+    commentsLoading.value = false;
+  }
+}
+
+function sanitizeComment(html: string): string {
+  return DOMPurify.sanitize(html || "");
+}
+
+async function handleSubmitComment() {
+  const tid = detailFormData.value.id;
+  if (!tid || !commentInput.value.trim()) return;
+  commentSubmitting.value = true;
+  try {
+    await createTicketComment(tid, { content: commentInput.value.trim() });
+    commentInput.value = "";
+    await loadComments(tid);
+  } catch {
+    // ignore
+  } finally {
+    commentSubmitting.value = false;
   }
 }
 </script>
 
 <style scoped lang="scss">
-/* 富文本预览区域阅读样式（与 FaWangEditor 输出 HTML 展示一致） */
+.fa-full-height {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.ticket-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.ticket-scroll {
+  flex: 1;
+  min-height: 0;
+  margin-top: 16px;
+}
+
+.ticket-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.ticket-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 20px;
+  overflow: hidden;
+  transition:
+    box-shadow 0.3s,
+    transform 0.25s;
+
+  &:hover {
+    box-shadow: 0 8px 24px rgb(0 0 0 / 8%);
+    transform: translateY(-3px);
+  }
+
+  &.status-0 {
+    border-left: 3px solid var(--el-color-warning);
+  }
+
+  &.status-1 {
+    border-left: 3px solid var(--el-color-info);
+  }
+
+  &.status-2 {
+    border-left: 3px solid var(--el-color-success);
+  }
+
+  &.status-3 {
+    border-left: 3px solid var(--el-border-color);
+  }
+
+  .card-header {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+
+  .card-icon {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+    border-radius: 10px;
+
+    &.icon-bg-default {
+      color: var(--el-text-color-secondary);
+      background: var(--el-fill-color);
+    }
+
+    &.icon-bg-warning {
+      color: var(--el-color-warning);
+      background: var(--el-color-warning-light-9);
+    }
+
+    &.icon-bg-success {
+      color: var(--el-color-success);
+      background: var(--el-color-success-light-9);
+    }
+
+    &.icon-bg-info {
+      color: var(--el-color-info);
+      background: var(--el-color-info-light-9);
+    }
+
+    &.icon-bg-danger {
+      color: var(--el-color-danger);
+      background: var(--el-color-danger-light-9);
+    }
+  }
+
+  .card-title-group {
+    display: flex;
+    flex: 1;
+    gap: 8px;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .card-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--el-text-color-primary);
+    white-space: nowrap;
+  }
+
+  .card-desc {
+    display: -webkit-box;
+    min-height: calc(13px * 1.6 * 2);
+    margin: 0 0 12px;
+    overflow: hidden;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--el-text-color-secondary);
+    -webkit-box-orient: vertical;
+  }
+
+  .card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+
+  .tag-assignee {
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
+  }
+
+  .tag-unassigned {
+    font-size: 12px;
+    color: var(--el-text-color-placeholder);
+  }
+
+  .tag-replied {
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+    font-size: 12px;
+    color: var(--el-color-primary);
+  }
+
+  .card-footer {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 12px;
+    margin-top: auto;
+    border-top: 1px solid var(--el-border-color-lighter);
+  }
+
+  .footer-meta {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
+    white-space: nowrap;
+  }
+
+  .footer-actions {
+    display: flex;
+    flex-shrink: 0;
+    gap: 4px;
+    align-items: center;
+  }
+
+  .more-btn {
+    padding: 2px 4px;
+    font-size: 16px;
+  }
+}
+
+.ticket-pagination {
+  flex-shrink: 0;
+  padding-top: 16px;
+}
+
+/* ─── 富文本预览样式 ─── */
 .ticket-html-preview {
   box-sizing: border-box;
   min-height: 120px;
@@ -841,5 +1071,110 @@ async function handleMoreClick(status: number) {
 .ticket-html-preview :deep(img) {
   max-width: 100%;
   height: auto;
+}
+
+/* ─── 评论区 ─── */
+.comment-divider-title {
+  display: inline-flex;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.comment-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 400px;
+}
+
+.comment-list-scroll {
+  padding: 0 4px;
+}
+
+.comment-loading {
+  padding: 12px 0;
+}
+
+.comment-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.comment-avatar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  font-size: 16px;
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+  border-radius: 50%;
+}
+
+.comment-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.comment-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.comment-author {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.comment-time {
+  font-size: 12px;
+  color: var(--el-text-color-placeholder);
+}
+
+.comment-content {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--el-text-color-regular);
+  overflow-wrap: anywhere;
+}
+
+.comment-content :deep(p) {
+  margin: 4px 0;
+}
+
+.comment-content :deep(img) {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+
+.comment-input-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding-top: 8px;
+  border-top: 1px solid var(--el-border-color-lighter);
+
+  .el-textarea {
+    flex: 1;
+  }
+
+  .el-button {
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
 }
 </style>

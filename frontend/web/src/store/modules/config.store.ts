@@ -64,6 +64,11 @@ export const useConfigStore = defineStore(
       }
       configLoading.value = true;
       try {
+        // 强制刷新时先清空，避免遗留旧租户的配置
+        if (force) {
+          configData.value = {};
+        }
+
         // 1. 获取系统级配置（演示模式、IP黑白名单等）
         const response = await ParamsAPI.getInitConfig();
         const list = response?.data?.data;

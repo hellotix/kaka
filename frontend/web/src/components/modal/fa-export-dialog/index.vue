@@ -55,7 +55,9 @@
       <!-- 弹窗底部操作按钮 -->
       <template #footer>
         <div :style="'padding-right: var(--el-dialog-padding-primary)'">
-          <ElButton type="primary" @click="handleExportsSubmit">确 定</ElButton>
+          <ElButton type="primary" :loading="loadingRef" @click="handleExportsSubmit"
+            >确 定</ElButton
+          >
           <ElButton @click="handleCloseExportsModal">取 消</ElButton>
         </div>
       </template>
@@ -234,13 +236,18 @@ async function handleExports() {
 }
 
 // 导出确认
-const handleExportsSubmit = useThrottleFn(() => {
-  exportsFormRef.value?.validate((valid: boolean) => {
-    if (valid) {
-      handleExports();
-      handleCloseExportsModal();
-    }
-  });
+const loadingRef = ref(false);
+const handleExportsSubmit = useThrottleFn(async () => {
+  try {
+    await exportsFormRef.value?.validate();
+    loadingRef.value = true;
+    await handleExports();
+    handleCloseExportsModal();
+  } catch {
+    // 校验失败
+  } finally {
+    loadingRef.value = false;
+  }
 }, 3000);
 
 // 浏览器保存文件

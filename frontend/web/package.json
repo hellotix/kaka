@@ -6,15 +6,14 @@
   "type": "module",
   "scripts": {
     "i": "pnpm install",
-    "dev": "vite",
-    "dev:force": "vite --force",
+    "dev": "vite --mode dev",
+    "dev:force": "vite --force --mode dev",
     "prod": "vite --mode prod",
     "build": "vue-tsc --noEmit && vite build",
-    "build:pro": "pnpm vite build --mode pro",
-    "build:gitee": "pnpm vite build --mode gitee",
+    "build:prod": "pnpm vite build --mode prod",
     "build:dev": "pnpm vite build --mode dev",
     "build:test": "pnpm vite build --mode test",
-    "serve:pro": "pnpm vite preview --mode pro",
+    "serve:prod": "pnpm vite preview --mode prod",
     "serve:dev": "pnpm vite preview --mode dev",
     "serve:test": "pnpm vite preview --mode test",
     "clean": "pnpx rimraf node_modules",
@@ -178,7 +177,7 @@
     "vitest": "^4.1.7",
     "vue-demi": "^0.14.9",
     "vue-eslint-parser": "^10.4.0",
-    "vue-img-cutter": "^3.0.5",
+    "vue-img-cutter": "^3.1.1",
     "vue-tsc": "^3.2.9"
   },
   "pnpm": {

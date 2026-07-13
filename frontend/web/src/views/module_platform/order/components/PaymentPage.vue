@@ -135,7 +135,7 @@ async function loadOrderStatus() {
 async function startPay() {
   paying.value = true;
   try {
-    const res = await OrderAPI.payOrder(orderId.value, { pay_method: selectedMethod.value });
+    const res = await OrderAPI.payOrder(orderId.value, selectedMethod.value);
     const data = res.data?.data;
     orderNo.value = data.order_no;
     amount.value = data.amount;

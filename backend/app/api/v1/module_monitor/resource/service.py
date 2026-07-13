@@ -1,4 +1,5 @@
 import ast
+import json
 import os
 import re
 import shutil
@@ -6,6 +7,8 @@ import urllib.parse
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
+
+from fastapi_cache import FastAPICache
 
 from app.config.setting import settings
 from app.core.exceptions import CustomException
@@ -51,9 +54,9 @@ class ResourceService:
 
         def strip_prefix(p: str) -> str:
             if p.startswith(root_static_prefix):
-                return p[len(root_static_prefix):].lstrip("/")
+                return p[len(root_static_prefix) :].lstrip("/")
             if p.startswith(static_prefix):
-                return p[len(static_prefix):].lstrip("/")
+                return p[len(static_prefix) :].lstrip("/")
             return p
 
         if path.startswith(("http://", "https://")):
@@ -65,11 +68,9 @@ class ResourceService:
 
         path = path.strip().replace("//", "/").replace("\\\\\\\\", "/").replace("\\\\", "/")
 
-        if path.startswith("/"):
-            path = path[1:]
+        path = path.removeprefix("/")
 
-        if path.startswith("upload/"):
-            path = path[7:]
+        path = path.removeprefix("upload/")
 
         if ".." in path or "\x00" in path:
             logger.error(f"检测到路径遍历攻击尝试: {path}")
@@ -217,6 +218,14 @@ class ResourceService:
         include_hidden: bool = False,
         base_url: str | None = None,
     ) -> ResourceDirectorySchema:
+        # 进程级缓存（目录内容变更极低频，30s 过期）
+        _RESOURCE_DIR_TTL = 30
+        cache_key = f"resource_dir:{path or 'root'}:{include_hidden}"
+        _backend = FastAPICache.get_backend()
+        cached = await _backend.get(cache_key)
+        if cached:
+            return ResourceDirectorySchema(**json.loads(cached.decode()))
+
         try:
             if path is None:
                 safe_path = ResourceService._get_resource_root()
@@ -255,7 +264,7 @@ class ResourceService:
             except PermissionError:
                 raise CustomException(msg="没有权限访问此目录")
 
-            return ResourceDirectorySchema(
+            result = ResourceDirectorySchema(
                 path=display_path,
                 name=os.path.basename(safe_path),
                 items=items,
@@ -263,6 +272,8 @@ class ResourceService:
                 total_dirs=total_dirs,
                 total_size=total_size,
             )
+            await _backend.set(cache_key, json.dumps(result.model_dump()).encode(), expire=_RESOURCE_DIR_TTL)
+            return result
 
         except CustomException:
             raise
@@ -372,13 +383,13 @@ class ResourceService:
     @staticmethod
     async def move_file(data: ResourceMoveSchema) -> None:
         source_safe = ResourceService._get_safe_path(data.source_path)
-        target_dir_safe = ResourceService._get_safe_path(data.target_dir)
+        target_dir_safe = ResourceService._get_safe_path(data.target_path)
 
         if not os.path.exists(source_safe):
             raise CustomException(msg=f"源文件不存在: {data.source_path}")
 
         if not os.path.isdir(target_dir_safe):
-            raise CustomException(msg=f"目标目录不存在: {data.target_dir}")
+            raise CustomException(msg=f"目标目录不存在: {data.target_path}")
 
         filename = os.path.basename(source_safe)
         target_path = os.path.join(target_dir_safe, filename)
@@ -393,18 +404,18 @@ class ResourceService:
         except OSError as e:
             raise CustomException(msg=f"移动文件失败: {e!s}")
 
-        logger.info(f"成功移动文件: {data.source_path} -> {data.target_dir}")
+        logger.info(f"成功移动文件: {data.source_path} -> {data.target_path}")
 
     @staticmethod
     async def copy_file(data: ResourceCopySchema) -> None:
         source_safe = ResourceService._get_safe_path(data.source_path)
-        target_dir_safe = ResourceService._get_safe_path(data.target_dir)
+        target_dir_safe = ResourceService._get_safe_path(data.target_path)
 
         if not os.path.exists(source_safe):
             raise CustomException(msg=f"源文件不存在: {data.source_path}")
 
         if not os.path.isdir(target_dir_safe):
-            raise CustomException(msg=f"目标目录不存在: {data.target_dir}")
+            raise CustomException(msg=f"目标目录不存在: {data.target_path}")
 
         filename = os.path.basename(source_safe)
         target_path = os.path.join(target_dir_safe, filename)
@@ -422,11 +433,11 @@ class ResourceService:
         except OSError as e:
             raise CustomException(msg=f"复制文件失败: {e!s}")
 
-        logger.info(f"成功复制文件: {data.source_path} -> {data.target_dir}")
+        logger.info(f"成功复制文件: {data.source_path} -> {data.target_path}")
 
     @staticmethod
     async def rename_file(data: ResourceRenameSchema) -> None:
-        safe_path = ResourceService._get_safe_path(data.file_path)
+        safe_path = ResourceService._get_safe_path(data.old_path)
         parent_dir = os.path.dirname(safe_path)
         safe_name = ResourceService._sanitize_filename(data.new_name)
 
@@ -438,11 +449,11 @@ class ResourceService:
         try:
             os.rename(safe_path, new_path)
         except PermissionError:
-            raise CustomException(msg=f"没有权限重命名: {data.file_path}")
+            raise CustomException(msg=f"没有权限重命名: {data.old_path}")
         except OSError as e:
             raise CustomException(msg=f"重命名失败: {e!s}")
 
-        logger.info(f"成功重命名: {data.file_path} -> {safe_name}")
+        logger.info(f"成功重命名: {data.old_path} -> {safe_name}")
 
     @staticmethod
     async def create_directory(data: ResourceCreateDirSchema) -> None:
@@ -524,8 +535,9 @@ class ResourceService:
 
     @staticmethod
     def _format_file_size(size_bytes: int) -> str:
+        size = float(size_bytes)
         for unit in ["B", "KB", "MB", "GB"]:
-            if size_bytes < 1024:
-                return f"{size_bytes:.2f} {unit}"
-            size_bytes /= 1024
-        return f"{size_bytes:.2f} TB"
+            if size < 1024:
+                return f"{size:.2f} {unit}"
+            size /= 1024
+        return f"{size:.2f} TB"

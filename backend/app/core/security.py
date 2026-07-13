@@ -30,8 +30,7 @@ class CustomOAuth2PasswordBearer(OAuth2PasswordBearer):
         )
 
     async def __call__(self, request: Request) -> str | None:
-        """
-        重写认证方法,校验token
+        """重写认证方法,校验token
 
         参数:
         - request (Request): FastAPI请求对象。
@@ -53,8 +52,7 @@ class CustomOAuth2PasswordBearer(OAuth2PasswordBearer):
 
 
 class CustomOAuth2PasswordRequestForm(OAuth2PasswordRequestForm):
-    """
-    自定义登录表单,扩展验证码等字段
+    """自定义登录表单,扩展验证码等字段
 
     参数:
     - grant_type (str | None): 授权类型,默认值为None,正则表达式为'password'。
@@ -98,8 +96,7 @@ OAuth2Schema = CustomOAuth2PasswordBearer(token_url="system/auth/login", descrip
 
 
 def create_access_token(payload: JWTPayloadSchema) -> str:
-    """
-    生成JWT访问令牌
+    """生成JWT访问令牌
 
     参数:
     - payload (JWTPayloadSchema): JWT有效载荷,包含用户信息等。
@@ -119,8 +116,7 @@ def create_access_token(payload: JWTPayloadSchema) -> str:
 
 
 def decode_access_token(token: str) -> JWTPayloadSchema:
-    """
-    解析JWT访问令牌
+    """解析JWT访问令牌
 
     参数:
     - token (str): JWT访问令牌字符串。

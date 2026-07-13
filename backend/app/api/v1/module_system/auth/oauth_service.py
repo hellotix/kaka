@@ -1,5 +1,4 @@
-"""
-第三方 OAuth2 登录（微信开放平台扫码、QQ、GitHub、Gitee）。
+"""第三方 OAuth2 登录（微信开放平台扫码、QQ、GitHub、Gitee）。
 
 各平台需在开放平台登记「授权回调域 / redirect_uri」为：
   {API}/system/auth/oauth/{provider}/callback
@@ -20,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.module_system.user.crud import UserCRUD
 from app.api.v1.module_system.user.model import UserModel
-from app.api.v1.module_system.user.schema import UserRegisterSchema
+from app.api.v1.module_system.user.schema import UserCreateSchema
 from app.api.v1.module_system.user.service import UserService
 from app.config.setting import settings
 from app.core.base_schema import AuthSchema, JWTOutSchema
@@ -33,7 +32,6 @@ from .service import LoginService
 OAuthProvider = Literal["wechat", "qq", "github", "gitee"]
 
 STATE_PREFIX = "oauth_state:"
-STATE_TTL_SECONDS = 600
 
 
 def _callback_url(request: Request, provider: OAuthProvider) -> str:
@@ -52,7 +50,7 @@ def _frontend_success_redirect(frontend_base: str, access_token: str, refresh_to
             "access_token": access_token,
             "refresh_token": refresh_token,
             "token_type": token_type,
-        }
+        },
     )
     sep = "&" if "?" in frontend_base else "?"
     return f"{frontend_base}{sep}{q}"
@@ -173,7 +171,7 @@ async def exchange_gitee_token(client_id: str, client_secret: str, code: str, re
             "client_id": client_id,
             "client_secret": client_secret,
             "redirect_uri": redirect_uri,
-        }
+        },
     )
     data = await _http_json("GET", f"https://gitee.com/oauth/token?{qs}")
     if not isinstance(data, dict):
@@ -191,7 +189,7 @@ async def exchange_wechat_token(app_id: str, secret: str, code: str) -> tuple[st
             "secret": secret,
             "code": code,
             "grant_type": "authorization_code",
-        }
+        },
     )
     data = await _http_json("GET", f"https://api.weixin.qq.com/sns/oauth2/access_token?{qs}")
     if not isinstance(data, dict):
@@ -211,7 +209,7 @@ async def exchange_qq_token(client_id: str, client_secret: str, code: str, redir
             "client_secret": client_secret,
             "code": code,
             "redirect_uri": redirect_uri,
-        }
+        },
     )
     text = await _http_text("GET", f"https://graph.qq.com/oauth2.0/token?{qs}")
     parts = dict(p.split("=", 1) for p in text.split("&") if "=" in p)
@@ -279,7 +277,7 @@ async def fetch_qq_profile(access_token: str, app_id: str, openid: str) -> tuple
             "access_token": access_token,
             "oauth_consumer_key": app_id,
             "openid": openid,
-        }
+        },
     )
     user = await _http_json("GET", f"https://graph.qq.com/user/get_user_info?{qs}")
     if not isinstance(user, dict):
@@ -308,27 +306,28 @@ async def ensure_oauth_user(
     unique_id: str,
     display_name: str,
 ) -> UserModel:
-    auth = AuthSchema(db=db, user=None, tenant_id=1, check_data_scope=False)
+    auth = AuthSchema(check_data_scope=False)
     username = _username_for_oauth(provider, unique_id)
-    existing = await UserCRUD(auth).get(username=username)
+    existing = await UserCRUD(auth, db).get(username=username)
     if existing:
         return existing
 
-    reg = UserRegisterSchema(
+    reg = UserCreateSchema(
         username=username,
         password=secrets.token_urlsafe(24),
         name=(display_name or username)[:32],
+        tenant_id=1,  # 系统租户：OAuth 用户未指定业务租户，统一落到 system tenant
         role_ids=list(settings.OAUTH_DEFAULT_ROLE_IDS),
     )
     try:
-        await UserService(auth).register(data=reg)
+        await UserService(auth, db).create(data=reg)
     except Exception:
         # 并发创建可能触发唯一约束冲突，回退到再次查询
-        existing = await UserCRUD(auth).get(username=username)
+        existing = await UserCRUD(auth, db).get(username=username)
         if existing:
             return existing
         raise CustomException(msg="OAuth 注册失败")
-    user = await UserCRUD(auth).get(username=username)
+    user = await UserCRUD(auth, db).get(username=username)
     if not user:
         raise CustomException(msg="OAuth 注册失败")
     logger.info(f"OAuth 自动注册用户: {username} ({provider})")
@@ -346,6 +345,8 @@ async def complete_oauth_login(
 ) -> tuple[JWTOutSchema, str]:
     rc = RedisCURD(redis)
     raw = await rc.get(f"{STATE_PREFIX}{state}")
+    # 安全加固：state 一次性消费（read-then-delete）— 防止重放 / 跨上下文劫持
+    await rc.delete(f"{STATE_PREFIX}{state}")
     if not raw:
         raise CustomException(msg="登录状态已失效，请重试")
     if isinstance(raw, bytes):
@@ -379,17 +380,19 @@ async def complete_oauth_login(
         raise CustomException(msg="不支持的 OAuth 渠道")
 
     user = await ensure_oauth_user(db=db, provider=provider, unique_id=uid, display_name=name)
-    if user.status == 1:
-        raise CustomException(msg="用户已被停用")
+    try:
+        if user.status == 1:
+            raise CustomException(msg="用户已被停用")
 
-    user = await UserCRUD(AuthSchema(db=db, user=None, tenant_id=1, check_data_scope=False)).update_last_login_crud(id=user.id)
-    if not user:
-        raise CustomException(msg="用户不存在")
+        user = await UserCRUD(AuthSchema(check_data_scope=False), db).update_last_login(id=user.id)
+        if not user:
+            raise CustomException(msg="用户不存在")
 
-    login_type = f"oauth_{provider}"
-    token = await LoginService.create_token(request=request, redis=redis, user=user, login_type=login_type)
-    await rc.delete(f"{STATE_PREFIX}{state}")
-    return token, frontend
+        login_type = f"oauth_{provider}"
+        token = await LoginService.create_token(request=request, redis=redis, user=user, login_type=login_type)
+        return token, frontend
+    finally:
+        await rc.delete(f"{STATE_PREFIX}{state}")
 
 
 async def save_oauth_state(
@@ -403,7 +406,7 @@ async def save_oauth_state(
     ok = await rc.set(
         f"{STATE_PREFIX}{state}",
         json.dumps({"provider": provider, "frontend_redirect": frontend_redirect}),
-        expire=STATE_TTL_SECONDS,
+        expire=settings.OAUTH_STATE_TTL,
     )
     if not ok:
         raise CustomException(msg="缓存 OAuth 状态失败")
@@ -423,12 +426,12 @@ def oauth_service_error_redirect(frontend_base: str, message: str) -> str:
 
 
 __all__ = [
-    "OAuthProvider",
     "STATE_PREFIX",
+    "OAuthProvider",
+    "_callback_url",
     "build_authorize_url",
     "complete_oauth_login",
-    "save_oauth_state",
-    "_callback_url",
-    "oauth_service_frontend_redirect_from_token",
     "oauth_service_error_redirect",
+    "oauth_service_frontend_redirect_from_token",
+    "save_oauth_state",
 ]

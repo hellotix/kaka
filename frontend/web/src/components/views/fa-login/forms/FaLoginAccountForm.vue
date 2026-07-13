@@ -13,7 +13,7 @@
       <ElFormItem>
         <ElSelect
           :model-value="demoAccountKey"
-          class="w-full"
+          class="custom-height w-full"
           :placeholder="$t('login.quickSelectAccount')"
           @update:model-value="$emit('setupAccount', $event as AccountKey)"
         >
@@ -60,44 +60,6 @@
         </ElFormItem>
       </ElTooltip>
 
-      <ElFormItem v-if="captchaState.enable" prop="captcha" class="login-captcha-row">
-        <div class="flex w-full items-center gap-2.5">
-          <ElInput
-            v-model.trim="loginForm.captcha"
-            class="custom-height flex-1"
-            clearable
-            :placeholder="$t('login.captchaCode')"
-            @keyup.enter="$emit('submit')"
-          >
-            <template #prefix>
-              <FaSvgIcon
-                icon="mdi:shield-lock-outline"
-                class="size-[18px] text-(--el-text-color-secondary)"
-              />
-            </template>
-          </ElInput>
-          <div
-            class="login-captcha-img flex h-10 w-[100px] shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded"
-            role="button"
-            :title="$t('login.captchaClickHint')"
-            @click="$emit('getCaptcha')"
-          >
-            <ElIcon v-if="codeLoading" class="is-loading" :size="20">
-              <Loading />
-            </ElIcon>
-            <ElImage
-              v-else-if="captchaState.img_base"
-              class="h-full w-full object-cover"
-              fit="cover"
-              :src="captchaState.img_base"
-            />
-            <ElText v-else type="info" size="small">
-              {{ $t("login.captchaClickHint") }}
-            </ElText>
-          </div>
-        </div>
-      </ElFormItem>
-
       <div class="login-form-tail flex flex-col gap-[1.1rem]">
         <div class="relative pb-3">
           <div
@@ -110,8 +72,8 @@
               :text="$t('login.sliderText')"
               :text-color="dragVerifyTextColor"
               :success-text="$t('login.sliderSuccessText')"
-              progress-bar-bg="var(--el-color-primary)"
-              :background="isDark ? '#26272F' : '#F1F1F4'"
+              progress-bar-bg="var(--el-color-success)"
+              :background="isDark ? '#26272F' : 'var(--el-border-color-light)'"
               handler-bg="var(--default-box-color)"
             />
           </div>
@@ -171,7 +133,7 @@
 </template>
 
 <script setup lang="ts">
-import { Loading, Lock, User } from "@element-plus/icons-vue";
+import { Lock, User } from "@element-plus/icons-vue";
 import type { CaptchaInfo, LoginFormData } from "@/api/module_system/auth";
 import type { FormRules } from "element-plus";
 import type { Account, AccountKey } from "@views/module_system/auth/login/types";
@@ -232,4 +194,10 @@ defineExpose({
 
 <style scoped lang="scss">
 @use "../fa-login";
+
+.el-select.custom-height {
+  :deep(.el-select__wrapper) {
+    height: 40px;
+  }
+}
 </style>

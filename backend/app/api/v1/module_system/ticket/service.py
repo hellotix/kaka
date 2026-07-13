@@ -1,13 +1,17 @@
-
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.module_system.user.model import UserModel
-from app.core.base_schema import AuthSchema
+from app.core.base_schema import AuthSchema, PageResultSchema
+from app.core.event_bus import EventBus
 from app.core.exceptions import CustomException
+from app.utils.common_util import search_to_dict
 
-from .crud import TicketCRUD
+from .crud import TicketCommentCRUD, TicketCRUD
 from .schema import (
     TicketBatchSchema,
+    TicketCommentCreateSchema,
+    TicketCommentOutSchema,
     TicketCreateSchema,
     TicketOutSchema,
     TicketQueryParam,
@@ -32,8 +36,9 @@ _TICKET_STATUS_LABELS = {
 class TicketService:
     """工单管理服务"""
 
-    def __init__(self, auth: AuthSchema) -> None:
+    def __init__(self, auth: AuthSchema, db: AsyncSession) -> None:
         self.auth = auth
+        self.db = db
 
     def _validate_status_transition(self, ticket, new_status: int) -> None:
         old_status = ticket.status if ticket.status is not None else 0
@@ -43,9 +48,10 @@ class TicketService:
         if new_status not in _TICKET_STATUS_TRANSITIONS.get(old_status, set()):
             raise CustomException(msg=f"不允许从{old_label}转换为{new_label}")
 
-        is_super = self.auth.user and self.auth.user.is_superuser
-        is_creator = self.auth.user and ticket.created_id == self.auth.user.id
-        is_assignee = self.auth.user and ticket.assigned_id == self.auth.user.id
+        user = self.auth.user
+        is_super = user.is_superuser if user else False
+        is_creator = user and user.id and ticket.created_id == user.id
+        is_assignee = user and user.id and ticket.assigned_id == user.id
 
         if new_status == 0:
             if not is_super:
@@ -72,26 +78,27 @@ class TicketService:
         page_size: int,
         search: TicketQueryParam | None = None,
         order_by: list | None = None,
-    ) -> dict:
-        return await TicketCRUD(self.auth).page(
+    ) -> PageResultSchema[TicketOutSchema]:
+        return await TicketCRUD(self.auth, self.db).page(
             offset=(page_no - 1) * page_size,
             limit=page_size,
             order_by=order_by or [{"created_time": "desc"}],
-            search=vars(search) if search else None,
+            search=search_to_dict(search),
             out_schema=TicketOutSchema,
         )
 
     async def detail(self, id: int) -> TicketOutSchema:
-        return await TicketCRUD(self.auth).get_or_404(id=id, out_schema=TicketOutSchema)
+        obj = await TicketCRUD(self.auth, self.db).get_or_404(id=id)
+        return TicketOutSchema.model_validate(obj)
 
     async def create(self, data: TicketCreateSchema) -> TicketOutSchema:
-        obj = await TicketCRUD(self.auth).create(data=data)
+        obj = await TicketCRUD(self.auth, self.db).create(data=data)
         if not obj:
             raise CustomException(msg="创建工单失败")
         return TicketOutSchema.model_validate(obj)
 
     async def update(self, id: int, data: TicketUpdateSchema) -> TicketOutSchema:
-        obj = await TicketCRUD(self.auth).get_or_404(id=id, msg="工单不存在")
+        obj = await TicketCRUD(self.auth, self.db).get_or_404(id=id, msg="工单不存在")
 
         if data.status is not None:
             self._validate_status_transition(obj, data.status)
@@ -101,32 +108,75 @@ class TicketService:
                 UserModel.id == data.assigned_id,
                 UserModel.is_deleted.is_(False),
             )
-            user_result = await self.auth.db.execute(user_stmt)
+            user_result = await self.db.execute(user_stmt)
             assigned_user = user_result.scalar_one_or_none()
             if not assigned_user:
                 raise CustomException(msg="指定的处理人不存在")
             if assigned_user.tenant_id != obj.tenant_id:
                 raise CustomException(msg="处理人必须与工单属于同一租户")
 
-        updated = await TicketCRUD(self.auth).update(id=id, data=data)
+        updated = await TicketCRUD(self.auth, self.db).update(id=id, data=data)
         if not updated:
             raise CustomException(msg="工单不存在")
+
+        # 有回复内容时 SSE 推送通知给工单创建者
+        if data.reply and obj.created_id:
+            await EventBus.publish(
+                obj.created_id,
+                {
+                    "type": "ticket_reply",
+                    "ticket_id": obj.id,
+                    "title": obj.title,
+                    "ticket_type": obj.ticket_type,
+                },
+            )
+
         return TicketOutSchema.model_validate(updated)
 
     async def delete(self, ids: list[int]) -> None:
         if not ids:
             raise CustomException(msg="删除对象不能为空")
-        await TicketCRUD(self.auth).delete(ids=ids)
+        await TicketCRUD(self.auth, self.db).delete(ids=ids)
 
     async def batch(self, data: TicketBatchSchema) -> None:
         if not data.ids:
             raise CustomException(msg="请选择要操作的工单")
 
-        tickets = await TicketCRUD(self.auth).get_by_ids_crud(ids=data.ids)
+        tickets = await TicketCRUD(self.auth, self.db).get_list(search={"id": ("in", data.ids)})
         ticket_map = {t.id: t for t in tickets}
         for tid in data.ids:
             obj = ticket_map.get(tid)
             if not obj:
                 raise CustomException(msg=f"工单[{tid}]不存在")
             self._validate_status_transition(obj, data.status)
-        await TicketCRUD(self.auth).set_crud(ids=data.ids, status=data.status)
+        await TicketCRUD(self.auth, self.db).set(ids=data.ids, status=data.status)
+
+
+class TicketCommentService:
+    """工单评论服务"""
+
+    def __init__(self, auth: AuthSchema, db: AsyncSession) -> None:
+        self.auth = auth
+        self.db = db
+
+    async def page(self, ticket_id: int, page_no: int, page_size: int) -> PageResultSchema[TicketCommentOutSchema]:
+        return await TicketCommentCRUD(self.auth, self.db).page(
+            offset=(page_no - 1) * page_size,
+            limit=page_size,
+            order_by=[{"created_time": "desc"}],
+            search={"ticket_id": ("eq", ticket_id)},
+            out_schema=TicketCommentOutSchema,
+        )
+
+    async def create(self, ticket_id: int, data: TicketCommentCreateSchema) -> TicketCommentOutSchema:
+        # 验证工单存在
+        await TicketCRUD(self.auth, self.db).get_or_404(id=ticket_id, msg="工单不存在")
+        create_data = data.model_dump() | {"ticket_id": ticket_id}
+        obj = await TicketCommentCRUD(self.auth, self.db).create(data=create_data)  # type: ignore[arg-type]
+        if not obj:
+            raise CustomException(msg="评论失败")
+        return TicketCommentOutSchema.model_validate(obj)
+
+    async def delete(self, comment_id: int) -> None:
+        await TicketCommentCRUD(self.auth, self.db).get_or_404(id=comment_id, msg="评论不存在")
+        await TicketCommentCRUD(self.auth, self.db).delete(ids=[comment_id])

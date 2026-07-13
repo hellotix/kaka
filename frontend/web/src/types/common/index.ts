@@ -94,7 +94,7 @@ export type ThemeMode = "light" | "dark" | "auto";
 export type Language = "zh-CN" | "en-US";
 
 // 环境类型
-export type Environment = "development" | "production" | "test";
+export type Environment = "dev" | "prod" | "test";
 
 // 弹窗类型
 export type DialogType = "add" | "edit";

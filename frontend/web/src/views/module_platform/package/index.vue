@@ -13,15 +13,12 @@
       :show-search="true"
       :disabled-search="false"
       :default-expanded="false"
+      include-audit
       @search="handleSearchBarSearch"
       @reset="onResetSearch"
     />
 
-    <ElCard
-      shadow="hover"
-      class="fa-table-card"
-      :style="{ 'margin-top': showSearchBar ? '12px' : '0' }"
-    >
+    <ElCard class="fa-table-card" :style="{ 'margin-top': showSearchBar ? '12px' : '0' }">
       <FaTableHeader
         v-model:columns="columnChecks"
         v-model:showSearchBar="showSearchBar"
@@ -39,7 +36,6 @@
             :more-loading="moreLoading"
             @add="handleAdd"
             @delete="handleBatchDelete"
-            @more="handleMoreClick"
           />
         </template>
       </FaTableHeader>
@@ -119,7 +115,7 @@
     <FaDrawer
       v-model="menuDialogVisible"
       title="套餐菜单权限"
-      size="1200px"
+      size="400px"
       destroy-on-close
       @close="menuDialogVisible = false"
     >
@@ -352,7 +348,7 @@ const {
         label: "操作",
         width: 200,
         fixed: "right",
-        align: "right",
+        align: "center",
         formatter: (row: PackageTable) => formatPkgOperationCell(row, opCtx),
       },
     ]),
@@ -618,14 +614,13 @@ async function deletePkgRow(id: number) {
 
 async function togglePkgStatus(row: PackageTable) {
   const newStatus = row.status === 0 ? 1 : 0;
-  const label = newStatus === 0 ? "启用" : "禁用";
   try {
     await confirmToggleStatus(newStatus);
     await PackageAPI.batchPackageStatus({ ids: [row.id!], status: Number(newStatus) });
-    ElMessage.success(`${label}成功`);
+    // 成功提示由 axios 拦截器统一处理
     await refreshData();
   } catch {
-    // 用户取消
+    // 用户取消 / 接口错误（已由拦截器提示）
   }
 }
 
@@ -645,9 +640,7 @@ async function handleBatchDelete() {
   }
 }
 
-function handleMoreClick() {
-  // 预留
-}
+// 预留
 
 // 菜单权限管理
 const menuDialogVisible = ref(false);
@@ -685,7 +678,6 @@ async function handleSaveMenus() {
   menuSaveLoading.value = true;
   try {
     await PackageAPI.setPackageMenus(currentMenuPkgId.value, checkedIds);
-    ElMessage.success("菜单权限保存成功");
     menuDialogVisible.value = false;
   } catch {
     // 错误由全局拦截处理

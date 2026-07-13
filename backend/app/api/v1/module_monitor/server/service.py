@@ -1,4 +1,3 @@
-
 import platform
 import socket
 import time
@@ -102,7 +101,7 @@ class ServerService:
                         used=bytes2human(usage.used),
                         free=bytes2human(usage.free),
                         usage=usage.percent,
-                    )
+                    ),
                 )
             except (PermissionError, FileNotFoundError):
                 continue

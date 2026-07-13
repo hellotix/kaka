@@ -32,24 +32,13 @@
           :show-search="true"
           :disabled-search="false"
           :default-expanded="false"
+          include-audit
+          :audit-item-options="{ showTenantId: true }"
           @search="handleSearchBarSearch"
           @reset="onResetSearch"
-        >
-          <template #created_id>
-            <FaUserTableSelect
-              :model-value="searchForm.created_id == null ? undefined : searchForm.created_id"
-              @update:model-value="(v: number | undefined) => (searchForm.created_id = v)"
-              @confirm-click="afterUserSelectSearch"
-              @clear-click="afterUserSelectSearch"
-            />
-          </template>
-        </FaSearchBar>
+        />
 
-        <ElCard
-          shadow="hover"
-          class="fa-table-card"
-          :style="{ 'margin-top': showSearchBar ? '12px' : '0' }"
-        >
+        <ElCard class="fa-table-card" :style="{ 'margin-top': showSearchBar ? '12px' : '0' }">
           <FaTableHeader
             v-model:columns="columnChecks"
             v-model:showSearchBar="showSearchBar"
@@ -166,7 +155,7 @@
             />
           </template>
           <template #role_ids>
-            <ElSelect v-model="formData.role_ids" multiple placeholder="请选择角色">
+            <ElSelect v-model="formData.role_ids" multiple placeholder="请选择角色" filterable>
               <ElOption
                 v-for="item in roleOptions"
                 :key="item.value"
@@ -177,7 +166,7 @@
             </ElSelect>
           </template>
           <template #position_ids>
-            <ElSelect v-model="formData.position_ids" multiple placeholder="请选择岗位">
+            <ElSelect v-model="formData.position_ids" multiple placeholder="请选择岗位" filterable>
               <ElOption
                 v-for="item in positionOptions"
                 :key="item.value"
@@ -218,8 +207,9 @@ defineOptions({
 import { h } from "vue";
 import { UserFilled } from "@element-plus/icons-vue";
 import { ElAvatar } from "element-plus";
-import { DeviceEnum } from "@/enums/settings/device.enum";
 import { ResultEnum } from "@/enums/api/result.enum";
+import { useAppStore } from "@stores";
+import { DeviceEnum } from "@/enums/settings/device.enum";
 import { useTable } from "@/hooks/core/useTable";
 import { useImportExport } from "@/hooks/core/useImportExport";
 import { useTableSelection } from "@/hooks/core/useTableSelection";
@@ -240,7 +230,7 @@ import {
 import PositionAPI from "@/api/module_system/position";
 import DeptAPI from "@/api/module_system/dept";
 import RoleAPI from "@/api/module_system/role";
-import { useAppStore, useUserStore } from "@stores";
+import { useUserStore } from "@stores";
 import { useAuth } from "@/hooks/core/useAuth";
 import type { ColumnOption } from "@/types/component";
 import type { DescriptionsItem } from "@/components/others/fa-descriptions/index.vue";
@@ -253,7 +243,6 @@ import FaDeptTree from "./components/FaDeptTree.vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 
 const { hasAuth } = useAuth();
-const appStore = useAppStore();
 const userStore = useUserStore();
 
 type UserSearchForm = {
@@ -358,6 +347,7 @@ const createLoading = ref(false);
 const moreLoading = ref(false);
 const deptFilterId = ref<string | number | undefined>(undefined);
 
+const appStore = useAppStore();
 const drawerSize = computed(() => (appStore.device === DeviceEnum.DESKTOP ? "450px" : "90%"));
 const deptOptions = ref<OptionType[]>();
 const roleOptions = ref<Array<{ value: number; label: string; disabled?: boolean }>>();
@@ -396,6 +386,7 @@ const userDetailItems: DescriptionsItem[] = [
   { label: "更新人", prop: "updated_by.name" },
   { label: "创建时间", prop: "created_time" },
   { label: "更新时间", prop: "updated_time" },
+  { label: "所属租户", prop: "tenant_by.name" },
   { label: "描述", prop: "description", span: 4 },
 ];
 
@@ -514,27 +505,6 @@ const userSearchItems = computed<SearchFormItem[]>(() => [
     },
     span: 6,
   },
-  {
-    label: "创建人",
-    key: "created_id",
-    type: "input",
-    span: 6,
-  },
-  {
-    label: "创建时间",
-    key: "created_time",
-    type: "datetimerange",
-    span: 6,
-    props: {
-      type: "datetimerange",
-      rangeSeparator: "至",
-      startPlaceholder: "开始日期",
-      endPlaceholder: "结束日期",
-      format: "YYYY-MM-DD HH:mm:ss",
-      valueFormat: "YYYY-MM-DD HH:mm:ss",
-      style: { width: "100%" },
-    },
-  },
 ]);
 
 const faTableRef = ref<{ elTableRef?: { clearSelection: () => void } } | null>(null);
@@ -552,7 +522,7 @@ async function handleResetPassword(row: UserInfo) {
       ElMessage.warning("密码至少需要6位字符，请重新输入");
       return;
     }
-    await UserAPI.resetUserPassword({ id: row.id!, password: value });
+    await UserAPI.resetUserPassword(row.id!, { password: value });
   } catch {
     // 用户取消
   }
@@ -565,9 +535,8 @@ async function deleteUserRow(id: number) {
     const idSet = [id];
     if (userStore.basicInfo.id && idSet.includes(userStore.basicInfo.id)) {
       userStore.clearUserInfo();
-    } else {
-      ElMessage.success("删除成功");
     }
+    // 成功 / 失败提示由 axios 拦截器统一处理
     faTableRef.value?.elTableRef?.clearSelection();
     await refreshRemove();
   } catch {
@@ -656,7 +625,7 @@ const {
         label: "操作",
         width: 280,
         fixed: "right",
-        align: "right",
+        align: "center",
         formatter: (row: UserInfo) => formatUserOperationCell(row, opCtx),
       },
     ]),
@@ -742,9 +711,22 @@ const formData = ref<UserForm>({
 const { dialogVisible } = useCrudDialog();
 
 const rules = reactive({
-  username: [{ required: true, message: "请输入账号", trigger: "blur" }],
-  name: [{ required: true, message: "请输入用户名", trigger: "blur" }],
-  password: [{ required: true, message: "请输入密码", trigger: "blur" }],
+  username: [
+    { required: true, message: "请输入账号", trigger: "blur" },
+    {
+      pattern: /^[a-zA-Z][a-zA-Z0-9_.-]{1,31}$/,
+      message: "账号需以字母开头，2-32位字母/数字/_.-",
+      trigger: "blur",
+    },
+  ],
+  name: [
+    { required: true, message: "请输入用户名", trigger: "blur" },
+    { max: 32, message: "用户名不能超过32位", trigger: "blur" },
+  ],
+  password: [
+    { required: true, message: "请输入密码", trigger: "blur" },
+    { min: 6, message: "密码不能少于6位", trigger: "blur" },
+  ],
   gender: [{ required: false, message: "请选择性别", trigger: "blur" }],
   email: [
     {
@@ -755,7 +737,7 @@ const rules = reactive({
   ],
   mobile: [
     {
-      pattern: /^1[3|4|5|6|7|8|9][0-9]\d{8}$/,
+      pattern: /^1[3-9]\d{9}$/,
       message: "请输入正确的手机号码",
       trigger: "blur",
     },
@@ -789,17 +771,6 @@ async function handleSearchBarSearch(params: UserSearchForm) {
   await getData();
 }
 
-async function applyUserSearchFromForm() {
-  await searchBarRef.value?.validate?.();
-  replaceSearchParams(buildUserReplaceParams(searchForm.value));
-  await getData();
-}
-
-async function afterUserSelectSearch() {
-  await nextTick();
-  await applyUserSearchFromForm();
-}
-
 function onResetSearch() {
   searchForm.value = {
     username: undefined,
@@ -824,12 +795,11 @@ async function handleImportUpload(formDataUpload: FormData) {
       ElMessage.success(`${response.data.msg}，${response.data.data}`);
       importVisible.value = false;
       await refreshData();
-    } else {
-      ElMessage.error(response.data.msg || "导入失败");
     }
+    // 失败分支提示由 axios 拦截器统一处理
   } catch (error: unknown) {
     console.error(error);
-    ElMessage.error("上传失败");
+    // 接口错误已由拦截器提示
   } finally {
     uploadLoading.value = false;
   }
@@ -887,27 +857,12 @@ async function handleOpenDialog(type: "create" | "update" | "detail", id?: numbe
   const deptResponse = await DeptAPI.listDept({});
   deptOptions.value = formatTree(deptResponse.data.data);
 
-  const roleResponse = await RoleAPI.listRole();
-  const roleRows = roleResponse.data.data.items ?? [];
-  roleOptions.value = roleRows
-    .filter((item) => item.id !== undefined && item.name !== undefined)
-    .map((item) => ({
-      value: item.id as number,
-      label: item.name as string,
-      disabled: item.status === 1,
-    }))
-    .filter((opt) => !opt.disabled);
-
-  const positionResponse = await PositionAPI.listPosition();
-  const positionRows = positionResponse.data.data.items ?? [];
-  positionOptions.value = positionRows
-    .filter((item) => item.id !== undefined && item.name !== undefined)
-    .map((item) => ({
-      value: item.id as number,
-      label: item.name as string,
-      disabled: item.status === 1,
-    }))
-    .filter((opt) => !opt.disabled);
+  const [roleRes, positionRes] = await Promise.all([
+    RoleAPI.getRoleOptions(),
+    PositionAPI.getPositionOptions(),
+  ]);
+  roleOptions.value = (roleRes.data.data ?? []) as typeof roleOptions.value;
+  positionOptions.value = (positionRes.data.data ?? []) as typeof positionOptions.value;
 }
 
 async function handleSubmit() {
@@ -917,7 +872,7 @@ async function handleSubmit() {
     const id = formData.value.id;
     try {
       if (id) {
-        await UserAPI.updateUser(id, { id, ...formData.value });
+        await UserAPI.updateUser(id, formData.value);
         await refreshUpdate();
       } else {
         await UserAPI.createUser(formData.value);

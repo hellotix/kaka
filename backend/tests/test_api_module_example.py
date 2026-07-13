@@ -1,5 +1,4 @@
-"""
-模块接口测试 —— module_example（示例模块）
+"""模块接口测试 —— module_example（示例模块）
 
 动态路由映射：module_example → /example
 每个接口一个测试用例，覆盖查询 / 新增 / 修改 / 删除 等操作。

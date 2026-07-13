@@ -13,24 +13,13 @@
       :show-search="true"
       :disabled-search="false"
       :default-expanded="false"
+      include-audit
+      :audit-item-options="{ showTenantId: true }"
       @search="handleSearchBarSearch"
       @reset="onResetSearch"
-    >
-      <template #created_id>
-        <FaUserTableSelect
-          :model-value="searchForm.created_id == null ? undefined : searchForm.created_id"
-          @update:model-value="(v: number | undefined) => (searchForm.created_id = v)"
-          @confirm-click="afterUserSelectSearch"
-          @clear-click="afterUserSelectSearch"
-        />
-      </template>
-    </FaSearchBar>
+    />
 
-    <ElCard
-      shadow="hover"
-      class="fa-table-card"
-      :style="{ 'margin-top': showSearchBar ? '12px' : '0' }"
-    >
+    <ElCard class="fa-table-card" :style="{ 'margin-top': showSearchBar ? '12px' : '0' }">
       <FaTableHeader
         v-model:columns="columnChecks"
         v-model:showSearchBar="showSearchBar"
@@ -125,7 +114,6 @@
 </template>
 
 <script setup lang="ts">
-import { h } from "vue";
 import { useTable } from "@/hooks/core/useTable";
 import { useImportExport } from "@/hooks/core/useImportExport";
 import { useCrudDialog } from "@/hooks/core/useCrudDialog";
@@ -146,16 +134,14 @@ import type { SearchFormItem } from "@/components/forms/fa-search-bar/index.vue"
 import type FaSearchBar from "@/components/forms/fa-search-bar/index.vue";
 import type { FormItem } from "@/components/forms/fa-form/index.vue";
 import type FaForm from "@/components/forms/fa-form/index.vue";
-import FaButtonTable from "@/components/forms/fa-button-table/index.vue";
-import { resolveStatusColumns } from "@utils";
-import { ElMessage, ElTooltip, ElDropdown, ElDropdownMenu, ElDropdownItem } from "element-plus";
+import { resolveStatusColumns, renderTableOperationCell } from "@utils";
+import { ElMessage } from "element-plus";
 
 defineOptions({
   name: "Position",
   inheritAttrs: false,
 });
 
-const MAX_INLINE_ROW_ACTIONS = 3;
 const { hasAuth } = useAuth();
 const userStore = useUserStore();
 
@@ -228,70 +214,9 @@ function formatPositionOperationCell(
   row: PositionTable,
   ctx: Parameters<typeof buildPositionRowActions>[1]
 ) {
-  const actions = buildPositionRowActions(row, ctx);
-  if (actions.length === 0) {
-    return h("span", { class: "text-g-400" }, "—");
-  }
-  const inline = actions.slice(0, MAX_INLINE_ROW_ACTIONS);
-  const overflow = actions.slice(MAX_INLINE_ROW_ACTIONS);
-
-  const inlineNodes = inline.map((a) =>
-    h(ElTooltip, { content: a.label, placement: "top" }, () =>
-      h("span", { class: "inline-flex" }, [
-        h(FaButtonTable, {
-          type: a.artType,
-          icon: a.icon,
-          onClick: a.run,
-        }),
-      ])
-    )
-  );
-
-  if (overflow.length === 0) {
-    return h(
-      "div",
-      { class: "inline-flex flex-wrap items-center justify-end gap-1 position-table-actions" },
-      inlineNodes
-    );
-  }
-
-  const dropdown = h(
-    ElDropdown,
-    { trigger: "click" },
-    {
-      default: () =>
-        h(ElTooltip, { content: "更多", placement: "top" }, () =>
-          h("span", { class: "inline-flex align-middle" }, [
-            h(FaButtonTable, {
-              type: "more",
-              onClick: () => {},
-            }),
-          ])
-        ),
-      dropdown: () =>
-        h(
-          ElDropdownMenu,
-          null,
-          overflow.map((a) =>
-            h(
-              ElDropdownItem,
-              {
-                key: a.key,
-                disabled: a.disabled,
-                onClick: () => a.run(),
-              },
-              () => a.label
-            )
-          )
-        ),
-    }
-  );
-
-  return h(
-    "div",
-    { class: "inline-flex flex-wrap items-center justify-end gap-1 position-table-actions" },
-    [...inlineNodes, dropdown]
-  );
+  return renderTableOperationCell(buildPositionRowActions(row, ctx), {
+    wrapperClass: "inline-flex flex-wrap items-center justify-end gap-1 position-table-actions",
+  });
 }
 
 const searchForm = ref<PositionSearchForm>({
@@ -328,27 +253,6 @@ const positionSearchItems = computed<SearchFormItem[]>(() => [
       options: statusOptions.value,
       clearable: true,
     },
-    span: 6,
-  },
-  {
-    label: "创建时间",
-    key: "created_time",
-    type: "datetimerange",
-    span: 6,
-    props: {
-      type: "datetimerange",
-      rangeSeparator: "至",
-      startPlaceholder: "开始日期",
-      endPlaceholder: "结束日期",
-      format: "YYYY-MM-DD HH:mm:ss",
-      valueFormat: "YYYY-MM-DD HH:mm:ss",
-      style: { width: "100%" },
-    },
-  },
-  {
-    label: "创建人",
-    key: "created_id",
-    type: "input",
     span: 6,
   },
 ]);
@@ -423,7 +327,7 @@ const {
         label: "操作",
         width: 200,
         fixed: "right",
-        align: "right",
+        align: "center",
         formatter: (row: PositionTable) => formatPositionOperationCell(row, opCtx),
       },
     ]),
@@ -479,6 +383,7 @@ const positionDetailItems: import("@/components/others/fa-descriptions/index.vue
     { label: "更新人", prop: "updated_by.name" },
     { label: "创建时间", prop: "created_time" },
     { label: "更新时间", prop: "updated_time" },
+    { label: "所属租户", prop: "tenant_by.name" },
     { label: "描述", prop: "description", span: 4 },
   ];
 
@@ -594,17 +499,6 @@ async function handleSearchBarSearch(params: PositionSearchForm) {
   await searchBarRef.value?.validate?.();
   replaceSearchParams(buildPositionReplaceParams(params));
   getData();
-}
-
-async function applyPositionSearchFromForm() {
-  await searchBarRef.value?.validate?.();
-  replaceSearchParams(buildPositionReplaceParams(searchForm.value));
-  getData();
-}
-
-async function afterUserSelectSearch() {
-  await nextTick();
-  await applyPositionSearchFromForm();
 }
 
 function onResetSearch() {

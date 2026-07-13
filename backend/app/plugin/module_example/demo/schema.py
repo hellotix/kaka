@@ -1,6 +1,3 @@
-from dataclasses import dataclass
-
-from fastapi import Query
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -10,8 +7,7 @@ from pydantic import (
 )
 
 from app.common.enums import QueueEnum
-from app.core.base_params import BaseQueryParam, TenantByQueryParam, UserByQueryParam
-from app.core.base_schema import BaseSchema, TenantBySchema, UserBySchema
+from app.core.base_schema import BaseQueryParam, BaseSchema, TenantByQueryParam, TenantBySchema, UserByQueryParam, UserBySchema
 from app.core.validator import DateStr, DateTimeStr, TimeStr
 
 
@@ -34,8 +30,7 @@ class DemoCreateSchema(BaseModel):
     @field_validator("name")
     @classmethod
     def validate_name(cls, v: str) -> str:
-        """
-        验证名称字段的格式和内容。
+        """验证名称字段的格式和内容。
 
         参数:
         - v (str): 原始名称。
@@ -54,8 +49,7 @@ class DemoCreateSchema(BaseModel):
 
     @model_validator(mode="after")
     def _after_validation(self):
-        """
-        核心业务规则校验
+        """核心业务规则校验
         """
         # 长度校验：名称最小长度
         if len(self.name) < 2 or len(self.name) > 50:
@@ -81,18 +75,19 @@ class DemoOutSchema(DemoCreateSchema, BaseSchema, UserBySchema, TenantBySchema):
     model_config = ConfigDict(from_attributes=True)
 
 
-@dataclass
 class DemoQueryParam(BaseQueryParam, UserByQueryParam, TenantByQueryParam):
     """示例查询参数（演示 Mixin 继承用法）"""
 
-    name: str | None = Query(None, description="名称")
-    description: str | None = Query(None, description="描述")
-    status: str | None = Query(None, description="是否启用")
+    name: str | tuple[str, str] | None = Field(None, description="名称")
+    description: str | tuple[str, str] | None = Field(None, description="描述")
+    status: int | tuple[str, int] | None = Field(None, description="是否启用")
 
-    def __post_init__(self) -> None:
-        if self.name:
+    @model_validator(mode="after")
+    def validate_query_params(self) -> "DemoQueryParam":
+        if isinstance(self.name, str):
             self.name = (QueueEnum.like.value, self.name)
-        if self.description:
+        if isinstance(self.description, str):
             self.description = (QueueEnum.like.value, self.description)
-        if self.status:
+        if isinstance(self.status, int):
             self.status = (QueueEnum.eq.value, self.status)
+        return self

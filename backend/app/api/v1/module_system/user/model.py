@@ -14,8 +14,7 @@ if TYPE_CHECKING:
 
 
 class UserRolesModel(MappedBase):
-    """
-    用户角色关联表
+    """用户角色关联表
 
     定义用户与角色的多对多关系
     """
@@ -38,8 +37,7 @@ class UserRolesModel(MappedBase):
 
 
 class UserPositionsModel(MappedBase):
-    """
-    用户岗位关联表
+    """用户岗位关联表
 
     定义用户与岗位的多对多关系
     """
@@ -62,8 +60,7 @@ class UserPositionsModel(MappedBase):
 
 
 class UserModel(ModelMixin, TenantMixin, UserMixin):
-    """
-    用户模型
+    """用户模型
     """
 
     __tablename__: str = "sys_user"
@@ -85,6 +82,7 @@ class UserModel(ModelMixin, TenantMixin, UserMixin):
     qq_login: Mapped[str | None] = mapped_column(String(32), nullable=True, comment="QQ登录")
     status: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="状态(0:启动 1:停用)", index=True)
     description: Mapped[str | None] = mapped_column(Text, default=None, nullable=True, comment="备注")
+    token_version: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="令牌版本号：每次改密/重置/禁用递增，使旧 JWT 立即失效")
 
     dept_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("sys_dept.id", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, index=True, comment="部门ID")
     tenant: Mapped["TenantModel | None"] = relationship(
@@ -98,3 +96,4 @@ class UserModel(ModelMixin, TenantMixin, UserMixin):
     positions: Mapped[list["PositionModel"]] = relationship(secondary="sys_user_positions", back_populates="users", lazy="selectin")
     created_by: Mapped["UserModel | None"] = relationship("UserModel", foreign_keys="UserModel.created_id", remote_side="UserModel.id", lazy="selectin", uselist=False, viewonly=True)
     updated_by: Mapped["UserModel | None"] = relationship("UserModel", foreign_keys="UserModel.updated_id", remote_side="UserModel.id", lazy="selectin", uselist=False, viewonly=True)
+    deleted_by: Mapped["UserModel | None"] = relationship("UserModel", foreign_keys="UserModel.deleted_id", remote_side="UserModel.id", lazy="selectin", uselist=False, viewonly=True)

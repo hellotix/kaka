@@ -1,44 +1,50 @@
-
 import json
-import secrets
 import uuid
+from dataclasses import replace
 from datetime import datetime, timedelta
-from typing import NewType
+from typing import Any, NewType
 
 import ua_parser
-from fastapi import Request
+from fastapi import BackgroundTasks, Request
 from redis.asyncio.client import Redis
+from sqlalchemy import func, select
+from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.module_monitor.online.schema import OnlineOutSchema
+from app.api.v1.module_platform.package.model import PackageMenuModel, PackageModel
+from app.api.v1.module_platform.tenant.model import TenantModel, TenantUserModel
+from app.api.v1.module_system.log.crud import LoginLogCRUD
+from app.api.v1.module_system.log.model import LoginLogModel
+from app.api.v1.module_system.log.schema import LoginLogCreateSchema
+from app.api.v1.module_system.role.model import RoleMenusModel, RoleModel
 from app.api.v1.module_system.user.crud import UserCRUD
-from app.api.v1.module_system.user.model import UserModel
+from app.api.v1.module_system.user.model import UserModel, UserRolesModel
+from app.api.v1.module_system.user.schema import UserOutSchema
 from app.common.enums import RedisInitKeyConfig
 from app.config.setting import settings
-from app.core.base_schema import (
-    AuthSchema,
-    JWTOutSchema,
-    JWTPayloadSchema,
-    LogoutPayloadSchema,
-    RefreshTokenPayloadSchema,
-)
+from app.core.base_schema import AuthSchema, JWTOutSchema, JWTPayloadSchema
+from app.core.database import async_db_session
 from app.core.exceptions import CustomException
 from app.core.logger import logger
 from app.core.redis_crud import RedisCURD
+from app.core.request_context import (
+    RequestContext,
+    clear_current_tenant,
+    set_current_tenant,
+)
 from app.core.security import (
     CustomOAuth2PasswordRequestForm,
     create_access_token,
     decode_access_token,
 )
-from app.utils.captcha_util import CaptchaUtil
 from app.utils.common_util import get_random_character
-from app.utils.hash_bcrpy_util import PwdUtil
-from app.utils.ip_local_util import IpLocalUtil
+from app.utils.ip_local_util import IpLocalUtil, get_client_ip
+from app.utils.password_util import PwdUtil
 
 from .schema import (
-    AutoLoginTokenSchema,
-    AutoLoginUserSchema,
     CaptchaOutSchema,
+    EnterPlatformOutSchema,
+    ImpersonateOutSchema,
     LoginWithTenantsSchema,
     SelectTenantOutSchema,
     TenantOptionSchema,
@@ -57,18 +63,13 @@ async def _write_login_log(
     request_os: str | None = None,
     request_browser: str | None = None,
     msg: str | None = None,
-) -> None:
-    """写入登录日志（独立 session，避免事务回滚时丢失失败记录）"""
-    from app.api.v1.module_system.log.crud import LoginLogCRUD
-    from app.api.v1.module_system.log.schema import LoginLogCreateSchema
-    from app.core.base_schema import AuthSchema
-    from app.core.database import async_db_session
-
+) -> int | None:
+    """写入登录日志；返回日志 ID（用于后台补全归属地）。"""
     try:
-        async with async_db_session() as session:
-            async with session.begin():
-                _auth = AuthSchema(db=session, check_data_scope=False)
-                await LoginLogCRUD(_auth).create(data=LoginLogCreateSchema(
+        async with async_db_session() as session, session.begin():
+            _auth = AuthSchema(check_data_scope=False)
+            obj = await LoginLogCRUD(_auth, session).create(
+                data=LoginLogCreateSchema(
                     username=username,
                     status=status,
                     login_ip=login_ip,
@@ -76,37 +77,90 @@ async def _write_login_log(
                     request_os=request_os,
                     request_browser=request_browser,
                     msg=msg,
-                ))
+                ),
+            )
+            return obj.id if obj else None
     except Exception:
-        pass  # 登录日志写入失败不影响登录主流程
+        return None
 
 
-def _resolve_request_ip(request: Request) -> str:
-    """从请求中解析客户端真实 IP"""
-    x_forwarded_for = request.headers.get("X-Forwarded-For")
-    if x_forwarded_for:
-        return x_forwarded_for.split(",")[0].strip()
-    return request.client.host if request.client else "127.0.0.1"
+async def _async_fill_login_location(redis, login_log_id: int, ip: str | None) -> None:
+    """后台异步补全登录日志的归属地。"""
+    if not ip:
+        return
+    try:
+        location = await IpLocalUtil.resolve_location_async(redis, ip)
+        logger.info(f"异步解析IP归属地结果: ip={ip}, log_id={login_log_id}, location={location}")
+        if location == "归属地查询中" or not location:
+            return
+        async with async_db_session() as session, session.begin():
+            await session.execute(sa_update(LoginLogModel).where(LoginLogModel.id == login_log_id).values(login_location=location))
+            logger.info(f"登录日志归属地已更新: log_id={login_log_id}, location={location}")
+    except Exception as e:
+        logger.warning(f"异步补全登录归属地失败: {e}")
 
 
 class LoginService:
     """登录认证服务"""
 
-    def __init__(self, auth: AuthSchema | None = None) -> None:
+    def __init__(self, auth: AuthSchema, db: AsyncSession) -> None:
         self.auth = auth
+        self.db = db
+
+    @staticmethod
+    def _collect_permissions(
+        user: UserModel,
+    ) -> tuple[list[str], dict[str, int], list[int], list[int], list[int], list[int]]:
+        """收集用户角色下的权限、菜单、数据范围及角色 ID
+
+        遍历用户角色，聚合所有关联菜单的 permission、menu_id、
+        data_scope、自定义部门 ID 和角色 ID 列表。
+
+        参数:
+        - user (UserModel): 用户对象
+
+        返回:
+        - tuple[list[str], dict[str, int], list[int], list[int], list[int], list[int]]:
+          (permissions, permissions_with_menu, menu_ids, data_scopes, custom_dept_ids, role_ids)
+        """
+        permissions: list[str] = []
+        permissions_with_menu: dict[str, int] = {}
+        menu_ids: list[int] = []
+        data_scopes: list[int] = []
+        custom_dept_ids: list[int] = []
+        role_ids: list[int] = []
+        if not user.is_superuser and hasattr(user, "roles"):
+            for role in user.roles:
+                if role and role.status == 0:
+                    role_ids.append(role.id)
+                    if hasattr(role, "menus"):
+                        for menu in role.menus:
+                            if menu and menu.status == 0:
+                                menu_ids.append(menu.id)
+                                if menu.permission:
+                                    permissions.append(menu.permission)
+                                    permissions_with_menu[menu.permission] = menu.id
+                    if hasattr(role, "data_scope"):
+                        data_scopes.append(role.data_scope)
+                    if hasattr(role, "depts") and role.depts:
+                        for dept in role.depts:
+                            if dept:
+                                custom_dept_ids.append(dept.id)
+        return permissions, permissions_with_menu, menu_ids, data_scopes, custom_dept_ids, role_ids
 
     @classmethod
     async def authenticate_user(
         cls,
         request: Request,
+        background_tasks: BackgroundTasks,
         redis: Redis,
         login_form: CustomOAuth2PasswordRequestForm,
         db: AsyncSession,
     ) -> LoginWithTenantsSchema:
         """用户认证"""
-        ua_result = ua_parser.parse(request.headers.get("user-agent"))
-        request_ip = _resolve_request_ip(request)
-        login_location = await IpLocalUtil.resolve_location_for_log(request_ip)
+        ua_result = ua_parser.parse(request.headers.get("user-agent") or "")
+        request_ip = get_client_ip(request)
+        login_location = await IpLocalUtil.resolve_location_for_log(redis, request_ip)
         _login_os = ua_result.os.family if ua_result.os else "Unknown"
         _login_browser = ua_result.user_agent.family if ua_result.user_agent else "Unknown"
         _login_username = login_form.username
@@ -115,16 +169,16 @@ class LoginService:
         request_from_docs = referer.endswith(("docs", "redoc"))
 
         if settings.CAPTCHA_ENABLE and not request_from_docs:
-            if not login_form.captcha_key or not login_form.captcha:
+            if not login_form.captcha_key:
                 raise CustomException(msg="验证码不能为空")
+            # 滑块模式：slider_complete 已验证身份，此处仅校验状态
             await CaptchaService.check_captcha(
                 redis=redis,
                 key=login_form.captcha_key,
-                captcha=login_form.captcha,
             )
 
-        auth = AuthSchema(db=db, check_data_scope=False)
-        user = await UserCRUD(auth).get(username=login_form.username)
+        auth = AuthSchema(check_data_scope=False)
+        user = await UserCRUD(auth, db).get(username=login_form.username)
 
         if not user:
             await _write_login_log(
@@ -161,12 +215,8 @@ class LoginService:
             )
             raise CustomException(msg="用户已被停用")
 
-        from sqlalchemy import select
-
-        from app.api.v1.module_platform.tenant.model import TenantModel
-
         tenant_stmt = select(TenantModel).where(TenantModel.id == user.tenant_id, TenantModel.status == 0, TenantModel.is_deleted.is_(False)).limit(1)
-        tenant_result = await auth.db.execute(tenant_stmt)
+        tenant_result = await db.execute(tenant_stmt)
         if not tenant_result.scalar_one_or_none():
             await _write_login_log(
                 username=_login_username,
@@ -179,7 +229,7 @@ class LoginService:
             )
             raise CustomException(msg="所属租户已被禁用，请联系平台管理员")
 
-        await UserCRUD(auth).update_last_login(id=user.id)
+        await UserCRUD(auth, db).update_last_login(id=user.id)
 
         if not user:
             raise CustomException(msg="用户不存在")
@@ -193,8 +243,8 @@ class LoginService:
             login_type=login_form.login_type,
         )
 
-        tenants_auth = AuthSchema(db=db, user=user, tenant_id=user.tenant_id, check_data_scope=False)
-        tenants = await LoginService(tenants_auth).get_user_tenants(user_id=user.id)
+        tenants_auth = AuthSchema(user=UserOutSchema.model_validate(user), check_data_scope=False)
+        tenants = await LoginService(tenants_auth, db).get_user_tenants(user_id=user.id)
 
         user_info = {
             "id": user.id,
@@ -204,7 +254,7 @@ class LoginService:
             "is_superuser": user.is_superuser,
         }
 
-        await _write_login_log(
+        log_id = await _write_login_log(
             username=user.username,
             status=1,
             login_ip=request_ip,
@@ -213,6 +263,9 @@ class LoginService:
             request_browser=_login_browser,
             msg="登录成功",
         )
+        # 登录成功后异步补全归属地，不阻塞返回
+        if log_id and login_location == "归属地查询中":
+            background_tasks.add_task(_async_fill_login_location, redis, log_id, request_ip)
 
         return LoginWithTenantsSchema(
             access_token=token.access_token,
@@ -223,18 +276,77 @@ class LoginService:
             user_info=user_info,
         )
 
+    @staticmethod
+    def _build_session_dict(
+        user: UserModel,
+        session_id: str,
+        permissions: list[str],
+        permissions_with_menu: dict[str, int],
+        menu_ids: list[int],
+        data_scopes: list[int],
+        custom_dept_ids: list[int],
+        role_ids: list[int],
+        request_ip: str,
+        login_location: str | None,
+        ua_result: Any,
+        login_type: str,
+    ) -> dict:
+        """构建会话信息字典
+
+        参数:
+        - user (UserModel): 用户对象
+        - session_id (str): 会话ID
+        - permissions (list[str]): 权限标识列表
+        - permissions_with_menu (dict[str, int]): 权限与菜单ID映射
+        - menu_ids (list[int]): 菜单ID列表
+        - data_scopes (list[int]): 数据范围列表
+        - custom_dept_ids (list[int]): 自定义部门ID列表
+        - role_ids (list[int]): 角色ID列表
+        - request_ip (str): 请求IP
+        - login_location (str): 登录地点
+        - ua_result: User-Agent 解析结果
+        - login_type (str): 登录类型
+
+        返回:
+        - dict: 会话信息字典
+        """
+        tenant_status = getattr(user.tenant, "status", 0) if hasattr(user, "tenant") and user.tenant else 0
+        return {
+            "session_id": session_id,
+            "user_id": user.id,
+            "tenant_id": user.tenant_id if not user.is_superuser else 0,
+            "tenant_status": tenant_status,
+            "is_superuser": user.is_superuser,
+            "user_status": user.status,
+            "name": user.name,
+            "user_name": user.username,
+            "dept_id": user.dept_id,
+            "mobile": user.mobile,
+            "email": user.email,
+            "gender": user.gender,
+            "avatar": user.avatar,
+            "permissions": permissions,
+            "permissions_with_menu": permissions_with_menu,
+            "menu_ids": menu_ids,
+            "data_scopes": data_scopes,
+            "custom_dept_ids": custom_dept_ids,
+            "role_ids": role_ids,
+            "ipaddr": request_ip,
+            "login_location": login_location,
+            "os": ua_result.os.family if ua_result.os else "Unknown",
+            "browser": ua_result.user_agent.family if ua_result.user_agent else "Unknown",
+            "login_time": user.last_login,
+            "login_type": login_type,
+        }
+
     @classmethod
     async def create_token(cls, request: Request, redis: Redis, user: UserModel, login_type: str) -> JWTOutSchema:
         """创建访问令牌和刷新令牌"""
         session_id = str(uuid.uuid4())
-        ua_result = ua_parser.parse(request.headers.get("user-agent"))
-        request_ip = _resolve_request_ip(request)
+        ua_result = ua_parser.parse(request.headers.get("user-agent") or "")
+        request_ip = get_client_ip(request)
 
-        login_location = await IpLocalUtil.resolve_location_for_log(request_ip)
-
-        from dataclasses import replace
-
-        from app.core.request_context import RequestContext
+        login_location = await IpLocalUtil.resolve_location_for_log(redis, request_ip)
 
         base_ctx = getattr(request.state, "ctx", None) or RequestContext()
         request.state.ctx = replace(
@@ -244,25 +356,28 @@ class LoginService:
             login_location=login_location,
         )
 
-        access_expires = timedelta(seconds=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-        refresh_expires = timedelta(seconds=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
+        access_expires = timedelta(seconds=settings.ACCESS_TOKEN_EXPIRE_SECONDS)
+        refresh_expires = timedelta(seconds=settings.REFRESH_TOKEN_EXPIRE_SECONDS)
 
         now = datetime.now()
 
-        session_info = OnlineOutSchema(
+        permissions, permissions_with_menu, menu_ids, data_scopes, custom_dept_ids, role_ids = LoginService._collect_permissions(user)
+
+        session_dict = LoginService._build_session_dict(
+            user=user,
             session_id=session_id,
-            user_id=user.id,
-            tenant_id=user.tenant_id,
-            is_superuser=user.is_superuser,
-            name=user.name,
-            user_name=user.username,
-            ipaddr=request_ip,
+            permissions=permissions,
+            permissions_with_menu=permissions_with_menu,
+            menu_ids=menu_ids,
+            data_scopes=data_scopes,
+            custom_dept_ids=custom_dept_ids,
+            role_ids=role_ids,
+            request_ip=request_ip,
             login_location=login_location,
-            os=ua_result.os.family if ua_result.os else "Unknown",
-            browser=ua_result.user_agent.family if ua_result.user_agent else "Unknown",
-            login_time=user.last_login,
+            ua_result=ua_result,
             login_type=login_type,
-        ).model_dump_json()
+        )
+        session_info = json.dumps(session_dict, default=str)
 
         # 会话信息存 Redis（完整 JSON），JWT sub 仅含 session_id
         await RedisCURD(redis).set(
@@ -276,14 +391,14 @@ class LoginService:
                 sub=session_id,
                 is_refresh=False,
                 exp=now + access_expires,
-            )
+            ),
         )
         refresh_token = create_access_token(
             payload=JWTPayloadSchema(
                 sub=session_id,
                 is_refresh=True,
                 exp=now + refresh_expires,
-            )
+            ),
         )
 
         await RedisCURD(redis).set(
@@ -310,17 +425,15 @@ class LoginService:
         cls,
         db: AsyncSession,
         redis: Redis,
-        refresh_token: RefreshTokenPayloadSchema,
+        refresh_token: str,
     ) -> JWTOutSchema:
         """刷新访问令牌"""
-        token_payload: JWTPayloadSchema = decode_access_token(token=refresh_token.refresh_token)
+        token_payload: JWTPayloadSchema = decode_access_token(token=refresh_token)
         if not token_payload.is_refresh:
             raise CustomException(msg="非法凭证，请传入刷新令牌")
 
         session_id = token_payload.sub
-        session_info = await RedisCURD(redis).get(
-            f"{RedisInitKeyConfig.USER_SESSION.key}:{session_id}"
-        )
+        session_info = await RedisCURD(redis).get(f"{RedisInitKeyConfig.USER_SESSION.key}:{session_id}")
         if not session_info:
             raise CustomException(msg="会话已过期，请重新登录")
 
@@ -329,15 +442,15 @@ class LoginService:
         if not session_id or not user_id:
             raise CustomException(msg="非法凭证,无法获取会话编号或用户ID")
 
-        auth = AuthSchema(db=db, check_data_scope=False)
-        user = await UserCRUD(auth).get(id=user_id)
+        auth = AuthSchema(check_data_scope=False)
+        user = await UserCRUD(auth, db).get(id=user_id)
         if not user:
             raise CustomException(msg="刷新token失败，用户不存在")
         if user.status == 1:
             raise CustomException(msg="用户已被停用")
 
-        access_expires = timedelta(seconds=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-        refresh_expires = timedelta(seconds=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
+        access_expires = timedelta(seconds=settings.ACCESS_TOKEN_EXPIRE_SECONDS)
+        refresh_expires = timedelta(seconds=settings.REFRESH_TOKEN_EXPIRE_SECONDS)
         now = datetime.now()
 
         # 延长会话信息 Redis TTL
@@ -351,7 +464,7 @@ class LoginService:
                 sub=session_id,
                 is_refresh=False,
                 exp=now + access_expires,
-            )
+            ),
         )
 
         refresh_token_new = create_access_token(
@@ -359,7 +472,7 @@ class LoginService:
                 sub=session_id,
                 is_refresh=True,
                 exp=now + refresh_expires,
-            )
+            ),
         )
 
         await RedisCURD(redis).set(
@@ -382,9 +495,9 @@ class LoginService:
         )
 
     @staticmethod
-    async def logout(redis: Redis, token: LogoutPayloadSchema) -> bool:
+    async def logout(redis: Redis, token: str) -> bool:
         """退出登录"""
-        payload: JWTPayloadSchema = decode_access_token(token=token.token)
+        payload: JWTPayloadSchema = decode_access_token(token=token)
         session_id = payload.sub
 
         if not session_id:
@@ -405,15 +518,17 @@ class LoginService:
         """获取用户关联的租户列表"""
         from sqlalchemy import select
 
-        from app.api.v1.module_platform.tenant.model import TenantModel, TenantUserModel
+        user = self.auth.user
+        if not user:
+            raise CustomException(msg="未认证用户")
 
-        uid = user_id or (self.auth.user.id if self.auth.user else None)
+        uid = user_id or user.id
         if not uid:
             return []
 
-        if self.auth.user and self.auth.user.is_superuser:
+        if user.is_superuser:
             stmt = select(TenantModel).where(TenantModel.status == 0, TenantModel.is_deleted.is_(False)).order_by(TenantModel.sort, TenantModel.id)
-            result = await self.auth.db.execute(stmt)
+            result = await self.db.execute(stmt)
             tenant_objs = result.scalars().all()
             return [TenantOptionSchema(id=t.id, name=t.name, code=t.code) for t in tenant_objs]
 
@@ -427,7 +542,7 @@ class LoginService:
             )
             .order_by(TenantUserModel.is_default.desc(), TenantModel.sort, TenantModel.id)
         )
-        result = await self.auth.db.execute(stmt)
+        result = await self.db.execute(stmt)
         tenant_objs = result.scalars().all()
         return [TenantOptionSchema(id=t.id, name=t.name, code=t.code) for t in tenant_objs]
 
@@ -438,32 +553,61 @@ class LoginService:
         tenant_id: int,
     ) -> SelectTenantOutSchema:
         """选择租户：验证用户归属并签发含租户上下文的新 JWT Token"""
-        from sqlalchemy import select
-
-        from app.api.v1.module_platform.tenant.model import TenantModel, TenantUserModel
-
-        if not self.auth.user:
+        user = self.auth.user
+        if not user:
             raise CustomException(msg="未认证用户")
 
-        if not self.auth.user.is_superuser:
+        if not user.is_superuser:
             exist_stmt = (
                 select(TenantUserModel)
                 .where(
-                    TenantUserModel.user_id == self.auth.user.id,
+                    TenantUserModel.user_id == user.id,
                     TenantUserModel.tenant_id == tenant_id,
                 )
                 .limit(1)
             )
-            result = await self.auth.db.execute(exist_stmt)
+            result = await self.db.execute(exist_stmt)
             if not result.scalar_one_or_none():
                 raise CustomException(msg="您不属于该租户，无法切换")
 
         tenant_stmt = select(TenantModel).where(TenantModel.id == tenant_id, TenantModel.status == 0).limit(1)
-        result = await self.auth.db.execute(tenant_stmt)
+        result = await self.db.execute(tenant_stmt)
         tenant = result.scalar_one_or_none()
         if not tenant:
             raise CustomException(msg="租户不存在或已被禁用")
 
+        new_access_token, _new_refresh_token, access_expires = await self._rebuild_tokens(
+            request, redis, {"tenant_id": tenant_id}
+        )
+
+        set_current_tenant(tenant_id)
+
+        logger.info(f"用户 {user.username}(id={user.id}) 切换到租户 {tenant.name}(id={tenant_id})")
+
+        return SelectTenantOutSchema(
+            access_token=new_access_token,
+            token_type=settings.TOKEN_TYPE,
+            expires_in=int(access_expires.total_seconds()),
+        )
+
+    async def _rebuild_tokens(
+        self,
+        request: Request,
+        redis: Redis,
+        session_updates: dict,
+    ) -> tuple[str, str, timedelta]:
+        """从请求上下文重建全套令牌（access + refresh + session）
+
+        提取会话信息，应用更新后写入 Redis，签发新 JWT。
+
+        参数:
+        - request (Request): FastAPI 请求对象
+        - redis (Redis): Redis 客户端
+        - session_updates (dict): 需更新到 session_info 的键值对
+
+        返回:
+        - tuple[str, str, timedelta]: (access_token, refresh_token, access_expires)
+        """
         ctx = getattr(request.state, "ctx", None)
         session_id = ctx.session_id if ctx else None
         session_info = ctx.session_info if ctx else None
@@ -471,11 +615,8 @@ class LoginService:
         if not session_id or not session_info:
             raise CustomException(msg="会话已失效")
 
-        # 更新会话中的租户 ID 并写回 Redis
-        session_info["tenant_id"] = tenant_id
-        refresh_expires = timedelta(seconds=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
-        from app.core.redis_crud import RedisCURD
-        from app.core.security import create_access_token
+        session_info.update(session_updates)
+        refresh_expires = timedelta(seconds=settings.REFRESH_TOKEN_EXPIRE_SECONDS)
 
         await RedisCURD(redis).set(
             key=f"{RedisInitKeyConfig.USER_SESSION.key}:{session_id}",
@@ -483,7 +624,7 @@ class LoginService:
             expire=int(refresh_expires.total_seconds()),
         )
 
-        access_expires = timedelta(seconds=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_expires = timedelta(seconds=settings.ACCESS_TOKEN_EXPIRE_SECONDS)
         now = datetime.now()
 
         new_access_token = create_access_token(
@@ -491,7 +632,7 @@ class LoginService:
                 sub=session_id,
                 is_refresh=False,
                 exp=now + access_expires,
-            )
+            ),
         )
 
         await RedisCURD(redis).set(
@@ -505,7 +646,7 @@ class LoginService:
                 sub=session_id,
                 is_refresh=True,
                 exp=now + refresh_expires,
-            )
+            ),
         )
         await RedisCURD(redis).set(
             key=f"{RedisInitKeyConfig.REFRESH_TOKEN.key}:{session_id}",
@@ -513,199 +654,139 @@ class LoginService:
             expire=int(refresh_expires.total_seconds()),
         )
 
-        from app.core.request_context import set_current_tenant
+        return new_access_token, new_refresh_token, access_expires
 
-        set_current_tenant(tenant_id)
+    async def enter_platform(
+        self,
+        request: Request,
+        redis: Redis,
+    ) -> EnterPlatformOutSchema:
+        """进入平台管理模式：清除会话中的 tenant_id，返回平台作用域 JWT"""
+        user = self.auth.user
+        if not user:
+            raise CustomException(msg="未认证用户")
 
-        logger.info(f"用户 {self.auth.user.username}(id={self.auth.user.id}) 切换到租户 {tenant.name}(id={tenant_id})")
+        new_access_token, _new_refresh_token, access_expires = await self._rebuild_tokens(
+            request, redis, {"tenant_id": 0}
+        )
 
-        return SelectTenantOutSchema(
+        clear_current_tenant()
+
+        logger.info(f"用户 {user.username}(id={user.id}) 返回平台管理模式")
+
+        return EnterPlatformOutSchema(
             access_token=new_access_token,
             token_type=settings.TOKEN_TYPE,
             expires_in=int(access_expires.total_seconds()),
         )
 
+    async def impersonate(
+        self,
+        request: Request,
+        redis: Redis,
+        tenant_id: int,
+    ) -> ImpersonateOutSchema:
+        """平台管理员代签入：以指定租户身份登录（仅超级管理员可用）"""
+        user = self.auth.user
+        if not user or not user.is_superuser:
+            raise CustomException(msg="仅平台管理员可执行代签入")
+
+        tenant_stmt = select(TenantModel).where(TenantModel.id == tenant_id, TenantModel.is_deleted.is_(False)).limit(1)
+        result = await self.db.execute(tenant_stmt)
+        tenant = result.scalar_one_or_none()
+        if not tenant:
+            raise CustomException(msg="租户不存在")
+
+        new_access_token, new_refresh_token, access_expires = await self._rebuild_tokens(
+            request, redis, {"tenant_id": tenant_id, "is_impersonate": True}
+        )
+
+        set_current_tenant(tenant_id)
+
+        logger.warning(f"平台管理员 {user.username}(id={user.id}) 代签入租户 {tenant.name}(id={tenant_id})")
+
+        return ImpersonateOutSchema(
+            access_token=new_access_token,
+            refresh_token=new_refresh_token,
+            token_type=settings.TOKEN_TYPE,
+            expires_in=int(access_expires.total_seconds()),
+            tenant_id=tenant_id,
+            tenant_name=tenant.name,
+        )
+
 
 class CaptchaService:
-    """验证码服务"""
+    """验证码服务 — 滑块拖动模式"""
 
     @staticmethod
     async def get_captcha(redis: Redis) -> CaptchaOutSchema:
-        """获取验证码"""
+        """获取验证码（滑块模式：仅生成 key，无需算术图片）"""
         if not settings.CAPTCHA_ENABLE:
             raise CustomException(msg="未开启验证码服务")
 
-        captcha_base64, captcha_value = CaptchaUtil.captcha_arithmetic()
         captcha_key = get_random_character()
-
         redis_key = f"{RedisInitKeyConfig.CAPTCHA_CODES.key}:{captcha_key}"
+        # 存储滑块状态：pending（待验证）/ verified（已验证通过）
         await RedisCURD(redis).set(
             key=redis_key,
-            value=captcha_value,
+            value="pending",
             expire=settings.CAPTCHA_EXPIRE_SECONDS,
         )
 
         return CaptchaOutSchema(
             enable=settings.CAPTCHA_ENABLE,
             key=CaptchaKey(captcha_key),
-            img_base=CaptchaBase64(f"data:image/png;base64,{captcha_base64}"),
+            img_base=CaptchaBase64(""),
         )
 
     @staticmethod
-    async def check_captcha(redis: Redis, key: str, captcha: str) -> bool:
-        """校验验证码"""
-        if not captcha:
-            raise CustomException(msg="验证码不能为空")
+    async def slider_complete(redis: Redis, captcha_key: str) -> dict:
+        """标记滑块验证完成"""
+        if not captcha_key:
+            raise CustomException(msg="验证码标识不能为空")
 
+        redis_key = f"{RedisInitKeyConfig.CAPTCHA_CODES.key}:{captcha_key}"
+        status = await RedisCURD(redis).get(redis_key)
+        if not status:
+            raise CustomException(msg="验证码已过期，请刷新")
+
+        if isinstance(status, bytes):
+            status = status.decode()
+
+        if status == "verified":
+            raise CustomException(msg="验证码已使用")
+
+        # 标记为已验证
+        await RedisCURD(redis).set(
+            key=redis_key,
+            value="verified",
+            expire=settings.CAPTCHA_EXPIRE_SECONDS,
+        )
+
+        return {"captcha_key": captcha_key, "verified": True}
+
+    @staticmethod
+    async def check_captcha(redis: Redis, key: str) -> bool:
+        """校验滑块验证码：检查 key 状态是否为 verified"""
         redis_key = f"{RedisInitKeyConfig.CAPTCHA_CODES.key}:{key}"
-        captcha_value = await RedisCURD(redis).get(redis_key)
-        if not captcha_value:
-            raise CustomException(msg="验证码已过期")
+        status = await RedisCURD(redis).get(redis_key)
+        if not status:
+            raise CustomException(msg="验证码已过期，请刷新")
 
-        if captcha.lower() != captcha_value.lower():
-            raise CustomException(msg="验证码错误")
+        if isinstance(status, bytes):
+            status = status.decode()
+
+        if status != "verified":
+            raise CustomException(msg="请先完成滑块验证")
 
         await RedisCURD(redis).delete(redis_key)
         return True
 
 
-class AutoLoginService:
-    """免登录服务"""
-
-    AUTO_LOGIN_PREFIX = "fastapiadmin:auto_login:"
-    TOKEN_EXPIRE = 300
-
-    @classmethod
-    async def get_auto_login_users(cls, db: AsyncSession, tenant_id: int | None = None) -> list[AutoLoginUserSchema]:
-        """获取免登录用户列表"""
-        from sqlalchemy import select
-
-        from app.api.v1.module_system.user.model import UserModel
-
-        stmt = select(UserModel).where(UserModel.status == 0)
-        if tenant_id is not None:
-            stmt = stmt.where(UserModel.tenant_id == tenant_id)
-        stmt = stmt.order_by(UserModel.id)
-        result = await db.execute(stmt)
-        users = result.scalars().all()
-
-        return [
-            AutoLoginUserSchema(
-                id=user.id,
-                username=user.username,
-                name=user.name,
-                avatar=user.avatar,
-            )
-            for user in users
-        ]
-
-    @classmethod
-    async def create_auto_login_token(
-        cls,
-        redis: Redis,
-        db: AsyncSession,
-        user_id: int,
-        tenant_id: int | None = None,
-    ) -> AutoLoginTokenSchema:
-        """创建免登录Token"""
-        from sqlalchemy import select
-
-        from app.api.v1.module_system.user.model import UserModel
-
-        stmt = select(UserModel).where(UserModel.id == user_id)
-        if tenant_id is not None:
-            stmt = stmt.where(UserModel.tenant_id == tenant_id)
-        result = await db.execute(stmt)
-        user = result.scalar_one_or_none()
-
-        if not user:
-            raise CustomException(msg="用户不存在")
-
-        if user.status == 1:
-            raise CustomException(msg="用户已被停用")
-
-        import uuid
-
-        token = str(uuid.uuid4())
-        token_key = f"{cls.AUTO_LOGIN_PREFIX}{token}"
-
-        token_data = {
-            "user_id": user.id,
-            "username": user.username,
-            "tenant_id": user.tenant_id,
-            "created_at": datetime.now().isoformat(),
-        }
-        await RedisCURD(redis).set(
-            key=token_key,
-            value=json.dumps(token_data),
-            expire=cls.TOKEN_EXPIRE,
-        )
-
-        logger.info(f"创建免登录Token成功,用户:{user.username}")
-
-        return AutoLoginTokenSchema(
-            token=token,
-            user=AutoLoginUserSchema(
-                id=user.id,
-                username=user.username,
-                name=user.name,
-                avatar=user.avatar,
-            ),
-        )
-
-    @classmethod
-    async def auto_login(
-        cls,
-        request: Request,
-        redis: Redis,
-        db: AsyncSession,
-        token: str,
-        tenant_id: int | None = None,
-    ) -> JWTOutSchema:
-        """免登录"""
-        from sqlalchemy import select
-
-        from app.api.v1.module_system.user.model import UserModel
-
-        token_key = f"{cls.AUTO_LOGIN_PREFIX}{token}"
-        token_data_str = await RedisCURD(redis).get(token_key)
-
-        if not token_data_str:
-            raise CustomException(msg="免登录Token已过期或无效")
-
-        if isinstance(token_data_str, bytes):
-            token_data_str = token_data_str.decode("utf-8")
-
-        token_data = json.loads(token_data_str)
-        user_id = token_data.get("user_id")
-        token_tenant_id = token_data.get("tenant_id")
-
-        stmt = select(UserModel).where(UserModel.id == user_id)
-        effective_tenant_id = tenant_id if tenant_id is not None else token_tenant_id
-        if effective_tenant_id is not None:
-            stmt = stmt.where(UserModel.tenant_id == effective_tenant_id)
-        result = await db.execute(stmt)
-        user = result.scalar_one_or_none()
-
-        if not user:
-            raise CustomException(msg="用户不存在")
-
-        if user.status == 1:
-            raise CustomException(msg="用户已被停用")
-
-        await RedisCURD(redis).delete(token_key)
-
-        jwt_token = await LoginService.create_token(request=request, redis=redis, user=user, login_type="PC端")
-
-        logger.info(f"用户{user.username}免登录成功")
-
-        return jwt_token
-
-
 class TenantRegisterService:
     """PRD §4.5 租户自助注册：一次性创建租户 + 管理员 + owner 角色 + 菜单分配"""
 
-    DEFAULT_TRIAL_DAYS = 7
+    DEFAULT_TRIAL_DAYS: int = settings.TENANT_TRIAL_DAYS
 
     @classmethod
     async def register(
@@ -717,13 +798,7 @@ class TenantRegisterService:
         tenant_name: str | None = None,
     ) -> TenantRegisterOutSchema:
         """租户自助注册：一次性创建租户 + 管理员 + owner 角色 + 菜单分配"""
-        from sqlalchemy import func, select
         from sqlalchemy.exc import IntegrityError
-
-        from app.api.v1.module_platform.package.model import PackageMenuModel, PackageModel
-        from app.api.v1.module_platform.tenant.model import TenantModel
-        from app.api.v1.module_system.role.model import RoleMenusModel, RoleModel
-        from app.api.v1.module_system.user.model import UserModel, UserRolesModel
 
         exists_stmt = (
             select(func.count())
@@ -760,6 +835,7 @@ class TenantRegisterService:
         await db.flush()
 
         user = UserModel(
+            name=username,
             username=username,
             password=PwdUtil.hash_password(password),
             email=email,
@@ -767,6 +843,15 @@ class TenantRegisterService:
             status=0,
         )
         db.add(user)
+        await db.flush()
+
+        tenant_user = TenantUserModel(
+            user_id=user.id,
+            tenant_id=tenant.id,
+            role="owner",
+            is_default=1,
+        )
+        db.add(tenant_user)
         await db.flush()
 
         owner_role = RoleModel(
@@ -797,11 +882,6 @@ class TenantRegisterService:
             await db.rollback()
             raise CustomException(msg="租户编码或用户名已被占用，请重试")
 
-        try:
-            await cls._send_welcome_email(email, username, tenant.name, trial_end)
-        except Exception:
-            logger.warning(f"注册欢迎邮件发送失败: {email}")
-
         return TenantRegisterOutSchema(
             user_id=user.id,
             username=username,
@@ -813,138 +893,78 @@ class TenantRegisterService:
             message="注册成功",
         )
 
-    @classmethod
-    async def _send_welcome_email(cls, to_email: str, username: str, tenant_name: str, trial_end: datetime) -> None:
-        """发送欢迎邮件（不阻塞注册流程）。"""
-        from app.api.v1.module_platform.email.crud import EmailConfigCRUD
-        from app.core.base_schema import AuthSchema
-        from app.core.database import async_db_session
-        from app.utils.email_util import render_template_file, send_email
 
-        async with async_db_session() as _db:
-            cfg = await EmailConfigCRUD(AuthSchema(db=_db, check_data_scope=False)).get_active_default()
+class TenantLookupService:
+    """租户查询服务（登录页根据编码查找租户）"""
 
-        if not cfg:
-            logger.info("无可用 SMTP 配置，跳过欢迎邮件")
-            return
-
-        html_body = render_template_file("emails/welcome.jinja2", {
-            "tenant_name": tenant_name,
-            "username": username,
-            "trial_end": trial_end.strftime("%Y-%m-%d"),
-        })
-
-        await send_email(
-            smtp_host=cfg.smtp_host,
-            smtp_port=cfg.smtp_port,
-            smtp_user=cfg.smtp_user,
-            smtp_password=cfg.smtp_password,
-            use_tls=cfg.use_tls,
-            from_name=cfg.from_name,
-            to_email=to_email,
-            to_name=username,
-            subject=f"欢迎加入 {tenant_name}！",
-            body_html=html_body,
+    @staticmethod
+    async def lookup_by_code(db: AsyncSession, code: str) -> dict:
+        stmt = select(TenantModel).where(
+            TenantModel.code == code,
+            TenantModel.is_deleted.is_(False),
         )
-        logger.info(f"欢迎邮件已发送至 {to_email}")
+        result = (await db.execute(stmt)).scalar_one_or_none()
+        if not result:
+            raise CustomException(msg="未找到该租户")
 
+        return {
+            "id": result.id,
+            "name": result.name,
+            "code": result.code,
+            "logo_url": result.logo_url,
+            "login_bg": result.login_bg,
+            "version": result.version,
+        }
 
-class PasswordResetService:
-    """PRD §4.6 忘记密码：邮箱重置令牌 + 密码更新"""
-
-    RESET_TOKEN_PREFIX = "pwd_reset:"
-    TOKEN_EXPIRE_SECONDS = 1800  # 30 分钟
-
-    @classmethod
-    async def forgot_password(cls, redis: Redis, db: AsyncSession, email: str) -> str:
-        """忘记密码：根据邮箱查找用户，生成重置令牌并尝试发送邮件。"""
-        from sqlalchemy import select
-
-        from app.api.v1.module_system.user.model import UserModel
-
-        stmt = select(UserModel).where(
-            UserModel.email == email,
-            UserModel.is_deleted.is_(False),
+    @staticmethod
+    async def lookup_by_domain(db: AsyncSession, domain: str) -> dict:
+        stmt = select(TenantModel).where(
+            TenantModel.domain == domain,
+            TenantModel.is_deleted.is_(False),
         )
-        result = await db.execute(stmt)
-        user = result.scalar_one_or_none()
+        result = (await db.execute(stmt)).scalar_one_or_none()
+        if not result:
+            raise CustomException(msg="未找到该域名对应的租户")
 
-        if not user:
-            logger.info(f"忘记密码：邮箱 {email} 未注册，静默返回")
-            return "若邮箱已注册，重置邮件已发送"
+        return {
+            "id": result.id,
+            "name": result.name,
+            "code": result.code,
+            "logo_url": result.logo_url,
+            "login_bg": result.login_bg,
+            "version": result.version,
+        }
 
-        token = secrets.token_urlsafe(32)
-        key = f"{cls.RESET_TOKEN_PREFIX}{token}"
-        await RedisCURD(redis).set(key=key, value=str(user.id), expire=cls.TOKEN_EXPIRE_SECONDS)
-
-        try:
-            await cls._send_reset_email(email, user.username, token)
-        except Exception:
-            logger.warning(f"密码重置邮件发送失败: {email}")
-
-        return "若邮箱已注册，重置邮件已发送"
-
-    @classmethod
-    async def reset_password_with_token(cls, redis: Redis, db: AsyncSession, token: str, new_password: str) -> str:
-        """使用令牌重置密码。校验令牌 → 更新密码 → 删除令牌。"""
-        from app.api.v1.module_system.user.model import UserModel
-
-        key = f"{cls.RESET_TOKEN_PREFIX}{token}"
-        user_id_str = await RedisCURD(redis).get(key)
-
-        if not user_id_str:
-            raise CustomException(msg="重置链接已失效，请重新申请")
-
-        try:
-            user_id = int(user_id_str)
-        except (ValueError, TypeError):
-            await RedisCURD(redis).delete(key)
-            raise CustomException(msg="无效的重置链接")
-
-        user = await db.get(UserModel, user_id)
-        if not user or user.is_deleted:
-            await RedisCURD(redis).delete(key)
-            raise CustomException(msg="用户不存在")
-
-        user.password = PwdUtil.hash_password(new_password)
-        await db.commit()
-        await RedisCURD(redis).delete(key)
-
-        logger.info(f"用户 {user.username}(id={user_id}) 密码已重置")
-        return "密码重置成功，请使用新密码登录"
-
-    @classmethod
-    async def _send_reset_email(cls, to_email: str, username: str, token: str) -> None:
-        """发送密码重置邮件。"""
-        from app.api.v1.module_platform.email.crud import EmailConfigCRUD
-        from app.core.base_schema import AuthSchema
-        from app.core.database import async_db_session
-        from app.utils.email_util import render_template_file, send_email
-
-        async with async_db_session() as _db:
-            cfg = await EmailConfigCRUD(AuthSchema(db=_db, check_data_scope=False)).get_active_default()
-
-        if not cfg:
-            logger.info("无可用 SMTP 配置，跳过重置邮件")
-            return
-
-        reset_url = f"{getattr(settings, 'SITE_URL', '')}/reset-password?token={token}"
-        html_body = render_template_file("emails/reset_password.jinja2", {
-            "username": username,
-            "reset_url": reset_url,
-            "expire_minutes": cls.TOKEN_EXPIRE_SECONDS // 60,
-        })
-
-        await send_email(
-            smtp_host=cfg.smtp_host,
-            smtp_port=cfg.smtp_port,
-            smtp_user=cfg.smtp_user,
-            smtp_password=cfg.smtp_password,
-            use_tls=cfg.use_tls,
-            from_name=cfg.from_name,
-            to_email=to_email,
-            to_name=username,
-            subject="密码重置 - FastapiAdmin",
-            body_html=html_body,
+    @staticmethod
+    async def list_options(db: AsyncSession) -> list[dict]:
+        """获取所有活跃租户选项（登录页下拉选择）"""
+        stmt = (
+            select(TenantModel)
+            .where(TenantModel.is_deleted.is_(False), TenantModel.status == 0)
+            .order_by(TenantModel.id)
         )
-        logger.info(f"密码重置邮件已发送至 {to_email}")
+        results = (await db.execute(stmt)).scalars().all()
+        return [
+            {"id": r.id, "name": r.name, "code": r.code}
+            for r in results
+        ]
+
+    @staticmethod
+    async def search(db: AsyncSession, q: str) -> list[dict]:
+        """模糊搜索租户（按编码或名称）"""
+        pattern = f"%{q}%"
+        stmt = (
+            select(TenantModel)
+            .where(
+                TenantModel.is_deleted.is_(False),
+                TenantModel.status == 0,
+                (TenantModel.code.ilike(pattern) | TenantModel.name.ilike(pattern)),
+            )
+            .order_by(TenantModel.id)
+            .limit(20)
+        )
+        results = (await db.execute(stmt)).scalars().all()
+        return [
+            {"id": r.id, "name": r.name, "code": r.code}
+            for r in results
+        ]

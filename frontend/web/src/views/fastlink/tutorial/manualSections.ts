@@ -100,7 +100,7 @@ export const MANUAL_SYSTEM_TAIL_PAGES: CompactManualPage[] = [
       "检索：FaSearchBar + 分页表。",
       "工具栏：新增、批量删除、刷新、列配置（无导出/更多 patch 于顶栏）。",
       "弹层：详情；新增/编辑 Dialog（名称、编码、起止时间、状态、描述等）。",
-      "权限：`module_system:tenant:create|delete` + 行级 update/detail/delete。",
+      "权限：`module_platform:tenant:create|delete` + 行级 update/detail/delete。",
     ],
   },
   {
@@ -204,23 +204,23 @@ export const MANUAL_MODULES_AFTER_SYSTEM: ManualModuleSection[] = [
       {
         anchor: "page-workflow",
         title: "流程编排",
-        path: "module_task/workflow/definition/index.vue",
+        path: "module_task/workflow/flow/index.vue",
         notes: [
           "检索：FaSearchBar（可展开）。",
           "工具栏：新增、批量删除、刷新、列配置。",
           "行操作：草稿「发布」；已发布「执行」下拉；「编辑」打开 `WorkflowDesignDrawer` 画布；删除。",
-          "权限：`module_task:workflow:definition:create|delete|update|execute` 等（见行内 v-hasPerm）。",
+          "权限：`module_task:workflow:flow:create|delete|update|execute` 等（见行内 v-hasPerm）。",
         ],
       },
       {
         anchor: "page-nodetype",
-        title: "编排节点类型",
-        path: "module_task/workflow/node-type/index.vue",
+        title: "节点类型",
+        path: "module_task/workflow/nodes/index.vue",
         notes: [
           "检索：FaSearchBar（可展开）。",
           "工具栏：新增、批量删除、刷新、列配置。",
-          "行操作：编辑（打开表单/脚本配置）、删除等（见 `node-type-operation` 槽）。",
-          "权限：`module_task:workflow:node-type:create|delete|update` + 行级操作。",
+          "行操作：编辑（打开表单/脚本配置）、删除等（见 `nodes-operation` 槽）。",
+          "权限：`module_task:workflow:nodes:create|delete|update` + 行级操作。",
         ],
       },
     ],

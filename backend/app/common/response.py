@@ -4,11 +4,12 @@ from typing import Any
 
 from fastapi import status
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
 
-from app.common.constant import DATE_DISPLAY_FMT, DATETIME_DISPLAY_FMT, RET, TIME_DISPLAY_FMT
+from app.common.constant import DATE_DISPLAY_FMT, DATETIME_DISPLAY_FMT, TIME_DISPLAY_FMT
+from app.common.enums import RET
 
 # 裸 datetime/date/time（未走 Pydantic 的 dict 等）JSON 输出与 constant 中展示格式一致
 _JSON_DATETIME_CUSTOM_ENCODER: dict[type[Any], Any] = {
@@ -43,8 +44,7 @@ class SuccessResponse(JSONResponse):
         status_code: int = status.HTTP_200_OK,
         success: bool = True,
     ) -> None:
-        """
-        初始化成功响应类
+        """初始化成功响应类
 
         参数:
         - data (Any | None): 响应数据。
@@ -78,8 +78,7 @@ class ErrorResponse(JSONResponse):
         status_code: int = status.HTTP_400_BAD_REQUEST,
         success: bool = False,
     ) -> None:
-        """
-        初始化错误响应类
+        """初始化错误响应类
 
         参数:
         - data (Any): 响应数据。
@@ -113,8 +112,7 @@ class StreamResponse(StreamingResponse):
         media_type: str | None = None,
         background: BackgroundTask | None = None,
     ) -> None:
-        """
-        初始化流式响应类
+        """初始化流式响应类
 
         参数:
         - data (Any): 响应数据。
@@ -135,9 +133,74 @@ class StreamResponse(StreamingResponse):
         )
 
 
+class PlainTextContentResponse(PlainTextResponse):
+    """纯文本响应类"""
+
+    def __init__(
+        self,
+        content: str,
+        status_code: int = status.HTTP_200_OK,
+        headers: Mapping[str, str] | None = None,
+    ) -> None:
+        """初始化纯文本响应类
+
+        参数:
+        - content (str): 响应文本内容。
+        - status_code (int): HTTP 状态码。
+        - headers (Mapping[str, str] | None): 响应头。
+
+        返回:
+        - None
+        """
+        super().__init__(content=content, status_code=status_code, headers=headers)
+
+
+class HTMLContentResponse(HTMLResponse):
+    """HTML 响应类"""
+
+    def __init__(
+        self,
+        content: str,
+        status_code: int = status.HTTP_200_OK,
+        headers: Mapping[str, str] | None = None,
+    ) -> None:
+        """初始化 HTML 响应类
+
+        参数:
+        - content (str): HTML 内容。
+        - status_code (int): HTTP 状态码。
+        - headers (Mapping[str, str] | None): 响应头。
+
+        返回:
+        - None
+        """
+        super().__init__(content=content, status_code=status_code, headers=headers)
+
+
+class RedirectContentResponse(RedirectResponse):
+    """重定向响应类"""
+
+    def __init__(
+        self,
+        url: str,
+        status_code: int = status.HTTP_302_FOUND,
+        headers: Mapping[str, str] | None = None,
+    ) -> None:
+        """初始化重定向响应类
+
+        参数:
+        - url (str): 重定向目标 URL。
+        - status_code (int): HTTP 状态码（默认 302）。
+        - headers (Mapping[str, str] | None): 响应头。
+
+        返回:
+        - None
+        """
+        super().__init__(url=url, status_code=status_code, headers=headers)
+
+
 class UploadFileResponse(FileResponse):
-    """
-    文件响应
+    """文件响应
     """
 
     def __init__(
@@ -149,8 +212,7 @@ class UploadFileResponse(FileResponse):
         background: BackgroundTask | None = None,
         status_code: int = 200,
     ) -> None:
-        """
-        初始化文件响应类
+        """初始化文件响应类
 
         参数:
         - file_path (str): 文件路径。

@@ -13,15 +13,12 @@
       :show-search="true"
       :disabled-search="false"
       :default-expanded="false"
+      include-audit
       @search="handleSearchBarSearch"
       @reset="onResetSearch"
     />
 
-    <ElCard
-      shadow="hover"
-      class="fa-table-card"
-      :style="{ 'margin-top': showSearchBar ? '12px' : '0' }"
-    >
+    <ElCard class="fa-table-card" :style="{ 'margin-top': showSearchBar ? '12px' : '0' }">
       <FaTableHeader
         v-model:columns="columnChecks"
         v-model:showSearchBar="showSearchBar"
@@ -31,8 +28,8 @@
         <template #left>
           <FaTableHeaderLeft
             :remove-ids="selectedIds"
-            :perm-create="['module_system:tenant:create']"
-            :perm-delete="['module_system:tenant:delete']"
+            :perm-create="['module_platform:tenant:create']"
+            :perm-delete="['module_platform:tenant:delete']"
             :delete-loading="batchDeleting"
             :create-loading="createLoading"
             @add="handleAdd"
@@ -137,7 +134,9 @@
                       :show-tip="true"
                       :enable-preview="true"
                       :enable-crop="true"
-                      v-bind="brandCropBind('tenant_logo')"
+                      crop-dialog-title="裁剪站点 Logo"
+                      crop-inner-title="调整 Logo"
+                      crop-preview-title="预览"
                     />
                   </ElFormItem>
                 </ElCol>
@@ -151,7 +150,9 @@
                       :show-tip="true"
                       :enable-preview="true"
                       :enable-crop="true"
-                      v-bind="brandCropBind('tenant_favicon')"
+                      crop-dialog-title="裁剪网站图标"
+                      crop-inner-title="调整图标"
+                      crop-preview-title="预览"
                     />
                   </ElFormItem>
                 </ElCol>
@@ -165,7 +166,9 @@
                       :show-tip="true"
                       :enable-preview="true"
                       :enable-crop="true"
-                      v-bind="brandCropBind('tenant_login_bg')"
+                      crop-dialog-title="裁剪登录背景"
+                      crop-inner-title="调整背景图"
+                      crop-preview-title="预览"
                     />
                   </ElFormItem>
                 </ElCol>
@@ -206,13 +209,14 @@
 import { useTable } from "@/hooks/core/useTable";
 import { useCrudDialog } from "@/hooks/core/useCrudDialog";
 import { useTableSelection } from "@/hooks/core/useTableSelection";
-import { confirmDelete, confirmBatchDelete } from "@/hooks/core/useConfirm";
+import { confirmDelete, confirmBatchDelete, confirmToggleStatus } from "@/hooks/core/useConfirm";
 import TenantAPI, {
   type TenantCreateForm,
   type TenantForm,
   type TenantTable,
   type TenantUpdateForm,
 } from "@/api/module_platform/tenant";
+import PackageAPI from "@/api/module_platform/package";
 import { useAuth } from "@/hooks/core/useAuth";
 import { renderTableOperationCell, type TableOperationAction, resolveStatusColumns } from "@utils";
 import type { SearchFormItem } from "@/components/forms/fa-search-bar/index.vue";
@@ -220,7 +224,7 @@ import type FaSearchBar from "@/components/forms/fa-search-bar/index.vue";
 import type { FormItem } from "@/components/forms/fa-form/index.vue";
 import type FaForm from "@/components/forms/fa-form/index.vue";
 import { ElMessage, ElTabs, ElTabPane, ElForm, ElFormItem, ElRow, ElCol } from "element-plus";
-import { h, ref } from "vue";
+import { h, ref, computed, onMounted } from "vue";
 
 defineOptions({
   name: "Tenant",
@@ -260,7 +264,7 @@ function buildTenantRowActions(
       key: "detail",
       label: "详情",
       artType: "view",
-      perm: "module_system:tenant:query",
+      perm: "module_platform:tenant:query",
       run: () => ctx.onDetail(row.id!),
     },
     {
@@ -268,7 +272,7 @@ function buildTenantRowActions(
       label: "编辑",
       artType: "edit",
       icon: "ri:edit-2-line",
-      perm: "module_system:tenant:update",
+      perm: "module_platform:tenant:update",
       run: () => ctx.onEdit(row.id!),
     },
     {
@@ -276,7 +280,7 @@ function buildTenantRowActions(
       label: row.status === 0 ? "禁用" : "启用",
       artType: "edit",
       icon: row.status === 0 ? "ri:forbid-2-line" : "ri:checkbox-circle-line",
-      perm: "module_system:tenant:patch",
+      perm: "module_platform:tenant:patch",
       run: () => ctx.onToggleStatus(row.id!),
     },
     {
@@ -284,7 +288,7 @@ function buildTenantRowActions(
       label: "删除",
       artType: "delete",
       icon: "ri:delete-bin-4-line",
-      perm: "module_system:tenant:delete",
+      perm: "module_platform:tenant:delete",
       run: () => ctx.onDelete(row.id!),
     },
   ];
@@ -335,21 +339,6 @@ const tenantSearchItems = computed<SearchFormItem[]>(() => [
     },
     span: 6,
   },
-  {
-    label: "创建时间",
-    key: "created_time",
-    type: "datetimerange",
-    span: 6,
-    props: {
-      type: "datetimerange",
-      rangeSeparator: "至",
-      startPlaceholder: "开始日期",
-      endPlaceholder: "结束日期",
-      format: "YYYY-MM-DD HH:mm:ss",
-      valueFormat: "YYYY-MM-DD HH:mm:ss",
-      style: { width: "100%" },
-    },
-  },
 ]);
 
 const faTableRef = ref<{ elTableRef?: { clearSelection: () => void } } | null>(null);
@@ -370,16 +359,16 @@ async function deleteTenantRow(id: number) {
 }
 
 async function toggleTenantStatus(id: number) {
+  const row = (data.value as TenantTable[]).find((item) => item.id === id);
+  if (!row) return;
+  const newStatus = row.status === 0 ? 1 : 0;
   try {
+    await confirmToggleStatus(newStatus);
     await TenantAPI.toggleTenantStatus(id);
-    // 直接更新当前行的 status，确保 UI 即时响应
-    const row = (data.value as TenantTable[]).find((item) => item.id === id);
-    if (row) {
-      row.status = row.status === 0 ? 1 : 0;
-    }
+    row.status = newStatus;
     await refreshData();
   } catch {
-    ElMessage.error("状态切换失败");
+    /* 用户取消或接口错误已由拦截器提示 */
   }
 }
 
@@ -436,7 +425,7 @@ const {
         label: "操作",
         width: 200,
         fixed: "right",
-        align: "right",
+        align: "center",
         formatter: (row: TenantTable) =>
           renderTableOperationCell(buildTenantRowActions(row, opCtx)),
       },
@@ -565,44 +554,6 @@ const dataFormRef = ref<InstanceType<typeof FaForm> | null>(null);
 const submitLoading = ref(false);
 const tenantFormRenderKey = ref(0);
 
-function brandCropBind(key: string) {
-  switch (key) {
-    case "tenant_favicon":
-      return {
-        cropCutWidth: 64,
-        cropCutHeight: 64,
-        cropBoxWidth: 380,
-        cropBoxHeight: 320,
-        cropDialogTitle: "裁剪网站图标",
-        cropInnerTitle: "调整图标",
-        cropPreviewTitle: "预览",
-      };
-    case "tenant_logo":
-      return {
-        cropCutWidth: 320,
-        cropCutHeight: 96,
-        cropBoxWidth: 520,
-        cropBoxHeight: 360,
-        cropDialogTitle: "裁剪站点 Logo",
-        cropInnerTitle: "调整 Logo",
-        cropPreviewTitle: "预览",
-      };
-    case "tenant_login_bg":
-      return {
-        cropCutWidth: 960,
-        cropCutHeight: 540,
-        cropBoxWidth: 560,
-        cropBoxHeight: 380,
-        cropDialogTitle: "裁剪登录背景",
-        cropInnerTitle: "调整背景图",
-        cropPreviewTitle: "预览",
-        cropFileType: "jpeg" as const,
-      };
-    default:
-      return {};
-  }
-}
-
 async function handleAdd() {
   createLoading.value = true;
   try {
@@ -642,7 +593,22 @@ async function handleCloseDialog() {
 
 const activeTab = ref("basic");
 
-const basicFormItems: FormItem[] = [
+const packageOptions = ref<OptionType[]>([]);
+
+async function fetchPackageOptions() {
+  try {
+    const res = await PackageAPI.getPackageOptions();
+    packageOptions.value = res.data?.data ?? [];
+  } catch {
+    packageOptions.value = [];
+  }
+}
+
+onMounted(() => {
+  fetchPackageOptions();
+});
+
+const basicFormItems = computed<FormItem[]>(() => [
   {
     label: "租户名称",
     key: "name",
@@ -673,10 +639,15 @@ const basicFormItems: FormItem[] = [
     },
   },
   {
-    label: "关联套餐ID",
+    label: "关联套餐",
     key: "package_id",
-    type: "number",
-    props: { placeholder: "选填", min: 1, style: { width: "100%" } },
+    type: "select",
+    props: {
+      placeholder: "请选择套餐",
+      options: packageOptions.value,
+      clearable: true,
+      style: { width: "100%" },
+    },
   },
   {
     label: "排序",
@@ -740,7 +711,7 @@ const basicFormItems: FormItem[] = [
       valueFormat: "YYYY-MM-DD HH:mm:ss",
     },
   },
-];
+]);
 
 const websiteFormItems: FormItem[] = [
   {

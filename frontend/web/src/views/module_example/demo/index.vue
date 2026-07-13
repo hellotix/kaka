@@ -13,16 +13,12 @@
       :show-search="true"
       :disabled-search="false"
       :default-expanded="false"
-      :include-audit="true"
+      include-audit
       @search="handleSearch"
       @reset="onResetSearch"
     />
 
-    <ElCard
-      shadow="hover"
-      class="fa-table-card"
-      :style="{ 'margin-top': showSearchBar ? '12px' : '0' }"
-    >
+    <ElCard class="fa-table-card" :style="{ 'margin-top': showSearchBar ? '12px' : '0' }">
       <FaTableHeader
         v-model:columns="columnChecks"
         v-model:showSearchBar="showSearchBar"
@@ -326,9 +322,9 @@ const {
       {
         prop: "operation",
         label: "操作",
-        width: 220,
+        width: 180,
         fixed: "right",
-        align: "right",
+        align: "center",
         formatter: (row: DemoTable) => formatDemoOperationCell(row),
       },
     ],
@@ -562,7 +558,7 @@ function buildDemoRowActions(row: DemoTable): TableOperationAction[] {
 
 function formatDemoOperationCell(row: DemoTable) {
   return renderTableOperationCell(buildDemoRowActions(row), {
-    wrapperClass: "inline-flex flex-wrap items-center justify-end gap-1 demo-table-actions",
+    wrapperClass: "inline-flex flex-wrap items-center justify-end gap-1",
   });
 }
 
@@ -695,7 +691,7 @@ async function runBatchStatus(status: number) {
       "批量设置"
     );
     await DemoAPI.batchDemo({ ids, status });
-    ElMessage.success("操作成功");
+    // 成功 / 失败提示由 axios 拦截器统一处理
     faTableRef.value?.elTableRef?.clearSelection();
     await refreshData();
   } catch {
@@ -706,16 +702,15 @@ async function runBatchStatus(status: number) {
 async function handleCrudImportUpload(formData: FormData) {
   try {
     const res = await DemoAPI.importDemo(formData);
-    if (res.data.code !== ResultEnum.SUCCESS) {
-      ElMessage.error(res.data.msg || "导入失败");
-      return;
+    if (res.data.code === ResultEnum.SUCCESS) {
+      ElMessage.success(res.data.msg || "导入成功");
+      importVisible.value = false;
+      await refreshData();
     }
-    ElMessage.success(res.data.msg || "导入成功");
-    importVisible.value = false;
-    await refreshData();
+    // 非 SUCCESS 分支提示由 axios 拦截器统一处理
   } catch (error) {
     console.error("[Import]", error);
-    ElMessage.error("导入失败");
+    /* 接口错误已由拦截器提示 */
   }
 }
 </script>

@@ -36,25 +36,17 @@ export const UserAPI = {
     });
   },
 
-  resetUserPassword(body: ResetPasswordForm) {
+  resetUserPassword(id: number, body: ResetPasswordForm) {
     return request<ApiResponse>({
-      url: `${API_PATH}/reset/password`,
+      url: `${API_PATH}/password/reset/${id}`,
       method: "put",
-      data: body,
-    });
-  },
-
-  registerUser(body: RegisterForm) {
-    return request<ApiResponse>({
-      url: `${API_PATH}/register`,
-      method: "post",
       data: body,
     });
   },
 
   forgetPassword(body: ForgetPasswordForm) {
     return request<ApiResponse>({
-      url: `${API_PATH}/forget/password`,
+      url: `${API_PATH}/password/forget`,
       method: "post",
       data: body,
     });
@@ -68,9 +60,9 @@ export const UserAPI = {
     });
   },
 
-  detailUser(query: number) {
+  detailUser(id: number) {
     return request<ApiResponse<UserInfo>>({
-      url: `${API_PATH}/detail/${query}`,
+      url: `${API_PATH}/detail/${id}`,
       method: "get",
     });
   },
@@ -107,11 +99,11 @@ export const UserAPI = {
     });
   },
 
-  exportUser(body: UserPageQuery) {
+  exportUser(query: UserPageQuery) {
     return request<Blob>({
       url: `${API_PATH}/export`,
-      method: "post",
-      data: body,
+      method: "get",
+      params: query,
       responseType: "blob",
     });
   },
@@ -119,7 +111,7 @@ export const UserAPI = {
   downloadTemplateUser() {
     return request<ApiResponse>({
       url: `${API_PATH}/import/template`,
-      method: "post",
+      method: "get",
       responseType: "blob",
     });
   },
@@ -139,6 +131,7 @@ export const UserAPI = {
 export default UserAPI;
 
 export interface ForgetPasswordForm {
+  tenant_name: string;
   username: string;
   new_password: string;
   mobile?: string;
@@ -146,6 +139,7 @@ export interface ForgetPasswordForm {
 }
 
 export interface RegisterForm {
+  tenant_name: string;
   username: string;
   password: string;
   confirmPassword: string;
@@ -184,12 +178,12 @@ export interface UserInfo extends BaseType {
   position_names?: positionSelectorType["name"][];
   position_ids?: positionSelectorType["id"][];
   is_superuser?: boolean;
+  is_impersonate?: boolean;
   last_login?: string;
   created_by?: CommonType;
   updated_by?: CommonType;
   deleted_by?: CommonType;
-  tenant_id?: number;
-  tenant_name?: string;
+  tenant_by?: CommonType;
   gitee_login?: string;
   github_login?: string;
   wx_login?: string;
@@ -235,6 +229,13 @@ export interface InfoFormState {
   avatar?: string;
   created_time?: string;
   updated_time?: string;
+  status?: number;
+  description?: string;
+  tenant_by?: CommonType;
+  gitee_login?: string;
+  github_login?: string;
+  wx_login?: string;
+  qq_login?: string;
 }
 
 export interface PasswordFormState {
@@ -244,7 +245,6 @@ export interface PasswordFormState {
 }
 
 export interface ResetPasswordForm {
-  id: number;
   password: string;
 }
 

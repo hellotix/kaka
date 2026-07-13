@@ -13,15 +13,13 @@
       :show-search="true"
       :disabled-search="false"
       :default-expanded="false"
+      include-audit
+      :audit-item-options="{ showTenantId: true }"
       @search="handleSearchBarSearch"
       @reset="onResetSearch"
     />
 
-    <ElCard
-      shadow="hover"
-      class="fa-table-card"
-      :style="{ 'margin-top': showSearchBar ? '12px' : '0' }"
-    >
+    <ElCard class="fa-table-card" :style="{ 'margin-top': showSearchBar ? '12px' : '0' }">
       <FaTableHeader
         v-model:columns="columnChecks"
         v-model:showSearchBar="showSearchBar"
@@ -240,21 +238,6 @@ const deptSearchItems = computed<SearchFormItem[]>(() => [
     },
     span: 6,
   },
-  {
-    label: "创建时间",
-    key: "created_time",
-    type: "datetimerange",
-    span: 6,
-    props: {
-      type: "datetimerange",
-      rangeSeparator: "至",
-      startPlaceholder: "开始日期",
-      endPlaceholder: "结束日期",
-      format: "YYYY-MM-DD HH:mm:ss",
-      valueFormat: "YYYY-MM-DD HH:mm:ss",
-      style: { width: "100%" },
-    },
-  },
 ]);
 
 const tableRef = ref<{
@@ -318,6 +301,9 @@ const deptDetailItems: import("@/components/others/fa-descriptions/index.vue").D
     { label: "排序", prop: "order" },
     { label: "创建时间", prop: "created_time" },
     { label: "更新时间", prop: "updated_time" },
+    { label: "创建人", prop: "created_by.name" },
+    { label: "更新人", prop: "updated_by.name" },
+    { label: "所属租户", prop: "tenant_by.name" },
     { label: "描述", prop: "description", span: 4 },
   ];
 
@@ -424,7 +410,7 @@ const { columnChecks, columns } = useTableColumns<DeptTable>(
       label: "操作",
       width: 220,
       fixed: "right",
-      align: "right",
+      align: "center",
       formatter: (row: DeptTable) => formatDeptOperationCell(row, opCtx),
     },
   ])

@@ -1,5 +1,4 @@
-"""
-模块接口测试 —— module_ai（AI 对话模块）
+"""模块接口测试 —— module_ai（AI 对话模块）
 
 动态路由映射：module_ai → /ai
 每个接口一个测试用例，覆盖会话 CRUD 与 AI 对话。

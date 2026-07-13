@@ -13,7 +13,7 @@
                     <span class="font-medium">Redis监控信息</span>
                   </div>
                 </template>
-                <FaDescriptions :column="6" :scrollbar="false">
+                <FaDescriptions :column="descColumns" :scrollbar="false">
                   <ElDescriptionsItem label="Redis版本">
                     {{ cache.info?.redis_version || "-" }}
                   </ElDescriptionsItem>
@@ -61,7 +61,7 @@
           </ElRow>
 
           <ElRow :gutter="16" class="flex-1 min-h-0">
-            <ElCol :span="12" class="flex flex-col min-h-0">
+            <ElCol :xs="24" :sm="12" class="mb-5">
               <ElCard shadow="hover" class="flex-1 flex flex-col chart-card">
                 <template #header>
                   <div class="flex items-center gap-2">
@@ -72,7 +72,7 @@
                 <div ref="commandstats" class="chart-container" />
               </ElCard>
             </ElCol>
-            <ElCol :span="12" class="flex flex-col min-h-0">
+            <ElCol :xs="24" :sm="12" class="mb-5">
               <ElCard shadow="hover" class="flex-1 flex flex-col chart-card">
                 <template #header>
                   <div class="flex items-center gap-2">
@@ -92,7 +92,7 @@
         <div class="cache-mgmt-tab">
           <ElRow :gutter="16" class="flex-1 min-h-0">
             <!-- 缓存列表 -->
-            <ElCol :span="8" class="cache-mgmt-col">
+            <ElCol :xs="24" :md="8" class="cache-mgmt-col mb-5 h-full">
               <ElCard :loading="loading" shadow="hover" class="cache-mgmt-card">
                 <template #header>
                   <div class="flex items-center justify-between">
@@ -152,7 +152,7 @@
             </ElCol>
 
             <!-- 键名列表 -->
-            <ElCol :span="8" class="cache-mgmt-col">
+            <ElCol :xs="24" :md="8" class="cache-mgmt-col mb-5 h-full">
               <ElCard :loading="loading" shadow="hover" class="cache-mgmt-card">
                 <template #header>
                   <div class="flex items-center justify-between">
@@ -215,7 +215,7 @@
             </ElCol>
 
             <!-- 缓存内容 -->
-            <ElCol :span="8" class="cache-mgmt-col">
+            <ElCol :xs="24" :md="8" class="cache-mgmt-col mb-5 h-full">
               <ElCard :loading="loading" shadow="hover" class="cache-mgmt-card">
                 <template #header>
                   <div class="flex items-center justify-between">
@@ -270,8 +270,14 @@ import CacheAPI, {
   type RedisInfo,
 } from "@/api/module_monitor/cache";
 import * as echarts from "echarts";
+import { useWindowSize } from "@vueuse/core";
 
 defineOptions({ name: "CacheMonitor" });
+
+const { width: winWidth } = useWindowSize();
+const descColumns = computed(() => (winWidth.value < 768 ? 2 : 6));
+
+let refreshTimer: ReturnType<typeof setInterval> | undefined;
 
 const cacheNames = ref<CacheInfo[]>([]);
 const cacheKeys = ref<string[]>([]);
@@ -448,9 +454,15 @@ const initCharts = () => {
 onMounted(() => {
   getCacheNameList();
   getInfo();
+  // Redis 监控信息自动刷新（30 秒轮询）
+  refreshTimer = setInterval(() => {
+    getInfo();
+    getCacheNameList();
+  }, 30000);
 });
 
 onUnmounted(() => {
+  if (refreshTimer) clearInterval(refreshTimer);
   commandstatsInstance?.dispose();
   usedmemoryInstance?.dispose();
 });
@@ -494,6 +506,7 @@ onUnmounted(() => {
   gap: 16px;
   height: 100%;
   min-height: 0;
+  overflow-y: auto;
 }
 
 .chart-card {
@@ -521,6 +534,7 @@ onUnmounted(() => {
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  overflow-y: auto;
 }
 
 .cache-mgmt-col {

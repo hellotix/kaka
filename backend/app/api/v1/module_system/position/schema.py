@@ -1,11 +1,7 @@
-from dataclasses import dataclass
-
-from fastapi import Query
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.common.enums import QueueEnum
-from app.core.base_params import BaseQueryParam, TenantByQueryParam, UserByQueryParam
-from app.core.base_schema import BaseSchema, TenantBySchema, UserBySchema
+from app.core.base_schema import BaseQueryParam, BaseSchema, TenantByQueryParam, TenantBySchema, UserByQueryParam, UserBySchema
 
 
 class PositionCreateSchema(BaseModel):
@@ -51,11 +47,16 @@ class PositionOutSchema(PositionCreateSchema, BaseSchema, UserBySchema, TenantBy
     model_config = ConfigDict(from_attributes=True)
 
 
-@dataclass
 class PositionQueryParam(BaseQueryParam, UserByQueryParam, TenantByQueryParam):
     """岗位管理查询参数"""
 
-    name: str | None = Query(None, description="岗位名称")
+    name: str | tuple[str, str] | None = Field(None, description="岗位名称")
+    status: int | tuple[str, int] | None = Field(None, ge=0, le=1, description="状态(0:启动 1:停用)")
 
-    def __post_init__(self) -> None:
-        self.name = (QueueEnum.like.value, self.name)
+    @model_validator(mode="after")
+    def validate_query_params(self) -> "PositionQueryParam":
+        if isinstance(self.name, str):
+            self.name = (QueueEnum.like.value, self.name)
+        if isinstance(self.status, int):
+            self.status = (QueueEnum.eq.value, self.status)
+        return self

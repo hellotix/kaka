@@ -1,8 +1,7 @@
 <template>
   <ElRow :gutter="16">
-    <ElCol v-for="(item, index) in dataList" :key="index" :sm="12" :md="8" :lg="8">
+    <ElCol v-for="(item, index) in dataList" :key="index" :sm="12" :md="8" :lg="8" class="mb-5">
       <div class="fa-card relative flex flex-col justify-center h-30 px-5">
-        <!-- 顶部标题行 -->
         <div class="flex items-center justify-between">
           <span class="text-sm text-g-600">{{ item.des }}</span>
           <ElTag v-if="item.tag" :type="item.tagType || 'danger'" size="small">
@@ -10,14 +9,11 @@
           </ElTag>
         </div>
 
-        <!-- 数字 + 侧边图标 -->
         <div class="flex items-center justify-between mt-2">
           <div class="flex items-center gap-2">
-            <!-- 丰富卡片用 useTransition 模拟动画 -->
             <span v-if="item.animatedCount" class="text-lg font-medium">
               {{ item.animatedCount }}
             </span>
-            <!-- 简单卡片用 FaCountTo -->
             <FaCountTo v-else class="text-lg font-medium" :target="item.num" :duration="1300" />
             <span v-if="item.status" class="text-xs" :class="item.statusColor || 'text-success'">
               <ElIcon v-if="item.statusIcon"><component :is="item.statusIcon" /></ElIcon>
@@ -40,7 +36,6 @@
           </div>
         </div>
 
-        <!-- 底部行：变化率 + 更新时间 -->
         <div class="flex items-center justify-between mt-1 text-xs text-g-600">
           <span>
             <template v-if="item.change !== undefined">
@@ -62,9 +57,9 @@
 
 <script setup lang="ts">
 import { ref, onMounted, markRaw, type Component } from "vue";
-import { useTransition } from "@vueuse/core";
 import { Connection } from "@element-plus/icons-vue";
-import { computed } from "vue";
+import DashboardAPI from "@/api/module_monitor/dashboard";
+import type { DashboardStats } from "@/api/module_monitor/dashboard";
 
 interface CardDataItem {
   des: string;
@@ -86,30 +81,9 @@ interface CardDataItem {
   animatedCount?: number;
 }
 
-// 模拟访客数据（原来首页统计卡片的数据）
-const visitStats = ref({
-  todayUvCount: Math.floor(Math.random() * 200) + 50,
-  uvGrowthRate: parseFloat((Math.random() * 20 - 10).toFixed(2)),
-  totalUvCount: Math.floor(Math.random() * 5000) + 1000,
-  todayPvCount: Math.floor(Math.random() * 500) + 100,
-  pvGrowthRate: parseFloat((Math.random() * 20 - 10).toFixed(2)),
-  totalPvCount: Math.floor(Math.random() * 20000) + 5000,
-});
-
-const transitionUvCount = useTransition(
-  computed(() => visitStats.value.todayUvCount),
-  {
-    duration: 1000,
-    transition: [0.25, 0.1, 0.25, 1.0],
-  }
-);
-const transitionPvCount = useTransition(
-  computed(() => visitStats.value.todayPvCount),
-  {
-    duration: 1000,
-    transition: [0.25, 0.1, 0.25, 1.0],
-  }
-);
+const now = new Date();
+const pad = (n: number) => String(n).padStart(2, "0");
+const timeStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
 const dataList = ref<CardDataItem[]>([
   {
@@ -118,51 +92,70 @@ const dataList = ref<CardDataItem[]>([
     iconBg: "bg-danger/10",
     iconColor: "text-danger",
     animateIcon: true,
-    num: 9999,
+    num: 0,
     rich: true,
     tag: "实时",
     tagType: "danger",
     status: "已连接",
     statusColor: "text-success",
     statusIcon: markRaw(Connection),
-    updateTime: "2025-07-12 00:00:00",
+    updateTime: timeStr,
   },
   {
-    des: "访客数(UV)",
+    des: "注册用户",
     icon: "ri:bar-chart-grouped-line",
     iconBg: "bg-success/10",
     iconColor: "text-success",
     num: 0,
     rich: true,
     animatedCount: 0,
-    totalLabel: "总访客数",
+    totalLabel: "总用户",
     totalValue: 0,
   },
   {
-    des: "浏览量(PV)",
+    des: "总订单",
     icon: "ri:eye-line",
     iconBg: "bg-primary/10",
     iconColor: "text-primary",
-    num: 9999,
+    num: 0,
     rich: true,
     animatedCount: 0,
-    totalLabel: "总浏览量",
+    totalLabel: "已支付",
     totalValue: 0,
   },
 ]);
 
-onMounted(() => {
-  // 更新 UV/PV 动态数据
-  dataList.value[1]!.animatedCount = Math.round(transitionUvCount.value);
-  dataList.value[1]!.totalValue = visitStats.value.totalUvCount;
-  dataList.value[2]!.animatedCount = Math.round(transitionPvCount.value);
-  dataList.value[2]!.totalValue = visitStats.value.totalPvCount;
+async function loadStats() {
+  try {
+    const { data: res } = await DashboardAPI.getStats();
+    const stats = res?.data as DashboardStats | undefined;
+    if (!stats) return;
 
-  // 生成增长率显示
-  const uvRate = visitStats.value.uvGrowthRate;
-  const pvRate = visitStats.value.pvGrowthRate;
-  dataList.value[1]!.change = uvRate > 0 ? `+${uvRate}%` : `${uvRate}%`;
-  dataList.value[2]!.change = pvRate > 0 ? `+${pvRate}%` : `${pvRate}%`;
+    const now2 = new Date();
+    const ts = `${now2.getFullYear()}-${pad(now2.getMonth() + 1)}-${pad(now2.getDate())} ${pad(now2.getHours())}:${pad(now2.getMinutes())}:${pad(now2.getSeconds())}`;
+
+    // 在线用户（第1个卡片）
+    dataList.value[0]!.num = stats.online_users;
+    dataList.value[0]!.updateTime = ts;
+
+    // 注册用户（第2个卡片）
+    dataList.value[1]!.num = stats.total_users;
+    dataList.value[1]!.totalValue = `本周 +${stats.week_user_created}`;
+    dataList.value[1]!.animatedCount = stats.total_users;
+
+    // 总订单（第3个卡片）
+    dataList.value[2]!.num = stats.total_orders;
+    dataList.value[2]!.totalValue = stats.paid_orders;
+    dataList.value[2]!.animatedCount = stats.total_orders;
+  } catch {
+    // 接口错误不影响页面渲染
+  }
+}
+
+onMounted(() => {
+  loadStats();
+  // 每 30 秒刷新一次
+  setInterval(loadStats, 30000);
 });
 </script>
 

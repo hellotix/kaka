@@ -2,13 +2,14 @@
 import urllib.parse
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Depends, Path, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Path, Query, Security, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.base_schema import AuthSchema
 from app.common.response import ResponseSchema, StreamResponse, SuccessResponse
-from app.core.base_params import PaginationQueryParam
-from app.core.base_schema import AuthSchema, BatchSetAvailable, PageResultSchema
-from app.core.dependencies import AuthPermission
+from app.core.base_schema import BatchSetAvailable, PageResultSchema, PaginationQueryParam
+from app.core.dependencies import AuthPermission, db_getter
 from app.core.router_class import OperationLogRoute
 from app.utils.common_util import bytes2file_response
 
@@ -25,7 +26,8 @@ from .service import {{ class_name }}Service
 )
 async def get_obj_detail_controller(
     id: Annotated[int, Path(description="{{ function_name }}ID")],
-    auth: Annotated[AuthSchema, Depends(AuthPermission(["{{ permission_prefix }}:detail"]))],
+    auth: Annotated[AuthSchema, Security(AuthPermission(["{{ permission_prefix }}:detail"]))],
+    db: Annotated[AsyncSession, Depends(db_getter)],
 ) -> JSONResponse:
     """
     获取{{ function_name }}详情
@@ -33,11 +35,12 @@ async def get_obj_detail_controller(
     参数:
     - id (int): {{ function_name }}ID
     - auth (AuthSchema): 认证信息模型
+    - db (AsyncSession): 数据库会话
 
     返回:
     - JSONResponse: 包含{{ function_name }}详情的JSON响应
     """
-    result_dict = await {{ class_name }}Service.detail_service(id=id, auth=auth)
+    result_dict = await {{ class_name }}Service.detail_service(id=id, auth=auth, db=db)
     return SuccessResponse(data=result_dict, msg="获取{{ function_name }}详情成功")
 
 
@@ -49,7 +52,8 @@ async def get_obj_detail_controller(
 async def get_obj_list_controller(
     page: Annotated[PaginationQueryParam, Depends()],
     search: Annotated[{{ class_name }}QueryParam, Depends()],
-    auth: Annotated[AuthSchema, Depends(AuthPermission(["{{ permission_prefix }}:query"]))],
+    auth: Annotated[AuthSchema, Security(AuthPermission(["{{ permission_prefix }}:query"]))],
+    db: Annotated[AsyncSession, Depends(db_getter)],
 ) -> JSONResponse:
     """
     查询{{ function_name }}列表
@@ -58,12 +62,14 @@ async def get_obj_list_controller(
     - page (PaginationQueryParam): 分页查询参数
     - search ({{ class_name }}QueryParam): 查询参数
     - auth (AuthSchema): 认证信息模型
+    - db (AsyncSession): 数据库会话
 
     返回:
     - JSONResponse: 包含{{ function_name }}列表分页信息的JSON响应
     """
     result_dict = await {{ class_name }}Service.page_service(
         auth=auth,
+        db=db,
         page_no=page.page_no,
         page_size=page.page_size,
         search=search,
@@ -78,8 +84,9 @@ async def get_obj_list_controller(
     response_model=ResponseSchema[{{ class_name }}OutSchema],
 )
 async def create_obj_controller(
-    data: {{ class_name }}CreateSchema,
-    auth: Annotated[AuthSchema, Depends(AuthPermission(["{{ permission_prefix }}:create"]))],
+    data: Annotated[{{ class_name }}CreateSchema, Body(description="创建参数")],
+    auth: Annotated[AuthSchema, Security(AuthPermission(["{{ permission_prefix }}:create"]))],
+    db: Annotated[AsyncSession, Depends(db_getter)],
 ) -> JSONResponse:
     """
     创建{{ function_name }}
@@ -87,11 +94,12 @@ async def create_obj_controller(
     参数:
     - data ({{ class_name }}CreateSchema): {{ function_name }}创建模型
     - auth (AuthSchema): 认证信息模型
+    - db (AsyncSession): 数据库会话
 
     返回:
     - JSONResponse: 包含创建{{ function_name }}详情的JSON响应
     """
-    result_dict = await {{ class_name }}Service.create_service(auth=auth, data=data)
+    result_dict = await {{ class_name }}Service.create_service(auth=auth, db=db, data=data)
     return SuccessResponse(data=result_dict, msg="创建{{ function_name }}成功")
 
 
@@ -101,9 +109,10 @@ async def create_obj_controller(
     response_model=ResponseSchema[{{ class_name }}OutSchema],
 )
 async def update_obj_controller(
-    data: {{ class_name }}UpdateSchema,
+    data: Annotated[{{ class_name }}UpdateSchema, Body(description="更新参数")],
     id: Annotated[int, Path(description="{{ function_name }}ID")],
-    auth: Annotated[AuthSchema, Depends(AuthPermission(["{{ permission_prefix }}:update"]))],
+    auth: Annotated[AuthSchema, Security(AuthPermission(["{{ permission_prefix }}:update"]))],
+    db: Annotated[AsyncSession, Depends(db_getter)],
 ) -> JSONResponse:
     """
     修改{{ function_name }}
@@ -112,11 +121,12 @@ async def update_obj_controller(
     - data ({{ class_name }}UpdateSchema): {{ function_name }}更新模型
     - id (int): {{ function_name }}ID
     - auth (AuthSchema): 认证信息模型
+    - db (AsyncSession): 数据库会话
 
     返回:
     - JSONResponse: 包含修改{{ function_name }}详情的JSON响应
     """
-    result_dict = await {{ class_name }}Service.update_service(auth=auth, id=id, data=data)
+    result_dict = await {{ class_name }}Service.update_service(auth=auth, db=db, id=id, data=data)
     return SuccessResponse(data=result_dict, msg="修改{{ function_name }}成功")
 
 
@@ -127,7 +137,8 @@ async def update_obj_controller(
 )
 async def delete_obj_controller(
     ids: Annotated[list[int], Body(description="ID列表")],
-    auth: Annotated[AuthSchema, Depends(AuthPermission(["{{ permission_prefix }}:delete"]))],
+    auth: Annotated[AuthSchema, Security(AuthPermission(["{{ permission_prefix }}:delete"]))],
+    db: Annotated[AsyncSession, Depends(db_getter)],
 ) -> JSONResponse:
     """
     删除{{ function_name }}
@@ -135,11 +146,12 @@ async def delete_obj_controller(
     参数:
     - ids (list[int]): {{ function_name }}ID列表
     - auth (AuthSchema): 认证信息模型
+    - db (AsyncSession): 数据库会话
 
     返回:
     - JSONResponse: 包含删除{{ function_name }}详情的JSON响应
     """
-    await {{ class_name }}Service.delete_service(auth=auth, ids=ids)
+    await {{ class_name }}Service.delete_service(auth=auth, db=db, ids=ids)
     return SuccessResponse(msg="删除{{ function_name }}成功")
 
 
@@ -149,8 +161,9 @@ async def delete_obj_controller(
     response_model=ResponseSchema[None],
 )
 async def batch_set_available_obj_controller(
-    data: BatchSetAvailable,
-    auth: Annotated[AuthSchema, Depends(AuthPermission(["{{ permission_prefix }}:patch"]))],
+    data: Annotated[BatchSetAvailable, Body(description="状态设置")],
+    auth: Annotated[AuthSchema, Security(AuthPermission(["{{ permission_prefix }}:patch"]))],
+    db: Annotated[AsyncSession, Depends(db_getter)],
 ) -> JSONResponse:
     """
     批量修改{{ function_name }}状态
@@ -158,11 +171,12 @@ async def batch_set_available_obj_controller(
     参数:
     - data (BatchSetAvailable): 批量修改{{ function_name }}状态模型
     - auth (AuthSchema): 认证信息模型
+    - db (AsyncSession): 数据库会话
 
     返回:
     - JSONResponse: 包含批量修改{{ function_name }}状态详情的JSON响应
     """
-    await {{ class_name }}Service.set_available_service(auth=auth, data=data)
+    await {{ class_name }}Service.set_available_service(auth=auth, db=db, data=data)
     return SuccessResponse(msg="批量修改{{ function_name }}状态成功")
 
 
@@ -171,8 +185,9 @@ async def batch_set_available_obj_controller(
     summary="导出{{ function_name }}",
 )
 async def export_obj_list_controller(
-    search: Annotated[{{ class_name }}QueryParam, Depends()],
-    auth: Annotated[AuthSchema, Depends(AuthPermission(["{{ permission_prefix }}:export"]))],
+    search: Annotated[{{ class_name }}QueryParam, Query(description="查询参数")],
+    auth: Annotated[AuthSchema, Security(AuthPermission(["{{ permission_prefix }}:export"]))],
+    db: Annotated[AsyncSession, Depends(db_getter)],
 ) -> StreamingResponse:
     """
     导出{{ function_name }}
@@ -180,11 +195,12 @@ async def export_obj_list_controller(
     参数:
     - search ({{ class_name }}QueryParam): 查询参数
     - auth (AuthSchema): 认证信息模型
+    - db (AsyncSession): 数据库会话
 
     返回:
     - StreamingResponse: 包含{{ function_name }}列表的Excel文件流响应
     """
-    result_dict_list = await {{ class_name }}Service.list_service(search=search, auth=auth)
+    result_dict_list = await {{ class_name }}Service.list_service(search=search, auth=auth, db=db)
     export_result = {{ class_name }}Service.batch_export_service(obj_list=result_dict_list)
 
     return StreamResponse(
@@ -200,8 +216,9 @@ async def export_obj_list_controller(
     response_model=ResponseSchema[str],
 )
 async def import_obj_list_controller(
-    file: UploadFile,
-    auth: Annotated[AuthSchema, Depends(AuthPermission(["{{ permission_prefix }}:import"]))],
+    file: Annotated[UploadFile, File(description="导入的Excel文件")],
+    auth: Annotated[AuthSchema, Security(AuthPermission(["{{ permission_prefix }}:import"]))],
+    db: Annotated[AsyncSession, Depends(db_getter)],
 ) -> JSONResponse:
     """
     导入{{ function_name }}
@@ -209,12 +226,13 @@ async def import_obj_list_controller(
     参数:
     - file (UploadFile): 导入的Excel文件
     - auth (AuthSchema): 认证信息模型
+    - db (AsyncSession): 数据库会话
 
     返回:
     - JSONResponse: 包含导入{{ function_name }}详情的JSON响应
     """
     batch_import_result = await {{ class_name }}Service.batch_import_service(
-        file=file, auth=auth, update_support=True
+        file=file, auth=auth, db=db, update_support=True
     )
     return SuccessResponse(data=batch_import_result, msg="导入{{ function_name }}成功")
 
@@ -222,7 +240,7 @@ async def import_obj_list_controller(
 @{{ class_name }}Router.post(
     "/download/template",
     summary="获取{{ function_name }}导入模板",
-    dependencies=[Depends(AuthPermission(["{{ permission_prefix }}:download"]))],
+    dependencies=[Security(AuthPermission(["{{ permission_prefix }}:download"]))],
 )
 async def export_obj_template_controller() -> StreamingResponse:
     """

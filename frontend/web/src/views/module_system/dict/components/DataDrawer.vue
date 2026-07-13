@@ -213,7 +213,7 @@ import DictAPI, {
 } from "@/api/module_system/dict";
 import { useAuth } from "@/hooks/core/useAuth";
 import { renderTableOperationCell, type TableOperationAction, resolveStatusColumns } from "@utils";
-import { useAppStore, useDictStore } from "@stores";
+import { useDictStore, useAppStore } from "@stores";
 import { DeviceEnum } from "@/enums/settings/device.enum";
 import type { IObject } from "@/components/modal/types";
 import type { SearchFormItem } from "@/components/forms/fa-search-bar/index.vue";
@@ -261,8 +261,8 @@ const TAG_TYPE_STYLE_MAP: Record<string, { background: string; color: string; bo
   },
 };
 
-const appStore = useAppStore();
 const dictStore = useDictStore();
+const appStore = useAppStore();
 const { hasAuth } = useAuth();
 const drawerSize = computed(() => (appStore.device === DeviceEnum.DESKTOP ? "80%" : "60%"));
 
@@ -440,7 +440,7 @@ const {
         label: "操作",
         width: 220,
         fixed: "right",
-        align: "right",
+        align: "center",
         formatter: (row: DictDataTable) => formatDictDataOperationCell(row),
       },
     ]),
@@ -512,6 +512,9 @@ const dictDataDetailItems: import("@/components/others/fa-descriptions/index.vue
     { label: "描述", prop: "description" },
     { label: "创建时间", prop: "created_time" },
     { label: "更新时间", prop: "updated_time" },
+    { label: "创建人", prop: "created_by.name" },
+    { label: "更新人", prop: "updated_by.name" },
+    { label: "所属租户", prop: "tenant_by.name" },
   ];
 
 const formData = ref<DictDataForm>({

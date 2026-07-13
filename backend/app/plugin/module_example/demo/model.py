@@ -26,8 +26,7 @@ class StatusEnum(enum.Enum):
 
 
 class DemoModel(ModelMixin, TenantMixin, UserMixin):
-    """
-    示例表 - 涵盖大多数常用数据类型
+    """示例表 - 涵盖大多数常用数据类型
     """
 
     __tablename__: str = "example_demo"

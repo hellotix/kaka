@@ -1,9 +1,8 @@
-"""
-模块接口测试 —— module_monitor（系统监控）
+"""模块接口测试 —— module_monitor（系统监控）
 认证数据测试：admin 登录后验证监控接口数据。
 """
 
-from conftest import assert_route  # noqa: F401
+from conftest import assert_route
 from fastapi.testclient import TestClient
 
 
@@ -29,7 +28,7 @@ class TestCache:
         assert_route(test_client, "DELETE", "/monitor/cache/delete/key/test", auth=auth_headers)
 
     def test_cache_clear_all(self, test_client: TestClient, auth_headers: dict) -> None:
-        assert_route(test_client, "DELETE", "/monitor/cache/delete/all", auth=auth_headers)
+        assert_route(test_client, "DELETE", "/monitor/cache/clear", auth=auth_headers)
 
 
 class TestServer:
@@ -81,25 +80,37 @@ class TestResource:
 
     def test_resource_create_dir(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "POST", "/monitor/resource/create-dir", auth=auth_headers,
+            test_client,
+            "POST",
+            "/monitor/resource/mkdir",
+            auth=auth_headers,
             json={"name": "test_dir", "parent_path": "/"},
         )
 
     def test_resource_rename(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "POST", "/monitor/resource/rename", auth=auth_headers,
+            test_client,
+            "POST",
+            "/monitor/resource/rename",
+            auth=auth_headers,
             json={"old_path": "/old.txt", "new_path": "/new.txt"},
         )
 
     def test_resource_copy(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "POST", "/monitor/resource/copy", auth=auth_headers,
+            test_client,
+            "POST",
+            "/monitor/resource/copy",
+            auth=auth_headers,
             json={"source_path": "/src.txt", "target_path": "/dst.txt"},
         )
 
     def test_resource_move(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "POST", "/monitor/resource/move", auth=auth_headers,
+            test_client,
+            "POST",
+            "/monitor/resource/move",
+            auth=auth_headers,
             json={"source_path": "/src.txt", "target_path": "/dst.txt"},
         )
 

@@ -1,5 +1,4 @@
-"""
-模块接口测试 —— 插件模块 - task（任务调度）
+"""模块接口测试 —— 插件模块 - task（任务调度）
 
 动态路由映射：module_task → /task
 包含 cronjob（调度器/任务/日志/节点）和 workflow（工作流定义/节点类型）。
@@ -135,16 +134,16 @@ class TestWorkflowDefinition:
     """工作流定义接口。"""
 
     def test_workflow_list(self, test_client: TestClient) -> None:
-        assert_route(test_client, "GET", "/task/workflow/definition/list")
+        assert_route(test_client, "GET", "/task/workflow/flow/list")
 
     def test_workflow_detail(self, test_client: TestClient) -> None:
-        assert_route(test_client, "GET", "/task/workflow/definition/detail/1")
+        assert_route(test_client, "GET", "/task/workflow/flow/detail/1")
 
     def test_workflow_create(self, test_client: TestClient) -> None:
         assert_route(
             test_client,
             "POST",
-            "/task/workflow/definition/create",
+            "/task/workflow/flow/create",
             json={"name": "测试工作流", "node_graph": {"nodes": [], "edges": []}},
         )
 
@@ -152,22 +151,22 @@ class TestWorkflowDefinition:
         assert_route(
             test_client,
             "PUT",
-            "/task/workflow/definition/update/1",
+            "/task/workflow/flow/update/1",
             json={"name": "更新工作流"},
         )
 
     def test_workflow_delete(self, test_client: TestClient) -> None:
-        assert_route(test_client, "DELETE", "/task/workflow/definition/delete", json=[9999])
+        assert_route(test_client, "DELETE", "/task/workflow/flow/delete", json=[9999])
 
     def test_workflow_publish(self, test_client: TestClient) -> None:
-        assert_route(test_client, "POST", "/task/workflow/definition/publish/1")
+        assert_route(test_client, "POST", "/task/workflow/flow/publish/1")
 
     def test_workflow_execute(self, test_client: TestClient) -> None:
         assert_route(
             test_client,
             "POST",
-            "/task/workflow/definition/execute",
-            json={"definition_id": 1, "input_data": {}},
+            "/task/workflow/flow/execute",
+            json={"flow_id": 1, "input_data": {}},
         )
 
 
@@ -175,19 +174,19 @@ class TestWorkflowNodeType:
     """工作流节点类型接口。"""
 
     def test_wf_node_type_options(self, test_client: TestClient) -> None:
-        assert_route(test_client, "GET", "/task/workflow/node-type/options")
+        assert_route(test_client, "GET", "/task/workflow/nodes/options")
 
     def test_wf_node_type_list(self, test_client: TestClient) -> None:
-        assert_route(test_client, "GET", "/task/workflow/node-type/list")
+        assert_route(test_client, "GET", "/task/workflow/nodes/list")
 
     def test_wf_node_type_detail(self, test_client: TestClient) -> None:
-        assert_route(test_client, "GET", "/task/workflow/node-type/detail/1")
+        assert_route(test_client, "GET", "/task/workflow/nodes/detail/1")
 
     def test_wf_node_type_create(self, test_client: TestClient) -> None:
         assert_route(
             test_client,
             "POST",
-            "/task/workflow/node-type/create",
+            "/task/workflow/nodes/create",
             json={"name": "测试节点类型", "code": "test_type"},
         )
 
@@ -195,12 +194,12 @@ class TestWorkflowNodeType:
         assert_route(
             test_client,
             "PUT",
-            "/task/workflow/node-type/update/1",
+            "/task/workflow/nodes/update/1",
             json={"name": "更新节点类型"},
         )
 
     def test_wf_node_type_delete(self, test_client: TestClient) -> None:
-        assert_route(test_client, "DELETE", "/task/workflow/node-type/delete", json=[9999])
+        assert_route(test_client, "DELETE", "/task/workflow/nodes/delete", json=[9999])
 
     def test_wf_node_type_select(self, test_client: TestClient) -> None:
-        assert_route(test_client, "GET", "/task/workflow/node-type/select")
+        assert_route(test_client, "GET", "/task/workflow/nodes/select")

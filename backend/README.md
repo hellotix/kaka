@@ -116,10 +116,6 @@ ruff check --watch
 uv run ruff check
 uv run ruff check --fix
 uv run ruff check --watch
-
-# 生成开源授权函 JSON 文件
-#uv run --with pip-licenses pip-licenses --format=json \
-  > app/api/v1/module_platform/invoice/oss_licenses.json
 ```
 
 ## 后端约定（日期与序列化）

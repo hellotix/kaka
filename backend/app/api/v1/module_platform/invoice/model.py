@@ -10,8 +10,7 @@ if TYPE_CHECKING:
 
 
 class InvoiceModel(ModelMixin, TenantMixin, UserMixin):
-    """
-    平台发票表
+    """平台发票表
 
     status: 0=待开票 1=已开票 2=开票失败 3=已作废
     """

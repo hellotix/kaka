@@ -11,6 +11,7 @@ __pycache__
 *.local
 
 .env
+.env.test
 !.env.example
 
 *.egg

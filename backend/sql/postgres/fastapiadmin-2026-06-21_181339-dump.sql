@@ -6035,7 +6035,7 @@ ALTER TABLE public.task_workflow_node_type OWNER TO root;
 -- Name: TABLE task_workflow_node_type; Type: COMMENT; Schema: public; Owner: root
 --
 
-COMMENT ON TABLE public.task_workflow_node_type IS '工作流编排节点类型（非定时任务节点）';
+COMMENT ON TABLE public.task_workflow_node_type IS '工作流节点类型（非定时任务节点）';
 
 
 --
@@ -6537,7 +6537,7 @@ AI管理	1	7	\N	ri:chat-3-line	AI	/ai	\N	/ai/chat	f	t	f	AI管理	null	f	pc	\N	f	
 消息	1	93		ri:message-3-line	AppMessage	/app/message	\N	/app/message	f	t	t	消息	null	f	app	\N	f	f	\N	f	\N	tenant	0	APP 移动端-消息	\N	12	9c080cea-2c7e-4a08-beb3-394447df3c85	f	2026-06-21 18:12:31.0074	2026-06-21 18:12:31.007401	\N
 我的	1	94		ri:user-line	AppMine	/app/mine	\N	/app/mine	f	t	t	我的	null	f	app	\N	f	f	\N	f	\N	tenant	0	APP 移动端-我的	\N	13	ab69295a-591a-4bd4-ad65-ba1a813fc43e	f	2026-06-21 18:12:31.007403	2026-06-21 18:12:31.007404	\N
 菜单管理	2	1	module_platform:menu:query	ri:menu-line	Menu	menu	module_platform/menu/index	\N	f	t	f	菜单管理	null	f	pc	\N	f	f	\N	f	\N	tenant	0	初始化数据	1	14	6bb8db4a-f156-4c6d-8910-132dd729fceb	f	2026-06-21 18:12:31.010885	2026-06-21 18:12:31.010889	\N
-租户管理	2	2	module_system:tenant:query	ri:presentation-line	Tenant	tenant	module_platform/tenant/index	\N	f	t	f	租户管理	null	f	pc	\N	f	f	\N	f	\N	platform	0	初始化数据	1	15	4ede7a12-f180-4f50-aae7-247e85ffb8db	f	2026-06-21 18:12:31.010893	2026-06-21 18:12:31.010894	\N
+租户管理	2	2	module_platform:tenant:query	ri:presentation-line	Tenant	tenant	module_platform/tenant/index	\N	f	t	f	租户管理	null	f	pc	\N	f	f	\N	f	\N	platform	0	初始化数据	1	15	4ede7a12-f180-4f50-aae7-247e85ffb8db	f	2026-06-21 18:12:31.010893	2026-06-21 18:12:31.010894	\N
 套餐管理	2	3	module_package:package:query	ri:vip-crown-2-line	Package	package	module_platform/package/index	\N	f	t	f	套餐管理	null	f	pc	\N	f	f	\N	f	\N	platform	0	套餐管理菜单	1	16	a27596e3-0aad-432f-8e55-6b6132f1d185	f	2026-06-21 18:12:31.010897	2026-06-21 18:12:31.010897	\N
 邮件管理	2	5	module_platform:email:*	ri:mail-send-line	Email	email	module_platform/email/index	\N	f	t	f	邮件管理	null	f	pc	\N	f	f	\N	f	\N	platform	0	系统邮件服务管理	1	17	b3d1d80d-2a09-4099-a73b-adaf45c45de4	f	2026-06-21 18:12:31.0109	2026-06-21 18:12:31.0109	\N
 订单管理	2	7	module_platform:order:query	ri:file-list-3-line	PlatformOrder	order	module_platform/order/index	\N	f	t	f	订单管理	null	f	pc	\N	f	f	\N	f	\N	platform	0	初始化数据	1	18	f52e744c-0da1-41f0-9a64-a36ed7b6a38a	f	2026-06-21 18:12:31.010903	2026-06-21 18:12:31.010903	\N
@@ -6564,7 +6564,7 @@ Redoc文档	4	2	module_swagger:redoc:query	ri:file-text-line	Redoc	redoc	module_
 AI智能助手	2	1	module_ai:chat:query	ri:message-2-line	Chat	chat	module_ai/chat/index	\N	f	t	f	AI智能助手	null	f	pc	\N	f	f	\N	f	\N	platform	0	AI智能助手	6	39	767efb39-1301-4aec-a459-1e969d0bcb84	f	2026-06-21 18:12:31.010966	2026-06-21 18:12:31.010966	\N
 会话记忆	2	2	module_ai:chat:query	ri:chat-3-line	Memory	memory	module_ai/memory/index	\N	f	t	f	会话记忆	null	f	pc	\N	f	f	\N	f	\N	platform	0	会话记忆管理	6	40	c7022a0d-8574-4bc4-9be7-01fcec2609dc	f	2026-06-21 18:12:31.010969	2026-06-21 18:12:31.010969	\N
 定时任务	1	1	\N	ri:timer-line	Cronjob	cronjob	\N	/task/cronjob/job	f	t	t	定时任务	null	f	pc	\N	f	f	\N	f	\N	platform	0	APScheduler 调度器与任务节点	7	41	c26e803f-cc05-42e4-9c0d-92863157224d	f	2026-06-21 18:12:31.010972	2026-06-21 18:12:31.010973	\N
-工作流	1	2	\N	ri:tools-line	WorkflowMgr	workflow-mgr	\N	/task/workflow/definition	f	t	t	工作流	null	f	pc	\N	f	f	\N	f	\N	platform	0	流程编排与编排节点类型	7	42	ef7c77fb-7b80-4d64-99c6-5115ecdbb4cb	f	2026-06-21 18:12:31.010975	2026-06-21 18:12:31.010976	\N
+工作流	1	2	\N	ri:tools-line	WorkflowMgr	workflow-mgr	\N	/task/workflow/flow	f	t	t	工作流	null	f	pc	\N	f	f	\N	f	\N	platform	0	流程编排与节点类型	7	42	ef7c77fb-7b80-4d64-99c6-5115ecdbb4cb	f	2026-06-21 18:12:31.010975	2026-06-21 18:12:31.010976	\N
 示例中心	1	1	\N	ri:apps-line	DemoCenter	demo-center	\N	/example/demo-center/demo	f	t	f	示例中心	null	f	pc	\N	f	f	\N	f	\N	tenant	0	示例中心	8	43	96193341-d8eb-494c-b9cb-0bbb595f3215	f	2026-06-21 18:12:31.010978	2026-06-21 18:12:31.010979	\N
 新增	3	1	module_platform:menu:create	\N	\N	\N	\N	\N	f	t	f	新增	null	f	pc	\N	f	f	\N	f	\N	tenant	0	初始化数据	14	44	f19961c6-4548-4f1b-bb6d-daffb55a48cb	f	2026-06-21 18:12:31.016684	2026-06-21 18:12:31.016688	\N
 编辑	3	2	module_platform:menu:update	\N	\N	\N	\N	\N	f	t	f	编辑	null	f	pc	\N	f	f	\N	f	\N	tenant	0	初始化数据	14	45	057fa4ce-907b-4613-9fb6-e1bc28bf6c58	f	2026-06-21 18:12:31.016694	2026-06-21 18:12:31.016694	\N
@@ -6572,13 +6572,13 @@ AI智能助手	2	1	module_ai:chat:query	ri:message-2-line	Chat	chat	module_ai/ch
 状态变更	3	4	module_platform:menu:patch	\N	\N	\N	\N	\N	f	t	f	状态变更	null	f	pc	\N	f	f	\N	f	\N	tenant	0	初始化数据	14	47	82d4243d-a3e8-4c59-a51c-5a0b7598463d	f	2026-06-21 18:12:31.016701	2026-06-21 18:12:31.016701	\N
 详情	3	5	module_platform:menu:detail	\N	\N	\N	\N	\N	f	t	f	详情	null	f	pc	\N	f	f	\N	f	\N	tenant	0	初始化数据	14	48	f85f129f-e574-4e69-9e1f-3f7e279d9655	f	2026-06-21 18:12:31.016704	2026-06-21 18:12:31.016704	\N
 查询	3	6	module_platform:menu:query	\N	\N	\N	\N	\N	f	t	f	查询	null	f	pc	\N	f	f	\N	f	\N	tenant	0	初始化数据	14	49	c7e2052c-e807-414e-b05a-4f6f3f217c77	f	2026-06-21 18:12:31.016707	2026-06-21 18:12:31.016707	\N
-新增	3	1	module_system:tenant:create	\N	\N	\N	\N	\N	f	t	f	新增	null	f	pc	\N	f	f	\N	f	\N	platform	0	初始化数据	15	50	7312433b-b3a5-4dc9-b195-a9e737f4681c	f	2026-06-21 18:12:31.016752	2026-06-21 18:12:31.016754	\N
-编辑	3	2	module_system:tenant:update	\N	\N	\N	\N	\N	f	t	f	编辑	null	f	pc	\N	f	f	\N	f	\N	platform	0	初始化数据	15	51	a8e03365-5bfd-4be1-b5f5-01b83c8a6979	f	2026-06-21 18:12:31.016764	2026-06-21 18:12:31.016765	\N
-删除	3	3	module_system:tenant:delete	\N	\N	\N	\N	\N	f	t	f	删除	null	f	pc	\N	f	f	\N	f	\N	platform	0	初始化数据	15	52	0974ef7c-16f9-41a6-bbc0-f9a6cbd2fac9	f	2026-06-21 18:12:31.016769	2026-06-21 18:12:31.016769	\N
-状态变更	3	4	module_system:tenant:patch	\N	\N	\N	\N	\N	f	t	f	状态变更	null	f	pc	\N	f	f	\N	f	\N	platform	0	初始化数据	15	53	3b283331-e1f3-492f-ad3f-251fc3371c40	f	2026-06-21 18:12:31.016772	2026-06-21 18:12:31.016773	\N
-详情	3	5	module_system:tenant:query	\N	\N	\N	\N	\N	f	t	f	详情	null	f	pc	\N	f	f	\N	f	\N	platform	0	初始化数据	15	54	02269bbd-ddd2-49ed-b447-55303bdae59f	f	2026-06-21 18:12:31.016775	2026-06-21 18:12:31.016776	\N
-查询	3	6	module_system:tenant:query	\N	\N	\N	\N	\N	f	t	f	查询	null	f	pc	\N	f	f	\N	f	\N	platform	0	初始化数据	15	55	4e44e6ac-e7ca-4e32-bc4a-70fd73c6dfc4	f	2026-06-21 18:12:31.016778	2026-06-21 18:12:31.016779	\N
-配置管理	3	11	module_system:tenant:update	\N	\N	\N	\N	\N	f	t	f	配置管理	null	f	pc	\N	f	f	\N	f	\N	platform	0	初始化数据	15	56	8616438b-97a5-49b7-821e-9403e3ea9bf8	f	2026-06-21 18:12:31.016782	2026-06-21 18:12:31.016782	\N
+新增	3	1	module_platform:tenant:create	\N	\N	\N	\N	\N	f	t	f	新增	null	f	pc	\N	f	f	\N	f	\N	platform	0	初始化数据	15	50	7312433b-b3a5-4dc9-b195-a9e737f4681c	f	2026-06-21 18:12:31.016752	2026-06-21 18:12:31.016754	\N
+编辑	3	2	module_platform:tenant:update	\N	\N	\N	\N	\N	f	t	f	编辑	null	f	pc	\N	f	f	\N	f	\N	platform	0	初始化数据	15	51	a8e03365-5bfd-4be1-b5f5-01b83c8a6979	f	2026-06-21 18:12:31.016764	2026-06-21 18:12:31.016765	\N
+删除	3	3	module_platform:tenant:delete	\N	\N	\N	\N	\N	f	t	f	删除	null	f	pc	\N	f	f	\N	f	\N	platform	0	初始化数据	15	52	0974ef7c-16f9-41a6-bbc0-f9a6cbd2fac9	f	2026-06-21 18:12:31.016769	2026-06-21 18:12:31.016769	\N
+状态变更	3	4	module_platform:tenant:patch	\N	\N	\N	\N	\N	f	t	f	状态变更	null	f	pc	\N	f	f	\N	f	\N	platform	0	初始化数据	15	53	3b283331-e1f3-492f-ad3f-251fc3371c40	f	2026-06-21 18:12:31.016772	2026-06-21 18:12:31.016773	\N
+详情	3	5	module_platform:tenant:query	\N	\N	\N	\N	\N	f	t	f	详情	null	f	pc	\N	f	f	\N	f	\N	platform	0	初始化数据	15	54	02269bbd-ddd2-49ed-b447-55303bdae59f	f	2026-06-21 18:12:31.016775	2026-06-21 18:12:31.016776	\N
+查询	3	6	module_platform:tenant:query	\N	\N	\N	\N	\N	f	t	f	查询	null	f	pc	\N	f	f	\N	f	\N	platform	0	初始化数据	15	55	4e44e6ac-e7ca-4e32-bc4a-70fd73c6dfc4	f	2026-06-21 18:12:31.016778	2026-06-21 18:12:31.016779	\N
+配置管理	3	11	module_platform:tenant:update	\N	\N	\N	\N	\N	f	t	f	配置管理	null	f	pc	\N	f	f	\N	f	\N	platform	0	初始化数据	15	56	8616438b-97a5-49b7-821e-9403e3ea9bf8	f	2026-06-21 18:12:31.016782	2026-06-21 18:12:31.016782	\N
 新增	3	1	module_package:package:create	\N	\N	\N	\N	\N	f	t	f	新增	null	f	pc	\N	f	f	\N	f	\N	platform	0	\N	16	57	ec9af271-a7c9-401c-b2b8-b128c30c717f	f	2026-06-21 18:12:31.016785	2026-06-21 18:12:31.016785	\N
 编辑	3	2	module_package:package:update	\N	\N	\N	\N	\N	f	t	f	编辑	null	f	pc	\N	f	f	\N	f	\N	platform	0	\N	16	58	d8f592e7-29fe-4bee-8db9-f08c3790f2b6	f	2026-06-21 18:12:31.016788	2026-06-21 18:12:31.016788	\N
 删除	3	3	module_package:package:delete	\N	\N	\N	\N	\N	f	t	f	删除	null	f	pc	\N	f	f	\N	f	\N	platform	0	\N	16	59	5bd0fe61-3a42-4f73-9e13-0100983c1c20	f	2026-06-21 18:12:31.016791	2026-06-21 18:12:31.016791	\N
@@ -6687,7 +6687,7 @@ AI智能助手	2	1	module_ai:chat:query	ri:message-2-line	Chat	chat	module_ai/ch
 移动	3	4	module_monitor:resource:move	\N	\N	\N	\N	\N	f	t	f	移动	null	f	pc	\N	f	f	\N	f	\N	platform	0	初始化数据	35	162	979bb6e4-ff52-4c1a-900d-a3cf24b4030c	f	2026-06-21 18:12:31.023442	2026-06-21 18:12:31.023442	\N
 复制	3	5	module_monitor:resource:copy	\N	\N	\N	\N	\N	f	t	f	复制	null	f	pc	\N	f	f	\N	f	\N	platform	0	初始化数据	35	163	72033c8f-e8fe-4e10-b371-6b0e2b34a527	f	2026-06-21 18:12:31.023445	2026-06-21 18:12:31.023445	\N
 重命名	3	6	module_monitor:resource:rename	\N	\N	\N	\N	\N	f	t	f	重命名	null	f	pc	\N	f	f	\N	f	\N	platform	0	初始化数据	35	164	977aeb8e-e8e1-49d0-be65-e7743bb9476f	f	2026-06-21 18:12:31.023447	2026-06-21 18:12:31.023448	\N
-新增	3	7	module_monitor:resource:create_dir	\N	\N	\N	\N	\N	f	t	f	新增	null	f	pc	\N	f	f	\N	f	\N	platform	0	初始化数据	35	165	d2fa8209-07b7-481c-b0ed-e25851c05cd2	f	2026-06-21 18:12:31.02345	2026-06-21 18:12:31.023451	\N
+新增	3	7	module_monitor:resource:mkdir	\N	\N	\N	\N	\N	f	t	f	新增	null	f	pc	\N	f	f	\N	f	\N	platform	0	初始化数据	35	165	d2fa8209-07b7-481c-b0ed-e25851c05cd2	f	2026-06-21 18:12:31.02345	2026-06-21 18:12:31.023451	\N
 导出	3	9	module_monitor:resource:export	\N	\N	\N	\N	\N	f	t	f	导出	null	f	pc	\N	f	f	\N	f	\N	platform	0	初始化数据	35	166	17af51f5-9685-4032-bf57-bb526ea43602	f	2026-06-21 18:12:31.023453	2026-06-21 18:12:31.023453	\N
 查询	3	1	module_generator:gencode:query	\N	\N	\N	\N	\N	f	t	f	查询	null	f	pc	\N	f	f	\N	f	\N	platform	0	查询代码生成业务表列表	38	167	c0ffc4b7-89a6-4696-947d-70e722475bd5	f	2026-06-21 18:12:31.023456	2026-06-21 18:12:31.023456	\N
 新增	3	2	module_generator:gencode:create	\N	\N	\N	\N	\N	f	t	f	新增	null	f	pc	\N	f	f	\N	f	\N	platform	0	创建表结构	38	168	57205d6e-d248-40f8-8915-efe0504cf8d0	f	2026-06-21 18:12:31.023459	2026-06-21 18:12:31.023459	\N
@@ -6709,8 +6709,8 @@ AI对话	3	1	module_ai:chat:ws	\N	\N	\N	\N	\N	f	t	f	AI对话	null	f	pc	\N	f	f	\N
 删除	3	3	module_ai:chat:delete	\N	\N	\N	\N	\N	f	t	f	删除	null	f	pc	\N	f	f	\N	f	\N	platform	0	删除会话记忆	40	184	01c20dfe-4e3c-4223-bcdd-d85132f76515	f	2026-06-21 18:12:31.023505	2026-06-21 18:12:31.023505	\N
 调度器监控	2	1	module_task:cronjob:job:query	ri:line-chart-line	Job	job	module_task/cronjob/job/index	\N	f	t	f	调度器监控	null	f	pc	\N	f	f	\N	f	\N	platform	0	调度器监控	41	185	d089ba94-34c8-469f-9b81-d138c956c170	f	2026-06-21 18:12:31.023507	2026-06-21 18:12:31.023508	\N
 节点管理	2	2	module_task:cronjob:node:query	ri:mail-send-line	Node	node	module_task/cronjob/node/index	\N	f	t	f	节点管理	null	f	pc	\N	f	f	\N	f	\N	platform	0	节点管理	41	186	8accf4eb-5e89-4dc2-ab1b-7d015dfebb4e	f	2026-06-21 18:12:31.02351	2026-06-21 18:12:31.023511	\N
-流程编排	2	1	module_task:workflow:definition:query	ri:tools-line	Workflow	task/workflow/definition	module_task/workflow/definition/index	\N	f	t	f	流程编排	null	f	pc	\N	f	f	\N	f	\N	platform	0	Vue Flow 画布与发布执行	42	187	5112502c-84fa-4123-9f25-379ae3bb56e1	f	2026-06-21 18:12:31.023513	2026-06-21 18:12:31.023514	\N
-编排节点类型	2	2	module_task:workflow:node-type:query	ri:layout-grid-line	WorkflowNodeType	task/workflow/node-type	module_task/workflow/node-type/index	\N	f	t	f	编排节点类型	null	f	pc	\N	f	f	\N	f	\N	platform	0	画布节点类型与 Prefect 执行逻辑	42	188	27c0c761-8746-43ea-a86c-c63e89034914	f	2026-06-21 18:12:31.023516	2026-06-21 18:12:31.023517	\N
+流程编排	2	1	module_task:workflow:flow:query	ri:tools-line	Workflow	task/workflow/flow	module_task/workflow/flow/index	\N	f	t	f	流程编排	null	f	pc	\N	f	f	\N	f	\N	platform	0	Vue Flow 画布与发布执行	42	187	5112502c-84fa-4123-9f25-379ae3bb56e1	f	2026-06-21 18:12:31.023513	2026-06-21 18:12:31.023514	\N
+节点类型	2	2	module_task:workflow:nodes:query	ri:layout-grid-line	WorkflowNodeType	task/workflow/nodes	module_task/workflow/nodes/index	\N	f	t	f	节点类型	null	f	pc	\N	f	f	\N	f	\N	platform	0	画布节点类型与 Prefect 执行逻辑	42	188	27c0c761-8746-43ea-a86c-c63e89034914	f	2026-06-21 18:12:31.023516	2026-06-21 18:12:31.023517	\N
 demo示例	2	1	module_example:demo:query	ri:menu-line	Demo	demo	module_example/demo/index	\N	f	t	f	demo示例	null	f	pc	\N	f	f	\N	f	\N	tenant	0	demo示例	43	189	0e79575f-54ce-4c37-9410-d9b4eb4613f2	f	2026-06-21 18:12:31.023519	2026-06-21 18:12:31.023519	\N
 查询调度器	3	1	module_task:cronjob:job:query	\N	\N	\N	\N	\N	f	t	f	查询调度器	null	f	pc	\N	f	f	\N	f	\N	platform	0	查询调度器	185	190	300a3706-8479-411b-9ed2-e64b8139ec3b	f	2026-06-21 18:12:31.037907	2026-06-21 18:12:31.037911	\N
 控制调度器	3	2	module_task:cronjob:job:scheduler	\N	\N	\N	\N	\N	f	t	f	控制调度器	null	f	pc	\N	f	f	\N	f	\N	platform	0	控制调度器	185	191	0c156686-7bf7-4780-820f-6385720cc949	f	2026-06-21 18:12:31.037916	2026-06-21 18:12:31.037917	\N
@@ -6723,17 +6723,17 @@ demo示例	2	1	module_example:demo:query	ri:menu-line	Demo	demo	module_example/d
 删除节点	3	4	module_task:cronjob:node:delete	\N	\N	\N	\N	\N	f	t	f	删除节点	null	f	pc	\N	f	f	\N	f	\N	platform	0	删除节点	186	198	ae5a7b1e-922f-4c4c-ac38-c9c884e243a9	f	2026-06-21 18:12:31.037938	2026-06-21 18:12:31.037938	\N
 详情节点	3	5	module_task:cronjob:node:detail	\N	\N	\N	\N	\N	f	t	f	详情节点	null	f	pc	\N	f	f	\N	f	\N	platform	0	详情节点	186	199	b8fdb120-8070-4de3-90d6-9a9812a6533c	f	2026-06-21 18:12:31.037941	2026-06-21 18:12:31.037942	\N
 查询节点	3	6	module_task:cronjob:node:query	\N	\N	\N	\N	\N	f	t	f	查询节点	null	f	pc	\N	f	f	\N	f	\N	platform	0	查询节点	186	200	422ef761-c361-4555-98e1-c30ea48e767d	f	2026-06-21 18:12:31.037945	2026-06-21 18:12:31.037945	\N
-创建流程	3	1	module_task:workflow:definition:create	\N	\N	\N	\N	\N	f	t	f	创建流程	null	f	pc	\N	f	f	\N	f	\N	platform	0	创建流程	187	201	8270c882-78f4-4332-875d-8ecaa262ce60	f	2026-06-21 18:12:31.037948	2026-06-21 18:12:31.037949	\N
-执行流程	3	2	module_task:workflow:definition:execute	\N	\N	\N	\N	\N	f	t	f	执行流程	null	f	pc	\N	f	f	\N	f	\N	platform	0	执行流程	187	202	abcda894-fcfb-4094-b418-1815420c5a82	f	2026-06-21 18:12:31.037951	2026-06-21 18:12:31.037951	\N
-修改流程	3	3	module_task:workflow:definition:update	\N	\N	\N	\N	\N	f	t	f	修改流程	null	f	pc	\N	f	f	\N	f	\N	platform	0	修改流程	187	203	78ee1aa7-5a41-4bb5-b1e0-bb8496daa62e	f	2026-06-21 18:12:31.037954	2026-06-21 18:12:31.037954	\N
-删除流程	3	4	module_task:workflow:definition:delete	\N	\N	\N	\N	\N	f	t	f	删除流程	null	f	pc	\N	f	f	\N	f	\N	platform	0	删除流程	187	204	60fd27ae-5844-44f6-82df-4568470adb3f	f	2026-06-21 18:12:31.037957	2026-06-21 18:12:31.037957	\N
-详情流程	3	5	module_task:workflow:definition:detail	\N	\N	\N	\N	\N	f	t	f	详情流程	null	f	pc	\N	f	f	\N	f	\N	platform	0	详情流程	187	205	3fa74930-9c25-468d-a031-38eacac855b1	f	2026-06-21 18:12:31.03796	2026-06-21 18:12:31.03796	\N
-查询流程	3	6	module_task:workflow:definition:query	\N	\N	\N	\N	\N	f	t	f	查询流程	null	f	pc	\N	f	f	\N	f	\N	platform	0	查询流程	187	206	1e7afa54-f56f-411b-b928-2fc464f54778	f	2026-06-21 18:12:31.037963	2026-06-21 18:12:31.037963	\N
-创建编排节点类型	3	1	module_task:workflow:node-type:create	\N	\N	\N	\N	\N	f	t	f	创建编排节点类型	null	f	pc	\N	f	f	\N	f	\N	platform	0	创建编排节点类型	188	207	b1dd60db-a2d8-43dd-b53a-4e3be50bffc9	f	2026-06-21 18:12:31.037966	2026-06-21 18:12:31.037966	\N
-修改编排节点类型	3	2	module_task:workflow:node-type:update	\N	\N	\N	\N	\N	f	t	f	修改编排节点类型	null	f	pc	\N	f	f	\N	f	\N	platform	0	修改编排节点类型	188	208	95660a0f-e815-4f8a-95b7-678ad7ae6f09	f	2026-06-21 18:12:31.037969	2026-06-21 18:12:31.037969	\N
-删除编排节点类型	3	3	module_task:workflow:node-type:delete	\N	\N	\N	\N	\N	f	t	f	删除编排节点类型	null	f	pc	\N	f	f	\N	f	\N	platform	0	删除编排节点类型	188	209	bfbaece2-d9c7-448b-b9b4-b890c53cafd4	f	2026-06-21 18:12:31.037971	2026-06-21 18:12:31.037972	\N
-详情编排节点类型	3	4	module_task:workflow:node-type:detail	\N	\N	\N	\N	\N	f	t	f	详情编排节点类型	null	f	pc	\N	f	f	\N	f	\N	platform	0	详情编排节点类型	188	210	a75a3344-9b47-4a3b-a097-106877d2ab80	f	2026-06-21 18:12:31.037974	2026-06-21 18:12:31.037975	\N
-查询编排节点类型	3	5	module_task:workflow:node-type:query	\N	\N	\N	\N	\N	f	t	f	查询编排节点类型	null	f	pc	\N	f	f	\N	f	\N	platform	0	查询编排节点类型	188	211	0808514e-c869-4bb9-9718-34ba0db999ac	f	2026-06-21 18:12:31.037977	2026-06-21 18:12:31.037978	\N
+创建流程	3	1	module_task:workflow:flow:create	\N	\N	\N	\N	\N	f	t	f	创建流程	null	f	pc	\N	f	f	\N	f	\N	platform	0	创建流程	187	201	8270c882-78f4-4332-875d-8ecaa262ce60	f	2026-06-21 18:12:31.037948	2026-06-21 18:12:31.037949	\N
+执行流程	3	2	module_task:workflow:flow:execute	\N	\N	\N	\N	\N	f	t	f	执行流程	null	f	pc	\N	f	f	\N	f	\N	platform	0	执行流程	187	202	abcda894-fcfb-4094-b418-1815420c5a82	f	2026-06-21 18:12:31.037951	2026-06-21 18:12:31.037951	\N
+修改流程	3	3	module_task:workflow:flow:update	\N	\N	\N	\N	\N	f	t	f	修改流程	null	f	pc	\N	f	f	\N	f	\N	platform	0	修改流程	187	203	78ee1aa7-5a41-4bb5-b1e0-bb8496daa62e	f	2026-06-21 18:12:31.037954	2026-06-21 18:12:31.037954	\N
+删除流程	3	4	module_task:workflow:flow:delete	\N	\N	\N	\N	\N	f	t	f	删除流程	null	f	pc	\N	f	f	\N	f	\N	platform	0	删除流程	187	204	60fd27ae-5844-44f6-82df-4568470adb3f	f	2026-06-21 18:12:31.037957	2026-06-21 18:12:31.037957	\N
+详情流程	3	5	module_task:workflow:flow:detail	\N	\N	\N	\N	\N	f	t	f	详情流程	null	f	pc	\N	f	f	\N	f	\N	platform	0	详情流程	187	205	3fa74930-9c25-468d-a031-38eacac855b1	f	2026-06-21 18:12:31.03796	2026-06-21 18:12:31.03796	\N
+查询流程	3	6	module_task:workflow:flow:query	\N	\N	\N	\N	\N	f	t	f	查询流程	null	f	pc	\N	f	f	\N	f	\N	platform	0	查询流程	187	206	1e7afa54-f56f-411b-b928-2fc464f54778	f	2026-06-21 18:12:31.037963	2026-06-21 18:12:31.037963	\N
+创建节点类型	3	1	module_task:workflow:nodes:create	\N	\N	\N	\N	\N	f	t	f	创建节点类型	null	f	pc	\N	f	f	\N	f	\N	platform	0	创建节点类型	188	207	b1dd60db-a2d8-43dd-b53a-4e3be50bffc9	f	2026-06-21 18:12:31.037966	2026-06-21 18:12:31.037966	\N
+修改节点类型	3	2	module_task:workflow:nodes:update	\N	\N	\N	\N	\N	f	t	f	修改节点类型	null	f	pc	\N	f	f	\N	f	\N	platform	0	修改节点类型	188	208	95660a0f-e815-4f8a-95b7-678ad7ae6f09	f	2026-06-21 18:12:31.037969	2026-06-21 18:12:31.037969	\N
+删除节点类型	3	3	module_task:workflow:nodes:delete	\N	\N	\N	\N	\N	f	t	f	删除节点类型	null	f	pc	\N	f	f	\N	f	\N	platform	0	删除节点类型	188	209	bfbaece2-d9c7-448b-b9b4-b890c53cafd4	f	2026-06-21 18:12:31.037971	2026-06-21 18:12:31.037972	\N
+详情节点类型	3	4	module_task:workflow:nodes:detail	\N	\N	\N	\N	\N	f	t	f	详情节点类型	null	f	pc	\N	f	f	\N	f	\N	platform	0	详情节点类型	188	210	a75a3344-9b47-4a3b-a097-106877d2ab80	f	2026-06-21 18:12:31.037974	2026-06-21 18:12:31.037975	\N
+查询节点类型	3	5	module_task:workflow:nodes:query	\N	\N	\N	\N	\N	f	t	f	查询节点类型	null	f	pc	\N	f	f	\N	f	\N	platform	0	查询节点类型	188	211	0808514e-c869-4bb9-9718-34ba0db999ac	f	2026-06-21 18:12:31.037977	2026-06-21 18:12:31.037978	\N
 新增	3	1	module_example:demo:create	\N	\N	\N	\N	\N	f	t	f	新增	null	f	pc	\N	f	f	\N	f	\N	tenant	0	初始化数据	189	212	9714d0f1-1999-4b9d-a0a6-127f06553903	f	2026-06-21 18:12:31.03798	2026-06-21 18:12:31.037981	\N
 编辑	3	2	module_example:demo:update	\N	\N	\N	\N	\N	f	t	f	编辑	null	f	pc	\N	f	f	\N	f	\N	tenant	0	初始化数据	189	213	e6de2cdd-a6e0-4c27-84e1-6684f0879ded	f	2026-06-21 18:12:31.037983	2026-06-21 18:12:31.037984	\N
 删除	3	3	module_example:demo:delete	\N	\N	\N	\N	\N	f	t	f	删除	null	f	pc	\N	f	f	\N	f	\N	tenant	0	初始化数据	189	214	5e95f754-81a6-4e04-b744-ce6c3a5f1d5f	f	2026-06-21 18:12:31.037986	2026-06-21 18:12:31.037986	\N
@@ -7050,12 +7050,12 @@ COPY public.sys_operation_log (status, description, request_path, request_method
 0	删除角色	/api/v1/system/role/delete	DELETE	{"ids": [5]}	200	{"code": 200, "msg": "删除成功"}	15ms	6	08693d09-d39a-40c4-ab4c-ae64903b1a0d	f	2026-06-21 18:12:31.229544	2026-06-21 18:12:31.229544	\N	1	\N	\N	\N
 0	查询菜单列表	/api/v1/platform/menu/list	GET	\N	200	{"code": 200, "data": {"items": [...]}}	35ms	7	a42229e1-7fbd-4586-886b-53d5718dc02f	f	2026-06-21 18:12:31.229547	2026-06-21 18:12:31.229547	\N	3	\N	\N	\N
 0	查询字典数据	/api/v1/system/dict/data/list	GET	\N	200	{"code": 200, "data": {"items": [...]}}	22ms	8	e64a26cc-0fb9-45f2-8292-aa3d80510b6b	f	2026-06-21 18:12:31.22955	2026-06-21 18:12:31.22955	\N	3	\N	\N	\N
-0	创建工作流	/api/v1/workflow/definition/create	POST	{"name": "审批流程", "code": "approval_v1"}	200	{"code": 200, "msg": "创建成功"}	28ms	9	dc35638d-6dd0-446f-9b29-ded9251a6913	f	2026-06-21 18:12:31.229553	2026-06-21 18:12:31.229553	\N	4	\N	\N	\N
+0	创建工作流	/api/v1/workflow/flow/create	POST	{"name": "审批流程", "code": "approval_v1"}	200	{"code": 200, "msg": "创建成功"}	28ms	9	dc35638d-6dd0-446f-9b29-ded9251a6913	f	2026-06-21 18:12:31.229553	2026-06-21 18:12:31.229553	\N	4	\N	\N	\N
 0	创建通知	/api/v1/system/notice/create	POST	{"notice_title": "测试通知", "notice_type": "1"}	200	{"code": 200, "msg": "创建成功"}	11ms	10	cc259886-6df1-41d0-89fe-2cb5fafdecbd	f	2026-06-21 18:12:31.229555	2026-06-21 18:12:31.229556	\N	1	\N	\N	\N
 0	导出用户数据	/api/v1/system/user/export	POST	{"status": 0}	200	{"file": "用户列表_20250601.xlsx"}	156ms	11	444d8c52-2abe-431a-8b2c-b7b837516198	f	2026-06-21 18:12:31.229558	2026-06-21 18:12:31.229559	\N	1	\N	\N	\N
 0	批量导入用户	/api/v1/system/user/import	POST	"file": "users.xlsx" (multipart/form-data)	200	{"code": 200, "msg": "成功导入 25 条数据"}	320ms	12	1c380b4d-92cf-4d77-9506-8a3e727464b2	f	2026-06-21 18:12:31.229561	2026-06-21 18:12:31.229561	\N	1	\N	\N	\N
 0	执行定时任务节点	/api/v1/cronjob/node/execute/1	POST	{"trigger": "now"}	200	{"code": 200, "msg": "调试节点成功"}	1024ms	13	11d96967-dc41-42e1-a894-00be95cf7337	f	2026-06-21 18:12:31.229564	2026-06-21 18:12:31.229564	\N	1	\N	\N	\N
-0	执行工作流	/api/v1/workflow/definition/execute	POST	{"workflow_id": 1, "variables": {}}	200	{"code": 200, "data": {"status": "completed"}}	3200ms	14	4ae5c9ae-1467-4e64-a0ec-248e44bc9486	f	2026-06-21 18:12:31.229567	2026-06-21 18:12:31.229567	\N	4	\N	\N	\N
+0	执行工作流	/api/v1/workflow/flow/execute	POST	{"workflow_id": 1, "variables": {}}	200	{"code": 200, "data": {"status": "completed"}}	3200ms	14	4ae5c9ae-1467-4e64-a0ec-248e44bc9486	f	2026-06-21 18:12:31.229567	2026-06-21 18:12:31.229567	\N	4	\N	\N	\N
 0	批量删除执行日志	/api/v1/cronjob/job/log/delete	DELETE	{"ids": [1, 2, 3]}	200	{"code": 200, "msg": "删除成功"}	19ms	15	5285e6cd-e062-4e54-af86-84e1593c21cf	f	2026-06-21 18:12:31.22957	2026-06-21 18:12:31.22957	\N	1	\N	\N	\N
 \.
 

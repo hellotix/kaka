@@ -1,17 +1,9 @@
-"""
-invoice/pdf_helper.py — 发票 PDF 渲染辅助
-
-使用 WeasyPrint + Jinja2 渲染符合中国电子发票样式的 PDF。
-对接百望云/票通等第三方平台后，可替换此模块的内部实现。
-"""
-
 import hashlib
 from datetime import datetime
 
 from app.config.path_conf import INVOICE_DIR, TEMPLATE_DIR
 from app.utils.pdf_generator import amount_to_cn_uppercase, amount_to_yuan, generate_pdf_from_template
 
-from .oss_licenses_helper import load_oss_licenses
 from .schema import InvoiceOutSchema
 
 _INVOICE_TYPE_LABEL = {
@@ -21,8 +13,7 @@ _INVOICE_TYPE_LABEL = {
 
 
 def _render_invoice_pdf(invoice: InvoiceOutSchema) -> str:
-    """
-    渲染并保存电子发票 PDF
+    """渲染并保存电子发票 PDF
 
     参数:
     - invoice (InvoiceOutSchema): 发票对象
@@ -60,7 +51,7 @@ def _render_invoice_pdf(invoice: InvoiceOutSchema) -> str:
                 "amount": amount_to_yuan(invoice.amount),
                 "tax_rate": 0,
                 "tax_amount": amount_to_yuan(invoice.tax_amount),
-            }
+            },
         ],
         "amount_total_yuan": f"{total_yuan:.2f}",
         "amount_cn_uppercase": amount_to_cn_uppercase(total_yuan),
@@ -83,8 +74,7 @@ def _render_invoice_pdf(invoice: InvoiceOutSchema) -> str:
 
 
 def _render_oss_license_pdf(invoice: InvoiceOutSchema) -> str:
-    """
-    渲染并保存开源项目授权声明函 PDF（与发票 PDF 独立存储）
+    """渲染并保存开源项目授权声明函 PDF（与发票 PDF 独立存储）
 
     参数:
     - invoice (InvoiceOutSchema): 发票对象（用于在授权函中展示关联发票号）
@@ -92,15 +82,10 @@ def _render_oss_license_pdf(invoice: InvoiceOutSchema) -> str:
     返回:
     - str: PDF 的相对 URL 路径（形如 /static/invoice/{tenant_id}/{invoice_no}_license.pdf）
     """
-    groups = load_oss_licenses()
-    total_packages = sum(len(g["packages"]) for g in groups)
-
     variables = {
         "invoice_no": invoice.invoice_no,
         "invoice_date": datetime.now().strftime("%Y-%m-%d"),
         "product_version": "v1.0.0",
-        "groups": groups,
-        "total_packages": total_packages,
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
 

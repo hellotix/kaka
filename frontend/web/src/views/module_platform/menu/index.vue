@@ -13,6 +13,7 @@
       :show-search="true"
       :disabled-search="false"
       :default-expanded="false"
+      include-audit
       @search="handleSearchBarSearch"
       @reset="onResetSearch"
     />
@@ -22,11 +23,7 @@
       <ElTabPane label="APP 移动端菜单管理" name="app" />
     </ElTabs>
 
-    <ElCard
-      shadow="hover"
-      class="fa-table-card"
-      :style="{ 'margin-top': showSearchBar ? '12px' : '0' }"
-    >
+    <ElCard class="fa-table-card" :style="{ 'margin-top': showSearchBar ? '12px' : '0' }">
       <FaTableHeader
         v-model:columns="columnChecks"
         v-model:showSearchBar="showSearchBar"
@@ -345,9 +342,9 @@ defineOptions({
 });
 
 import { CirclePlusFilled, DeleteFilled } from "@element-plus/icons-vue";
-import { useAppStore, useUserStore } from "@stores";
-import { DeviceEnum } from "@/enums/settings/device.enum";
+import { useUserStore, useAppStore } from "@stores";
 import { useTableColumns } from "@/hooks/core/useTableColumns";
+import { DeviceEnum } from "@/enums/settings/device.enum";
 import MenuAPI, {
   type MenuForm,
   type MenuPageQuery,
@@ -365,7 +362,6 @@ import FaMenuRouteIcon from "@/components/others/fa-menu-route-icon/index.vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 
 const { hasAuth } = useAuth();
-const appStore = useAppStore();
 const userStore = useUserStore();
 
 type MenuSearchForm = {
@@ -469,21 +465,6 @@ const menuSearchItems = computed<SearchFormItem[]>(() => [
       clearable: true,
     },
     span: 6,
-  },
-  {
-    label: "创建时间",
-    key: "created_time",
-    type: "datetimerange",
-    span: 6,
-    props: {
-      type: "datetimerange",
-      rangeSeparator: "至",
-      startPlaceholder: "开始日期",
-      endPlaceholder: "结束日期",
-      format: "YYYY-MM-DD HH:mm:ss",
-      valueFormat: "YYYY-MM-DD HH:mm:ss",
-      style: { width: "100%" },
-    },
   },
 ]);
 
@@ -752,6 +733,7 @@ const dialogVisible = reactive({
   type: "create" as "create" | "update" | "detail",
 });
 
+const appStore = useAppStore();
 const drawerSize = computed(() => (appStore.device === DeviceEnum.DESKTOP ? "900px" : "90%"));
 
 function typesAllowedUnderParent(parentType: MenuTypeEnum): MenuTypeEnum[] {
@@ -1023,7 +1005,7 @@ const { columnChecks, columns } = useTableColumns<MenuTable>(
       label: "操作",
       width: 220,
       fixed: "right",
-      align: "right",
+      align: "center",
       formatter: (row: MenuTable) => formatMenuOperationCell(row, opCtx),
     },
   ])
@@ -1241,13 +1223,8 @@ async function handleMoreClick(status: number) {
     ElMessage.warning("请先选择要操作的数据");
     return;
   }
-  ElMessageBox.confirm(`确认${status === 0 ? "启用" : "停用"}该项数据?`, "警告", {
-    confirmButtonText: "确定",
-    cancelButtonText: "取消",
-    type: "warning",
-  });
   try {
-    await ElMessageBox.confirm("确认启用或停用该项数据?", "警告", {
+    await ElMessageBox.confirm(`确认${status === 0 ? "启用" : "停用"}该项数据?`, "警告", {
       confirmButtonText: "确定",
       cancelButtonText: "取消",
       type: "warning",

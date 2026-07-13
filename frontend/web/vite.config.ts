@@ -68,7 +68,7 @@ function elementPlusStyleIncludes(): string[] {
 export default ({ mode }: { mode: string }) => {
   const root = process.cwd();
   const env = loadEnv(mode, root);
-  const isProduction = mode === "production";
+  const isProduction = mode === "prod";
 
   return defineConfig({
     define: {
@@ -83,10 +83,14 @@ export default ({ mode }: { mode: string }) => {
       open: true,
       proxy: {
         [env.VITE_APP_BASE_API]: {
-          target: env.VITE_API_BASE_URL, // 代理目标地址：https://后端地址
-          secure: false, // 请求是否https
-          changeOrigin: true, // 是否跨域
-          // rewrite: (path: string) => path.replace(new RegExp("^" + env.VITE_APP_BASE_API), ""),
+          target: env.VITE_API_BASE_URL,
+          secure: false,
+          changeOrigin: true,
+        },
+        "/static": {
+          target: env.VITE_API_BASE_URL,
+          secure: false,
+          changeOrigin: true,
         },
       },
     },

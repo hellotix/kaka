@@ -12,8 +12,7 @@ if TYPE_CHECKING:
 
 
 class TenantModel(ModelMixin):
-    """
-    租户模型 - 单一大表设计
+    """租户模型 - 单一大表设计
 
     - 系统租户(id=1)：平台管理，由超级管理员维护，不受套餐限制
     - 普通租户(id>1)：配额和菜单通过关联的 Package 控制
@@ -36,6 +35,7 @@ class TenantModel(ModelMixin):
     package_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("platform_package.id", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, default=None, index=True, comment="关联套餐ID")
     start_time: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None, comment="开始时间")
     end_time: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None, comment="结束时间")
+    grace_start_time: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None, comment="宽限期开始时间")
     version: Mapped[str | None] = mapped_column(String(20), nullable=True, default=None, comment="版本号")
     favicon: Mapped[str | None] = mapped_column(String(500), nullable=True, default=None, comment="favicon地址")
     login_bg: Mapped[str | None] = mapped_column(String(500), nullable=True, default=None, comment="登录背景地址")
@@ -45,7 +45,7 @@ class TenantModel(ModelMixin):
     privacy: Mapped[str | None] = mapped_column(String(500), nullable=True, default=None, comment="隐私政策地址")
     clause: Mapped[str | None] = mapped_column(String(500), nullable=True, default=None, comment="服务条款地址")
     git_code: Mapped[str | None] = mapped_column(String(500), nullable=True, default=None, comment="源码地址")
-    status: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="状态(0:启动 1:停用)", index=True)
+    status: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="0:正常 1:宽限期 2:暂停 3:冻结 4:过期 5:归档", index=True)
     description: Mapped[str | None] = mapped_column(Text, default=None, nullable=True, comment="备注")
 
     # 关联关系
@@ -67,8 +67,7 @@ class TenantModel(ModelMixin):
 
 
 class TenantUserModel(MappedBase):
-    """
-    用户-租户关联表
+    """用户-租户关联表
 
     支持一个用户关联多个租户（如顾问在多个租户间切换）。
     每个用户有一个默认租户（is_default=1），用于登录后的默认上下文。

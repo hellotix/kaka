@@ -370,7 +370,13 @@
     "placeholder": {
       "username": "Please enter username",
       "password": "Please enter password",
+      "email": "Please enter email",
+      "tenantName": "Please enter tenant name",
       "slider": "Please slide to verify"
+    },
+    "email": {
+      "required": "Please enter email",
+      "invalid": "Invalid email format"
     },
     "sliderText": "Please slide to verify",
     "sliderSuccessText": "Verification successful",
@@ -394,6 +400,9 @@
     "captchaClickHint": "Click to refresh captcha",
     "capsLock": "Caps Lock is On",
     "message": {
+      "tenantName": {
+        "required": "Please enter tenant name"
+      },
       "username": {
         "required": "Please enter Username"
       },
@@ -466,7 +475,8 @@
     "placeholder": {
       "username": "Please enter account",
       "password": "Please enter password",
-      "confirmPassword": "Please enter password again"
+      "confirmPassword": "Please enter password again",
+      "email": "Please enter email"
     },
     "rule": {
       "confirmPasswordRequired": "Please enter your password again",

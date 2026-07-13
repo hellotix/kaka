@@ -2,7 +2,7 @@
 
 import type { App } from "vue";
 import mitt, { type Emitter } from "mitt";
-import { upgradeLogList } from "@/mock/upgrade/changeLog";
+import VersionAPI from "@/api/module_system/version";
 import { ElNotification } from "element-plus";
 import { useUserStore } from "@stores";
 import { StorageConfig } from "@utils";
@@ -197,11 +197,29 @@ class VersionManager {
     return { oldSysKey, oldVersionKeys };
   }
 
-  private shouldRequireReLogin(storedVersion: string): boolean {
+  private async fetchUpgradeVersions(): Promise<
+    { version: string; title: string; requireReLogin: boolean }[]
+  > {
+    try {
+      const response = await VersionAPI.getPublishedVersions();
+      return (response.data.data ?? []).map((v) => ({
+        version: v.version ?? "",
+        title: v.title ?? "",
+        requireReLogin: v.require_re_login ?? false,
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  private shouldRequireReLogin(
+    storedVersion: string,
+    versions: { version: string; requireReLogin: boolean }[]
+  ): boolean {
     const normalizedCurrent = this.normalizeVersion(StorageConfig.CURRENT_VERSION);
     const normalizedStored = this.normalizeVersion(storedVersion);
 
-    return upgradeLogList.value.some((item) => {
+    return versions.some((item) => {
       const itemVersion = this.normalizeVersion(item.version);
       return (
         item.requireReLogin && itemVersion > normalizedStored && itemVersion <= normalizedCurrent
@@ -209,13 +227,12 @@ class VersionManager {
     });
   }
 
-  private buildUpgradeMessage(requireReLogin: boolean): string {
-    const { title: content } = upgradeLogList.value[0]!;
+  private buildUpgradeMessage(requireReLogin: boolean, latestTitle: string): string {
     const messageParts = [
       `<p style="color: var(--fa-gray-800) !important; padding-bottom: 5px;">`,
       `系统已升级到 ${StorageConfig.CURRENT_VERSION} 版本，此次更新带来了以下改进：`,
       `</p>`,
-      content,
+      latestTitle,
     ];
 
     if (requireReLogin) {
@@ -263,13 +280,14 @@ class VersionManager {
     legacyStorage: ReturnType<typeof this.findLegacyStorage>
   ): Promise<void> {
     try {
-      if (!upgradeLogList.value.length) {
+      const versions = await this.fetchUpgradeVersions();
+      if (!versions.length) {
         console.warn("[Upgrade] 升级日志列表为空");
         return;
       }
 
-      const requireReLogin = this.shouldRequireReLogin(storedVersion);
-      const message = this.buildUpgradeMessage(requireReLogin);
+      const requireReLogin = this.shouldRequireReLogin(storedVersion, versions);
+      const message = this.buildUpgradeMessage(requireReLogin, versions[0]!.title);
 
       this.showUpgradeNotification(message);
       this.setStoredVersion(StorageConfig.CURRENT_VERSION);

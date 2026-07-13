@@ -17,11 +17,7 @@
       @reset="onResetSearch"
     />
 
-    <ElCard
-      shadow="hover"
-      class="fa-table-card"
-      :style="{ 'margin-top': showSearchBar ? '12px' : '0' }"
-    >
+    <ElCard class="fa-table-card" :style="{ 'margin-top': showSearchBar ? '12px' : '0' }">
       <FaTableHeader
         v-model:columns="columnChecks"
         v-model:showSearchBar="showSearchBar"
@@ -64,12 +60,12 @@ import { h, ref, computed } from "vue";
 import { useTable } from "@/hooks/core/useTable";
 import OnlineAPI, { type OnlineUserTable } from "@/api/module_monitor/online";
 import type { ColumnOption } from "@/types/component";
-import { ElMessage, ElMessageBox, ElTooltip } from "element-plus";
+import { ElMessageBox } from "element-plus";
 import { useAuth } from "@/hooks/core/useAuth";
+import { renderTableOperationCell, type TableOperationAction } from "@/utils/table";
 import type { SearchFormItem } from "@/components/forms/fa-search-bar/index.vue";
 import type FaSearchBar from "@/components/forms/fa-search-bar/index.vue";
 import FaCopyButton from "@/components/others/fa-copy-button/index.vue";
-import FaButtonTable from "@/components/forms/fa-button-table/index.vue";
 
 const { hasAuth } = useAuth();
 
@@ -135,12 +131,29 @@ function kickSession(sessionId: string) {
         type: "warning",
       });
       await OnlineAPI.deleteOnline(sessionId);
-      ElMessage.success("操作成功");
+      // 成功 / 失败提示由 axios 拦截器统一处理
       await refreshData();
     } catch {
       // 用户取消或操作失败
     }
   })();
+}
+
+function buildOnlineRowActions(row: OnlineUserTable): TableOperationAction[] {
+  const all: TableOperationAction[] = [
+    {
+      key: "kick",
+      label: "强退",
+      artType: "delete",
+      perm: "module_monitor:online:delete",
+      run: () => kickSession(row.session_id),
+    },
+  ];
+  return all.filter((a) => a.perm != null && hasAuth(a.perm));
+}
+
+function formatOnlineOperationCell(row: OnlineUserTable) {
+  return renderTableOperationCell(buildOnlineRowActions(row));
 }
 
 const {
@@ -226,20 +239,8 @@ const {
         label: "操作",
         width: 88,
         fixed: "right",
-        align: "right",
-        formatter: (row: OnlineUserTable) => {
-          if (!hasAuth("module_monitor:online:delete")) {
-            return h("span", { class: "text-g-400" }, "—");
-          }
-          return h(ElTooltip, { content: "强退", placement: "top" }, () =>
-            h("span", { class: "inline-flex" }, [
-              h(FaButtonTable, {
-                type: "delete",
-                onClick: () => kickSession(row.session_id),
-              }),
-            ])
-          );
-        },
+        align: "center",
+        formatter: (row: OnlineUserTable) => formatOnlineOperationCell(row),
       },
     ],
   },
@@ -270,7 +271,7 @@ function handleClearAll() {
       });
       clearAllLoading.value = true;
       await OnlineAPI.clearOnline();
-      ElMessage.success("操作成功");
+      // 成功 / 失败提示由 axios 拦截器统一处理
       await refreshData();
     } catch {
       // 用户取消
@@ -279,6 +280,15 @@ function handleClearAll() {
     }
   })();
 }
+
+// 在线用户列表自动刷新（30 秒轮询）
+let refreshTimer: ReturnType<typeof setInterval> | undefined;
+onMounted(() => {
+  refreshTimer = setInterval(() => refreshData(), 30000);
+});
+onUnmounted(() => {
+  if (refreshTimer) clearInterval(refreshTimer);
+});
 </script>
 
 <style lang="scss" scoped></style>

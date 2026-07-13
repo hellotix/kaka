@@ -12,8 +12,7 @@ if TYPE_CHECKING:
 
 
 class DeptModel(ModelMixin, TenantMixin, UserMixin):
-    """
-    部门模型
+    """部门模型
     """
 
     __tablename__: str = "sys_dept"

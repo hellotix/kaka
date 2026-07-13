@@ -9,8 +9,10 @@ _correlation_id: ContextVar[str] = ContextVar("correlation_id", default="")
 def set_correlation_id(cid: str) -> Token:
     return _correlation_id.set(cid)
 
+
 def get_correlation_id() -> str:
     return _correlation_id.get()
+
 
 def reset_correlation_id(token: Token) -> None:
     _correlation_id.reset(token)
@@ -23,14 +25,17 @@ current_tenant_id: ContextVar[int | None] = ContextVar("current_tenant_id", defa
 def set_current_tenant(tenant_id: int | None) -> None:
     current_tenant_id.set(tenant_id)
 
+
 def get_current_tenant_id() -> int | None:
     return current_tenant_id.get()
+
 
 def clear_current_tenant() -> None:
     current_tenant_id.set(None)
 
 
 # ── request.state.ctx ──
+
 
 @dataclass
 class RequestContext:

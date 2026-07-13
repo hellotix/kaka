@@ -29,11 +29,12 @@
  * @author FastapiAdmin Team
  */
 import { defineStore } from "pinia";
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { AppRouteRecord } from "@/types/router";
 import { getFirstMenuPath } from "@utils";
 import { HOME_PAGE_PATH } from "@/router";
 import { mergeShellRoutesIntoMenu } from "@/router/staticRoutes";
+import { useUserStore } from "./user.store";
 
 /**
  * 菜单状态管理
@@ -50,6 +51,20 @@ export const useMenuStore = defineStore(
     const menuWidth = ref("");
     /** 存储路由移除函数的数组 */
     const removeRouteFns = ref<(() => void)[]>([]);
+
+    /**
+     * 按当前工作区模式过滤后的可见菜单
+     * 平台模式仅显示 scope="platform" 的菜单，租户模式仅显示 scope="tenant" 的菜单
+     * 菜单未设置 scope 时默认在两种模式下均可见（向后兼容）
+     */
+    const visibleMenus = computed(() => {
+      const userStore = useUserStore();
+      const targetScope = userStore.isPlatformMode ? "platform" : "tenant";
+      return menuList.value.filter((menu) => {
+        if (!menu.meta?.scope) return true;
+        return menu.meta.scope === targetScope;
+      });
+    });
 
     /**
      * 设置菜单列表
@@ -101,6 +116,7 @@ export const useMenuStore = defineStore(
 
     return {
       menuList,
+      visibleMenus,
       menuWidth,
       removeRouteFns,
       setMenuList,

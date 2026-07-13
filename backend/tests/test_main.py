@@ -1,5 +1,4 @@
-"""
-应用入口测试 —— 健康检查接口返回码与响应体校验。
+"""应用入口测试 —— 健康检查接口返回码与响应体校验。
 """
 
 from fastapi.testclient import TestClient

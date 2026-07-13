@@ -40,9 +40,11 @@ const OperationLogAPI = {
 
 export default OperationLogAPI;
 
-export interface OperationLogPageQuery extends PageQuery {
+export interface OperationLogPageQuery extends PageQuery, UserByQueryParams, TenantByQueryParams {
   request_path?: string;
   creator_name?: string;
+  status?: number;
+  request_ip?: string;
 }
 
 export interface OperationLogTable {
@@ -55,6 +57,7 @@ export interface OperationLogTable {
   response_json?: Record<string, unknown> | string;
   process_time?: string;
   created_time?: string;
+  request_ip?: string;
 }
 
 // ==================== 登录日志 ====================
@@ -86,8 +89,9 @@ export const LoginLogAPI = {
   },
 };
 
-export interface LoginLogPageQuery extends PageQuery {
+export interface LoginLogPageQuery extends PageQuery, UserByQueryParams, TenantByQueryParams {
   username?: string;
+  status?: number;
 }
 
 export interface LoginLogTable {

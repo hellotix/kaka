@@ -1,11 +1,7 @@
-from dataclasses import dataclass
-
-from fastapi import Query
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.common.enums import QueueEnum
-from app.core.base_params import BaseQueryParam
-from app.core.base_schema import BaseSchema
+from app.core.base_schema import BaseQueryParam, BaseSchema
 
 
 class PackageCreateSchema(BaseModel):
@@ -94,27 +90,25 @@ class PackageOutSchema(PackageCreateSchema, BaseSchema):
     model_config = ConfigDict(from_attributes=True)
 
 
-@dataclass
 class PackageQueryParam(BaseQueryParam):
     """套餐查询参数"""
 
-    name: str | None = Query(None, description="套餐名称")
-    code: str | None = Query(None, description="套餐编码")
+    name: str | tuple[str, str] | None = Field(None, description="套餐名称")
+    code: str | tuple[str, str] | None = Field(None, description="套餐编码")
+    status: int | tuple[str, int] | None = Field(None, ge=0, le=1, description="状态(0:启动 1:停用)")
 
-    def __post_init__(self) -> None:
-        if self.name:
+    @model_validator(mode="after")
+    def validate_query_params(self) -> "PackageQueryParam":
+        if isinstance(self.name, str):
             self.name = (QueueEnum.like.value, self.name)
-        if self.code:
+        if isinstance(self.code, str):
             self.code = (QueueEnum.like.value, self.code)
+        if isinstance(self.status, int):
+            self.status = (QueueEnum.eq.value, self.status)
+        return self
 
 
 class PackageMenuSetSchema(BaseModel):
     """批量设置套餐菜单权限"""
 
     menu_ids: list[int] = Field(..., description="菜单ID列表")
-
-
-class PackagePluginSetSchema(BaseModel):
-    """批量设置套餐插件"""
-
-    plugin_ids: list[int] = Field(..., description="插件ID列表")

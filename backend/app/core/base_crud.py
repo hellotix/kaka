@@ -1,71 +1,52 @@
-""""统一 CRUD 基类 — 同时支持有认证和无认证场景
-
-- 当 `auth` 不为 None 时（Controller 注入）：自动处理租户隔离、数据权限过滤、审计字段填充
-- 当 `auth` 为 None 时（后台任务/脚本）：纯数据操作，无权限/租户过滤
-
-用法:
-    # 带认证（Controller）
-    class UserCRUD(CRUDBase[UserModel, UserCreateSchema, UserUpdateSchema]):
-        def __init__(self, auth: AuthSchema) -> None:
-            super().__init__(model=UserModel, auth=auth)
-
-    # 无认证（后台任务）
-    class OrderCRUD(CRUDBase[OrderModel, Any, Any]):
-        def __init__(self, session: AsyncSession) -> None:
-            super().__init__(model=OrderModel, session=session)
-"""
-
 from collections.abc import Sequence
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from pydantic import BaseModel
 from sqlalchemy import Select, asc, delete, desc, false, func, literal_column, select, update
 from sqlalchemy import inspect as sa_inspect
+from sqlalchemy.engine import Result
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import load_only, selectinload
 from sqlalchemy.sql.elements import ColumnElement
 
-from app.core.base_model import MappedBase
+from app.core.base_model import ModelMixin
 from app.core.base_schema import AuthSchema, PageResultSchema
 from app.core.exceptions import CustomException
 from app.core.permission import Permission
 
-if TYPE_CHECKING:
-    from sqlalchemy.engine import Result
-
 OutSchemaType = TypeVar("OutSchemaType", bound=BaseModel)
+CreateSchemaType = TypeVar("CreateSchemaType", bound=BaseModel)
+UpdateSchemaType = TypeVar("UpdateSchemaType", bound=BaseModel)
 
 
-class CRUDBase[ModelType: MappedBase, CreateSchemaType: BaseModel, UpdateSchemaType: BaseModel]:
-    """统一数据层基类 — 有认证时自动处理权限，无认证时纯数据操作"""
+class CRUDBase[ModelType: ModelMixin, CreateSchemaType, UpdateSchemaType]:
+    """统一数据层基类
 
-    def __init__(
-        self,
-        model: type[ModelType],
-        auth: AuthSchema | None = None,
-        session: AsyncSession | None = None,
-    ) -> None:
-        """
-        初始化 CRUDBase。
+    核心设计：``auth`` 是必填的 ``AuthSchema``，子类可直接访问 ``self.auth.user.xxx``。
+
+    用法:
+        class UserCRUD(CRUDBase[UserModel, UserCreateSchema, UserUpdateSchema]):
+            def __init__(self, auth: AuthSchema, db: AsyncSession) -> None:
+                super().__init__(model=UserModel, auth=auth, db=db)
+    """
+
+    def __init__(self, model: type[ModelType], auth: AuthSchema, db: AsyncSession) -> None:
+        """初始化 CRUDBase。
 
         参数:
         - model: 数据模型类
-        - auth: 认证信息（Controller 场景），为 None 时跳过所有权限/租户/审计逻辑
-        - session: 数据库会话（后台任务场景），仅在 auth=None 时使用
+        - auth: 认证信息
+        - db: 数据库会话
         """
         self.model = model
         self.auth = auth
-        self.db = session if session is not None else (auth.db if auth else None)
-        if self.db is None:
-            raise RuntimeError(
-                "CRUDBase 未初始化数据库会话，请传入 auth 或 session 参数"
-            )
+        self.db = db
 
     def _get_pk_col(self) -> ColumnElement:
         """获取模型主键列"""
         mapper = sa_inspect(self.model)
-        pk_cols = list(getattr(mapper, "primary_key", []))
+        pk_cols = list[Any](getattr(mapper, "primary_key", []))
         if not pk_cols:
             raise CustomException(msg="模型缺少主键")
         if len(pk_cols) > 1:
@@ -75,20 +56,16 @@ class CRUDBase[ModelType: MappedBase, CreateSchemaType: BaseModel, UpdateSchemaT
     @property
     def _supports_soft_delete(self) -> bool:
         """模型是否支持软删除"""
-        return all(
-            hasattr(self.model, attr) for attr in ("is_deleted", "deleted_time", "deleted_id")
-        )
+        return all(hasattr(self.model, attr) for attr in ("is_deleted", "deleted_time", "deleted_id"))
 
     def _soft_delete_values(self) -> dict[str, Any]:
         """软删除时需要更新的字段值"""
         data: dict[str, Any] = {"is_deleted": True, "deleted_time": datetime.now()}
-        if self.auth and self.auth.user:
+        if self.auth.user.id:
             data["deleted_id"] = self.auth.user.id
         return data
 
-    async def _get_one(
-        self, preload: list[str | Any] | None = None, **kwargs
-    ) -> ModelType | None:
+    async def _get_one(self, preload: list[str | Any] | None = None, **kwargs) -> ModelType | None:
         """内部方法：在当前实例会话上执行单条查询（get / update 共用）
 
         参数:
@@ -107,8 +84,7 @@ class CRUDBase[ModelType: MappedBase, CreateSchemaType: BaseModel, UpdateSchemaT
         return result.scalars().first()
 
     async def get(self, preload: list[str | Any] | None = None, **kwargs) -> ModelType | None:
-        """
-        根据条件获取单个对象（复用请求级事务会话，保证读已写一致性）
+        """根据条件获取单个对象（复用请求级事务会话，保证读已写一致性）
 
         参数:
         - preload: 预加载关系
@@ -136,8 +112,7 @@ class CRUDBase[ModelType: MappedBase, CreateSchemaType: BaseModel, UpdateSchemaT
         out_schema: type[OutSchemaType] | None = None,
         **kwargs,
     ) -> ModelType | OutSchemaType:
-        """
-        按条件查询单条记录，不存在时抛出 404。
+        """按条件查询单条记录，不存在时抛出 404。
 
         参数:
         - id: 主键 ID（快捷方式，等价于 kwargs={"id": id}）。
@@ -160,8 +135,7 @@ class CRUDBase[ModelType: MappedBase, CreateSchemaType: BaseModel, UpdateSchemaT
         return out_schema.model_validate(obj) if out_schema else obj
 
     async def exists(self, **kwargs) -> bool:
-        """
-        检查是否存在符合条件的记录
+        """检查是否存在符合条件的记录
 
         参数:
         - **kwargs: 查询条件
@@ -172,8 +146,7 @@ class CRUDBase[ModelType: MappedBase, CreateSchemaType: BaseModel, UpdateSchemaT
         return await self.get(**kwargs) is not None
 
     async def count(self, **kwargs) -> int:
-        """
-        统计符合条件的记录数（复用请求级事务会话）
+        """统计符合条件的记录数（复用请求级事务会话）
 
         参数:
         - **kwargs: 查询条件，支持元组语法
@@ -194,17 +167,18 @@ class CRUDBase[ModelType: MappedBase, CreateSchemaType: BaseModel, UpdateSchemaT
 
     async def get_list(
         self,
-        search: dict | None = None,
+        search: dict[str, Any] | None = None,
         order_by: list[dict[str, str]] | None = None,
         preload: list[str | Any] | None = None,
+        load_columns: list | None = None,
     ) -> Sequence[ModelType]:
-        """
-        根据条件获取对象列表（复用请求级事务会话）
+        """根据条件获取对象列表（复用请求级事务会话）
 
         参数:
         - search: 查询条件
         - order_by: 排序字段, 格式为 [{'id': 'asc'}, {'name': 'desc'}]
         - preload: 预加载关系
+        - load_columns: 仅加载指定的列（减少 SELECT 传输量）
 
         返回:
         - 对象列表
@@ -213,6 +187,8 @@ class CRUDBase[ModelType: MappedBase, CreateSchemaType: BaseModel, UpdateSchemaT
             conditions = await self.__build_conditions(**(search or {}))
             order = order_by or [{"id": "asc"}]
             sql = select(self.model).where(*conditions).order_by(*self._parse_order(order))
+            if load_columns:
+                sql = sql.options(load_only(*load_columns))
             for opt in self.__loader_options(preload):
                 sql = sql.options(opt)
             sql = await self.__filter_permissions(sql)
@@ -225,13 +201,12 @@ class CRUDBase[ModelType: MappedBase, CreateSchemaType: BaseModel, UpdateSchemaT
 
     async def tree_list(
         self,
-        search: dict | None = None,
+        search: dict[str, Any] | None = None,
         order_by: list[dict[str, str]] | None = None,
         children_attr: str | None = None,
         preload: list[str | Any] | None = None,
     ) -> Sequence[ModelType]:
-        """
-        获取树形结构数据列表（复用请求级事务会话）
+        """获取树形结构数据列表（复用请求级事务会话）
 
         参数:
         - search: 查询条件
@@ -271,12 +246,12 @@ class CRUDBase[ModelType: MappedBase, CreateSchemaType: BaseModel, UpdateSchemaT
         offset: int,
         limit: int,
         order_by: list[dict[str, str]],
-        search: dict,
+        search: dict[str, Any] | None = None,
         out_schema: type[OutSchemaType] | None = None,
         preload: list[str | Any] | None = None,
-    ) -> PageResultSchema:
-        """
-        获取分页数据（复用请求级事务会话；count 与 data 共享同一会话）
+        load_columns: list | None = None,
+    ) -> PageResultSchema[OutSchemaType] | PageResultSchema:
+        """获取分页数据（复用请求级事务会话；count 与 data 共享同一会话）
 
         参数:
         - offset: 偏移量
@@ -285,6 +260,7 @@ class CRUDBase[ModelType: MappedBase, CreateSchemaType: BaseModel, UpdateSchemaT
         - search: 查询条件
         - out_schema: 输出数据模型（None 时返回原始 ORM 对象）
         - preload: 预加载关系
+        - load_columns: 仅加载指定的列（减少 SELECT 传输量）
 
         返回:
         - PageResultSchema: 分页结果
@@ -298,6 +274,8 @@ class CRUDBase[ModelType: MappedBase, CreateSchemaType: BaseModel, UpdateSchemaT
             pk = pk_cols[0] if pk_cols else literal_column("1")
 
             data_sql = select(self.model).where(*conditions)
+            if load_columns:
+                data_sql = data_sql.options(load_only(*load_columns))
             for opt in self.__loader_options(preload):
                 data_sql = data_sql.options(opt)
             data_sql = await self.__filter_permissions(data_sql)
@@ -310,16 +288,10 @@ class CRUDBase[ModelType: MappedBase, CreateSchemaType: BaseModel, UpdateSchemaT
             total_result = await self.db.execute(count_sql)
             total = total_result.scalar() or 0
 
-            result: Result = await self.db.execute(
-                data_sql.order_by(*self._parse_order(order)).offset(offset).limit(limit)
-            )
+            result: Result = await self.db.execute(data_sql.order_by(*self._parse_order(order)).offset(offset).limit(limit))
             objs = result.scalars().all()
 
-            items = (
-                [out_schema.model_validate(obj).model_dump() for obj in objs]
-                if out_schema
-                else list(objs)
-            )
+            items = [out_schema.model_validate(obj) for obj in objs] if out_schema else list(objs)
 
             return PageResultSchema(
                 page_no=offset // limit + 1 if limit else 1,
@@ -345,18 +317,22 @@ class CRUDBase[ModelType: MappedBase, CreateSchemaType: BaseModel, UpdateSchemaT
         - 新创建的对象实例
         """
         try:
-            obj_dict = data if isinstance(data, dict) else data.model_dump()
+            obj_dict = data if isinstance(data, dict) else cast("BaseModel", data).model_dump()
             obj = self.model(**obj_dict)
 
-            if self.auth and self.auth.user:
+            user = self.auth.user
+            if user.id:
                 if hasattr(obj, "tenant_id"):
-                    # 非超管始终使用当前租户；超管仅当未显式指定时自动填充
-                    if not self.auth.user.is_superuser or getattr(obj, "tenant_id", None) is None:
-                        setattr(obj, "tenant_id", self.auth.tenant_id or self.auth.user.tenant_id)
+                    # 仅当调用方未显式指定 tenant_id 时，才默认使用当前用户的租户
+                    # 超管可以显式传任意 tenant_id（管理跨租户数据），非超管必须强制为本租户
+                    if not hasattr(obj, "tenant_id") or getattr(obj, "tenant_id", None) is None:
+                        setattr(obj, "tenant_id", user.tenant_id)
+                    elif not user.is_superuser and getattr(obj, "tenant_id") != user.tenant_id:
+                        raise CustomException(msg="无权创建其他租户的数据")
                 if hasattr(obj, "created_id"):
-                    setattr(obj, "created_id", self.auth.user.id)
+                    setattr(obj, "created_id", user.id)
                 if hasattr(obj, "updated_id"):
-                    setattr(obj, "updated_id", self.auth.user.id)
+                    setattr(obj, "updated_id", user.id)
 
             self.db.add(obj)
             await self.db.flush()
@@ -380,25 +356,26 @@ class CRUDBase[ModelType: MappedBase, CreateSchemaType: BaseModel, UpdateSchemaT
         - 更新后的对象实例
         """
         try:
-            obj_dict = data if isinstance(data, dict) else data.model_dump(exclude_unset=True, exclude={"id"})
+            obj_dict = data if isinstance(data, dict) else cast("BaseModel", data).model_dump(exclude_unset=True, exclude={"id"})
             model_defaults = getattr(self.model, "__loader_options__", [])
             obj = await self._get_one(id=id, preload=model_defaults)
             if not obj:
                 raise CustomException(msg="更新对象不存在")
 
             # 租户权限检查（仅在有认证且非超管时）
-            if self.auth and self.auth.user and not self.auth.user.is_superuser:
+            user = self.auth.user
+            if user.id and not user.is_superuser:
                 if hasattr(obj, "tenant_id"):
                     obj_tid = getattr(obj, "tenant_id", None)
-                    if obj_tid is not None and obj_tid != self.auth.user.tenant_id:
+                    if obj_tid is not None and obj_tid != user.tenant_id:
                         is_platform = getattr(self.model, "__platform_data_shared__", False)
                         if is_platform and obj_tid == 1:
                             raise CustomException(msg="平台数据仅管理员可修改")
                         raise CustomException(msg="无权修改其他租户的数据")
 
             # 审计字段
-            if self.auth and self.auth.user and hasattr(obj, "updated_id"):
-                setattr(obj, "updated_id", self.auth.user.id)
+            if user.id and hasattr(obj, "updated_id"):
+                setattr(obj, "updated_id", user.id)
 
             for key, value in obj_dict.items():
                 if hasattr(obj, key):
@@ -418,14 +395,10 @@ class CRUDBase[ModelType: MappedBase, CreateSchemaType: BaseModel, UpdateSchemaT
             pk = self._get_pk_col()
 
             if self._supports_soft_delete:
-                sql = self._tenant_dml_where(
-                    update(self.model).where(pk.in_(ids))
-                ).values(**self._soft_delete_values())
+                sql = self._tenant_dml_where(update(self.model).where(pk.in_(ids))).values(**self._soft_delete_values())
                 await self.db.execute(sql)
             else:
-                sql = self._tenant_dml_where(
-                    delete(self.model).where(pk.in_(ids))
-                )
+                sql = self._tenant_dml_where(delete(self.model).where(pk.in_(ids)))
                 await self.db.execute(sql)
             await self.db.flush()
         except CustomException:
@@ -466,9 +439,7 @@ class CRUDBase[ModelType: MappedBase, CreateSchemaType: BaseModel, UpdateSchemaT
             if not self._supports_soft_delete:
                 raise CustomException(msg="该模型不支持软删除，无法恢复")
             pk = self._get_pk_col()
-            sql = self._tenant_dml_where(
-                update(self.model).where(pk.in_(ids))
-            ).values(is_deleted=False, deleted_time=None, deleted_id=None)
+            sql = self._tenant_dml_where(update(self.model).where(pk.in_(ids))).values(is_deleted=False, deleted_time=None, deleted_id=None)
             await self.db.execute(sql)
             await self.db.flush()
         except CustomException:
@@ -483,39 +454,38 @@ class CRUDBase[ModelType: MappedBase, CreateSchemaType: BaseModel, UpdateSchemaT
         if getattr(self.model, "__platform_data_shared__", False):
             for condition in self._platform_shared_conditions():
                 sql = sql.where(condition)
-        filter_obj = Permission(model=self.model, auth=self.auth)
+        filter_obj = Permission(model=self.model, auth=self.auth, db=self.db)
         return await filter_obj.filter_query(sql)
 
     def _platform_shared_conditions(self) -> list[ColumnElement]:
-        if not self.auth or not self.auth.user:
+        user = self.auth.user
+        if not user.id:
             return []
-        tid = self.auth.user.tenant_id
+        tid = user.tenant_id
         if tid is not None and tid != 1:
-            return [
-                (getattr(self.model, "tenant_id") == tid)
-                | (getattr(self.model, "tenant_id") == 1)
-            ]
+            return [(getattr(self.model, "tenant_id") == tid) | (getattr(self.model, "tenant_id") == 1)]
         return []
 
     def _tenant_dml_where(self, sql):
         """为 DML 语句注入 tenant_id 条件（不读平台数据）"""
-        if self.auth and hasattr(self.model, "tenant_id") \
-           and self.auth.user and not self.auth.user.is_superuser:
-            tid = self.auth.tenant_id
-            if tid is not None:
-                return sql.where(getattr(self.model, "tenant_id") == tid)
+        if hasattr(self.model, "tenant_id"):
+            user = self.auth.user
+            if user.id and not user.is_superuser:
+                tid = user.tenant_id
+                if tid is not None:
+                    return sql.where(getattr(self.model, "tenant_id") == tid)
         return sql
 
     async def __build_conditions(self, **kwargs) -> list[ColumnElement]:
         conditions: list[ColumnElement] = []
 
         if hasattr(self.model, "is_deleted"):
-            conditions.append(getattr(self.model, "is_deleted") == False)  # noqa: E712
+            conditions.append(getattr(self.model, "is_deleted") == false())
 
-        if self.auth and hasattr(self.model, "tenant_id") \
-           and not getattr(self.model, "__platform_data_shared__", False):
-            if self.auth.user and not self.auth.user.is_superuser:
-                tid = self.auth.tenant_id
+        if hasattr(self.model, "tenant_id") and not getattr(self.model, "__platform_data_shared__", False):
+            user = self.auth.user
+            if user.id and not user.is_superuser:
+                tid = user.tenant_id
                 if tid is not None:
                     conditions.append(getattr(self.model, "tenant_id") == tid)
 
@@ -525,56 +495,59 @@ class CRUDBase[ModelType: MappedBase, CreateSchemaType: BaseModel, UpdateSchemaT
 
             attr = getattr(self.model, key)
             if isinstance(value, tuple):
-                seq, val = value
-                if seq == "None":
-                    conditions.append(attr.is_(None))
-                elif seq == "not None":
-                    conditions.append(attr.isnot(None))
-                elif seq == "date" and val:
-                    dt = datetime.strptime(val, "%Y-%m-%d")
-                    conditions.append(attr >= dt)
-                    conditions.append(attr < dt + timedelta(days=1))
-                elif seq == "month" and val:
-                    dt = datetime.strptime(val, "%Y-%m")
-                    next_month = (
-                        dt.replace(year=dt.year + 1, month=1)
-                        if dt.month == 12
-                        else dt.replace(month=dt.month + 1)
-                    )
-                    conditions.append(attr >= dt)
-                    conditions.append(attr < next_month)
-                elif seq == "like" and val:
-                    conditions.append(attr.like(f"%{val}%"))
-                elif seq == "in":
-                    if val is None:
-                        continue
-                    if isinstance(val, (list, tuple, set)) and len(val) == 0:
-                        conditions.append(false())
-                    else:
-                        conditions.append(attr.in_(val))
-                elif seq == "between" and isinstance(val, (list, tuple)) and len(val) == 2:
-                    conditions.append(attr.between(val[0], val[1]))
-                elif seq in ("!=", "ne") and val is not None:
-                    conditions.append(attr != val)
-                elif seq in (">", "gt") and val is not None:
-                    conditions.append(attr > val)
-                elif seq in (">=", "ge") and val is not None:
-                    conditions.append(attr >= val)
-                elif seq in ("<", "lt") and val is not None:
-                    conditions.append(attr < val)
-                elif seq in ("<=", "le") and val is not None:
-                    conditions.append(attr <= val)
-                elif seq in ("eq", "==") and val is not None:
-                    conditions.append(attr == val)
+                conditions.extend(self._resolve_condition(attr, value))
             else:
                 conditions.append(attr == value)
         return conditions
 
-    def _parse_order(
-        self, order: list[dict[str, str]]
-    ) -> list[ColumnElement]:
-        """
-        解析排序参数
+    @staticmethod
+    def _resolve_condition(attr: ColumnElement, value: tuple) -> list[ColumnElement]:
+        """解析 (operator, value) 元组为 SQLAlchemy 条件列表"""
+        seq, val = value
+
+        handlers: dict[str, tuple] = {
+            "None": (lambda: [attr.is_(None)], True),
+            "not None": (lambda: [attr.isnot(None)], True),
+        }
+        # 需要额外校验的运算符
+        if seq in handlers:
+            fn, _always = handlers[seq]
+            return fn()
+
+        if val is None:
+            return []
+
+        if seq == "date":
+            dt = datetime.strptime(val, "%Y-%m-%d")
+            return [attr >= dt, attr < dt + timedelta(days=1)]
+        if seq == "month":
+            dt = datetime.strptime(val, "%Y-%m")
+            next_month = dt.replace(year=dt.year + 1, month=1) if dt.month == 12 else dt.replace(month=dt.month + 1)
+            return [attr >= dt, attr < next_month]
+        if seq == "like":
+            return [attr.like(f"%{val}%")]
+        if seq == "in":
+            if isinstance(val, (list, tuple, set)) and len(val) == 0:
+                return [false()]
+            return [attr.in_(val)]
+        if seq == "between" and isinstance(val, (list, tuple)) and len(val) == 2:
+            return [attr.between(val[0], val[1])]
+
+        _COMPARATORS: dict[str, Any] = {
+            "!=": attr.__ne__, "ne": attr.__ne__,
+            ">": attr.__gt__, "gt": attr.__gt__,
+            ">=": attr.__ge__, "ge": attr.__ge__,
+            "<": attr.__lt__, "lt": attr.__lt__,
+            "<=": attr.__le__, "le": attr.__le__,
+            "eq": attr.__eq__, "==": attr.__eq__,
+        }
+        cmp = _COMPARATORS.get(seq)
+        if cmp is not None:
+            return [cmp(val)]
+        return []
+
+    def _parse_order(self, order: list[dict[str, str]]) -> list[ColumnElement]:
+        """解析排序参数
 
         参数:
         - order: 排序字段列表, 格式为 [{'id': 'asc'}, {'name': 'desc'}]
@@ -589,11 +562,8 @@ class CRUDBase[ModelType: MappedBase, CreateSchemaType: BaseModel, UpdateSchemaT
                 columns.append(desc(column) if direction.lower() == "desc" else asc(column))
         return columns
 
-    def __loader_options(
-        self, preload: list[str | Any] | None = None
-    ) -> list[Any]:
-        """
-        构建预加载选项
+    def __loader_options(self, preload: list[str | Any] | None = None) -> list[Any]:
+        """构建预加载选项
 
         参数:
         - preload: 预加载关系，支持关系名字符串或 SQLAlchemy loader option

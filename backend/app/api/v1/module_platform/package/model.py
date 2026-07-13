@@ -5,8 +5,7 @@ from app.core.base_model import MappedBase, ModelMixin
 
 
 class PackageModel(ModelMixin):
-    """
-    套餐模型 - 定义租户可用的功能套餐
+    """套餐模型 - 定义租户可用的功能套餐
 
     status: 0=正常 1=禁用
     """
@@ -44,8 +43,7 @@ class PackageModel(ModelMixin):
 
 
 class PackageMenuModel(MappedBase):
-    """
-    套餐-菜单关联表 — 定义套餐包含的菜单资源
+    """套餐-菜单关联表 — 定义套餐包含的菜单资源
     """
 
     __tablename__: str = "platform_package_menu"
@@ -57,19 +55,3 @@ class PackageMenuModel(MappedBase):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True, comment="主键ID")
     package_id: Mapped[int] = mapped_column(Integer, ForeignKey("platform_package.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False, index=True, comment="套餐ID")
     menu_id: Mapped[int] = mapped_column(Integer, ForeignKey("platform_menu.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False, index=True, comment="菜单ID")
-
-
-class PackagePluginModel(MappedBase):
-    """
-    套餐-插件关联表 — 定义套餐包含的插件资源
-    """
-
-    __tablename__: str = "platform_package_plugin"
-    __table_args__ = (
-        UniqueConstraint("package_id", "plugin_id", name="uq_package_plugin"),
-        {"comment": "套餐插件关联表"},
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True, comment="主键ID")
-    package_id: Mapped[int] = mapped_column(Integer, ForeignKey("platform_package.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False, index=True, comment="套餐ID")
-    plugin_id: Mapped[int] = mapped_column(Integer, ForeignKey("platform_plugin.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False, index=True, comment="插件ID")

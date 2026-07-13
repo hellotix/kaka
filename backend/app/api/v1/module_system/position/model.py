@@ -10,9 +10,7 @@ if TYPE_CHECKING:
 
 
 class PositionModel(ModelMixin, TenantMixin, UserMixin):
-    """
-    岗位模型
-    """
+    """岗位模型"""
 
     __tablename__: str = "sys_position"
     __table_args__: dict[str, str] = {"comment": "岗位表"}

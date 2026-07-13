@@ -370,7 +370,13 @@
     "placeholder": {
       "username": "请输入用户名",
       "password": "请输入密码",
+      "email": "请输入邮箱",
+      "tenantName": "请输入租户名称",
       "slider": "请拖动滑块完成验证"
+    },
+    "email": {
+      "required": "请输入邮箱",
+      "invalid": "邮箱格式不正确"
     },
     "sliderText": "按住滑块拖动",
     "sliderSuccessText": "验证成功",
@@ -394,6 +400,9 @@
     "captchaClickHint": "点击刷新验证码",
     "capsLock": "大写锁定已打开",
     "message": {
+      "tenantName": {
+        "required": "请输入租户名称"
+      },
       "username": {
         "required": "请输入账号"
       },
@@ -466,7 +475,8 @@
     "placeholder": {
       "username": "请输入账号",
       "password": "请输入密码",
-      "confirmPassword": "请再次输入密码"
+      "confirmPassword": "请再次输入密码",
+      "email": "请输入邮箱"
     },
     "rule": {
       "confirmPasswordRequired": "请再次输入密码",

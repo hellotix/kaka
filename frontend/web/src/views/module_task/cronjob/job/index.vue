@@ -13,9 +13,9 @@
       :show-search="true"
       :disabled-search="false"
       :default-expanded="false"
-      :button-left-limit="0"
-      @search="handleJobSearchBarSearch"
-      @reset="onJobResetSearch"
+      include-audit
+      @search="handleSearchBarSearch"
+      @reset="onResetSearch"
     />
 
     <ElCard
@@ -39,7 +39,7 @@
                   size="small"
                   effect="dark"
                 >
-                  {{ schedulerStatus.status }}
+                  {{ getSchedulerStatusLabel(schedulerStatus.status) }}
                 </ElTag>
               </div>
               <ElDivider direction="vertical" />
@@ -137,7 +137,25 @@
         </template>
       </FaTableHeader>
 
-      <ElScrollbar v-loading="jobLoading" class="job-cards-container mt-3 min-h-0 flex-1">
+      <!-- 卡片骨架：初始加载时显示 -->
+      <ElSkeleton
+        v-if="jobLoading && (!jobList || jobList.length === 0)"
+        animated
+        class="job-skeleton"
+      >
+        <template #template>
+          <div class="job-skeleton-grid">
+            <div v-for="i in 12" :key="i" class="job-skeleton-card">
+              <ElSkeletonItem
+                variant="rect"
+                style="width: 100%; height: 100%; border-radius: var(--custom-radius)"
+              />
+            </div>
+          </div>
+        </template>
+      </ElSkeleton>
+
+      <ElScrollbar v-else class="job-cards-container mt-3 min-h-0 flex-1">
         <ElEmpty
           v-if="!jobLoading && (!jobList || jobList.length === 0)"
           :image-size="80"
@@ -297,29 +315,6 @@
             @pagination:size-change="logHandleSizeChange"
             @pagination:current-change="logHandleCurrentChange"
           >
-            <template #log_job_state="{ row }">
-              <ElButton
-                v-if="row.job_state"
-                type="primary"
-                size="small"
-                link
-                @click="handleViewJobState(row)"
-              >
-                查看
-              </ElButton>
-              <span v-else>-</span>
-            </template>
-            <template #log_operation="{ row }">
-              <ElButton
-                v-hasPerm="['module_task:cronjob:job:delete']"
-                type="danger"
-                size="small"
-                link
-                @click="deleteLogRow(row.id)"
-              >
-                删除
-              </ElButton>
-            </template>
           </FaTable>
         </ElCard>
       </div>
@@ -345,9 +340,13 @@ import type { SearchFormItem } from "@/components/forms/fa-search-bar/index.vue"
 import type FaSearchBar from "@/components/forms/fa-search-bar/index.vue";
 import { useTable } from "@/hooks/core/useTable";
 import type { ColumnOption } from "@/types/component";
-import { ElDivider, ElMessageBox } from "element-plus";
-import { computed, nextTick, onMounted, ref } from "vue";
+import { ElButton, ElDivider, ElMessageBox } from "element-plus";
+import { useAuth } from "@/hooks/core/useAuth";
+import { renderTableOperationCell, type TableOperationAction } from "@/utils/table";
+import { computed, h, nextTick, onMounted, ref } from "vue";
 import { Terminal, TerminalApi } from "vue-web-terminal";
+
+const { hasAuth } = useAuth();
 
 const schedulerStatus = ref<SchedulerStatus>({
   status: "未知",
@@ -386,9 +385,9 @@ const jobSearchItems = computed<SearchFormItem[]>(() => [
       placeholder: "请选择状态",
       clearable: true,
       options: [
-        { label: "运行中", value: "运行中" },
-        { label: "暂停", value: "暂停" },
-        { label: "停止", value: "停止" },
+        { label: "运行中", value: 0 },
+        { label: "暂停中", value: 1 },
+        { label: "已停止", value: 2 },
       ],
     },
     span: 6,
@@ -410,17 +409,16 @@ const jobLoading = ref(false);
 /** 主区域为卡片列表无表格列配置，仅占位满足 FaTableHeader v-model */
 const jobColumnChecks = ref<ColumnOption<SchedulerJob>[]>([]);
 
-function matchesJobStatusFilter(jobStatus: string | undefined, filter?: string): boolean {
-  if (!filter) return true;
-  const map: Record<string, string[]> = {
-    运行中: ["运行中"],
-    暂停: ["暂停", "暂停中"],
-    停止: ["停止", "已停止"],
+function matchesJobStatusFilter(jobStatus: number | undefined, filter?: number): boolean {
+  if (filter === undefined) return true;
+  const map: Record<number, number[]> = {
+    0: [0], // 运行中
+    1: [1], // 暂停
+    2: [2], // 停止
   };
-  const aliases = map[filter];
-  if (!aliases) return true;
-  const s = jobStatus ?? "";
-  return aliases.some((a) => s === a || s.includes(a));
+  const allowed = map[filter];
+  if (!allowed) return true;
+  return allowed.includes(jobStatus ?? -1);
 }
 
 async function fetchSchedulerJobs() {
@@ -433,7 +431,7 @@ async function fetchSchedulerJobs() {
     const statusQ = searchForm.value.status;
     jobList.value = list.filter((j) => {
       if (nameQ && !(j.name ?? "").includes(nameQ)) return false;
-      if (!matchesJobStatusFilter(j.status.toString(), statusQ?.toString())) return false;
+      if (!matchesJobStatusFilter(j.status, statusQ)) return false;
       return true;
     });
     await loadSchedulerStatus();
@@ -447,12 +445,12 @@ async function fetchSchedulerJobs() {
 
 const refreshJobList = fetchSchedulerJobs;
 
-async function handleJobSearchBarSearch() {
+async function handleSearchBarSearch() {
   await searchBarRef.value?.validate?.();
   await fetchSchedulerJobs();
 }
 
-async function onJobResetSearch() {
+async function onResetSearch() {
   searchForm.value = {
     name: undefined,
     status: undefined,
@@ -522,6 +520,23 @@ const logSearchItems = computed<SearchFormItem[]>(() => [
 ]);
 
 const currentLogJobId = ref<string | undefined>(undefined);
+function buildLogRowActions(row: JobLogTable): TableOperationAction[] {
+  const all: TableOperationAction[] = [
+    {
+      key: "delete",
+      label: "删除",
+      artType: "delete",
+      perm: "module_task:cronjob:job:delete",
+      run: () => deleteLogRow(row.id),
+    },
+  ];
+  return all.filter((a) => a.perm != null && hasAuth(a.perm));
+}
+
+function formatLogOperationCell(row: JobLogTable) {
+  return renderTableOperationCell(buildLogRowActions(row));
+}
+
 const logfaTableRef = ref<{ elTableRef?: { clearSelection: () => void } } | null>(null);
 const logSelectedRows = ref<JobLogTable[]>([]);
 const logSelectedIds = computed(() =>
@@ -618,8 +633,14 @@ const {
         prop: "job_state",
         label: "执行元数据",
         minWidth: 100,
-        useSlot: true,
-        slotName: "log_job_state",
+        formatter: (row: JobLogTable) => {
+          if (!row.job_state) return h("span", null, "—");
+          return h(
+            ElButton,
+            { type: "primary", size: "small", link: true, onClick: () => handleViewJobState(row) },
+            () => "查看"
+          );
+        },
       },
       {
         prop: "created_time",
@@ -639,8 +660,7 @@ const {
         width: 88,
         fixed: "right",
         align: "center",
-        useSlot: true,
-        slotName: "log_operation",
+        formatter: (row: JobLogTable) => formatLogOperationCell(row),
       },
     ],
   },
@@ -736,6 +756,10 @@ function getSchedulerStatusType(status: string) {
     default:
       return "info";
   }
+}
+
+function getSchedulerStatusLabel(status: string) {
+  return status || "未知";
 }
 
 function getJobStatusType(status: number) {
@@ -1179,5 +1203,19 @@ function handleViewJobState(row: JobLogTable) {
 .execution-log-drawer :deep(.el-card.data-table) {
   flex: 1;
   min-height: 0;
+}
+/* ── 卡片骨架 ── */
+.job-skeleton {
+  margin-top: 12px;
+}
+
+.job-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.job-skeleton-card {
+  height: 200px;
 }
 </style>

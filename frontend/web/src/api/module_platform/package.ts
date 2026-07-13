@@ -65,18 +65,10 @@ const PackageAPI = {
     });
   },
 
-  getPackagePlugins(packageId: number) {
-    return request<ApiResponse<number[]>>({
-      url: `${API_PATH}/plugins/${packageId}`,
+  getPackageOptions() {
+    return request<ApiResponse<OptionType[]>>({
+      url: `${API_PATH}/options`,
       method: "get",
-    });
-  },
-
-  setPackagePlugins(packageId: number, pluginIds: number[]) {
-    return request<ApiResponse>({
-      url: `${API_PATH}/plugins/${packageId}/set`,
-      method: "post",
-      data: { plugin_ids: pluginIds },
     });
   },
 };
@@ -86,6 +78,7 @@ export default PackageAPI;
 export interface PackagePageQuery extends PageQuery, UserByQueryParams, TenantByQueryParams {
   name?: string;
   code?: string;
+  status?: number;
 }
 
 export interface PackageTable extends BaseType {

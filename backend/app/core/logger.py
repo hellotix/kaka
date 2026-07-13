@@ -8,7 +8,7 @@ from app.config.setting import settings
 from app.core.request_context import get_correlation_id
 
 
-def _context_patcher(record: dict) -> None:
+def _context_patcher(record):
     cid = get_correlation_id()
     record["extra"]["ctx"] = f" | cid={cid[:8]}" if cid else ""
 
@@ -33,18 +33,15 @@ def setup_logger() -> None:
     logger.remove()
     logger.configure(patcher=_context_patcher)
 
-    LOG_FMT = (
-        "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
-        "<level>{level: <8}</level> | "
-        "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
-        "<level>{message}</level>"
-        "{extra[ctx]}"
-    )
-    logger.add(sys.stdout, format=LOG_FMT, level=settings.LOGGER_LEVEL)
+    LOG_FMT = "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>{extra[ctx]}"
+    logger.add(sys.stdout, format=LOG_FMT, backtrace=True, diagnose=True, catch=True, level=settings.LOGGER_LEVEL)
     logger.add(
-        str(LOG_DIR / "fastapiadmin.log"),
+        sink=str(LOG_DIR / "fastapiadmin.log"),
         format=LOG_FMT,
-        level="INFO",
+        level=settings.LOGGER_LEVEL,
+        backtrace=True,
+        diagnose=True,
+        catch=True,
         rotation="00:00",
         retention=30,
         compression="gz",
@@ -56,6 +53,10 @@ def setup_logger() -> None:
         std = logging.getLogger(name)
         std.handlers = [InterceptHandler()]
         std.propagate = False
+
+    # APScheduler 的 DEBUG 轮询日志干扰太大，只保留 WARNING 以上
+    for name in ("apscheduler", "apscheduler.schedulers", "apscheduler.jobstores"):
+        logging.getLogger(name).setLevel(logging.WARNING)
 
 
 setup_logger()

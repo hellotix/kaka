@@ -138,6 +138,7 @@ export interface JobLogPageQuery extends PageQuery, UserByQueryParams {
   job_id?: string;
   job_name?: string;
   trigger_type?: string;
+  status?: number;
 }
 
 export interface JobLogTable extends BaseType {

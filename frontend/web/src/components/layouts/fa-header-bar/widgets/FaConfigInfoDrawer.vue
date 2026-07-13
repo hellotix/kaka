@@ -8,55 +8,8 @@
     @close="onDrawerClosed"
   >
     <ElTabs v-model="activeTabRef" type="border-card">
-      <ElTabPane label="接口白名单" name="apiWhitelist">
-        <ElForm :model="configState" label-suffix=":" label-width="100px" label-position="right">
-          <!-- 系统配置 -->
-          <ElDivider>接口白名单</ElDivider>
-          <div v-for="(item, key) in apiWhitelistConfigs" :key="key">
-            <ElFormItem :label="item?.config_name">
-              <div class="space-y-2">
-                <div
-                  v-for="listItem in apiWhitelistItems"
-                  :key="listItem.id"
-                  class="flex items-center gap-2"
-                >
-                  <ElInput
-                    v-model="listItem.value"
-                    :placeholder="'/api/v1/users/get'"
-                    clearable
-                    @input="markModified(key)"
-                    @blur="
-                      {
-                        if (!isValidApiPath(listItem.value) && listItem.value.trim()) {
-                          ElMessage.warning('请输入有效的接口路径格式（以/开头）');
-                        }
-                      }
-                    "
-                  />
-                  <ElButton
-                    type="danger"
-                    icon="minus"
-                    circle
-                    size="small"
-                    @click="removeApiWhitelistItem(listItem.id)"
-                  />
-                </div>
-                <ElButton
-                  type="primary"
-                  icon="plus"
-                  size="small"
-                  :style="'margin-top: 10px'"
-                  @click="addApiWhitelistItem"
-                >
-                  添加接口路径
-                </ElButton>
-                <div class="text-xs text-gray-500 mt-2">
-                  配置说明：添加到白名单的接口路径无需登录即可访问，支持完整路径配置。
-                </div>
-              </div>
-            </ElFormItem>
-          </div>
-        </ElForm>
+      <ElTabPane label="AI 模型" name="aiModel">
+        <FaAiModelConfigPanel />
       </ElTabPane>
       <ElTabPane label="IP黑名单" name="ipBlacklist">
         <ElForm :model="configState" label-suffix=":" label-width="100px" label-position="right">
@@ -121,10 +74,10 @@
                   inline-prompt
                   active-text="启用"
                   inactive-text="禁用"
-                  :model-value="item?.config_value === 'true'"
+                  :model-value="item?.config_value === 'on'"
                   @update:model-value="
                     (value) => {
-                      item!.config_value = value ? 'true' : 'false';
+                      item!.config_value = value ? 'on' : 'off';
                       markModified(key);
                     }
                   "
@@ -195,7 +148,8 @@
     <template #footer>
       <ElButton @click="handleCloseDialog">取消</ElButton>
       <ElButton
-        v-hasPerm="['module_system:config:update']"
+        v-if="activeTabRef !== 'aiModel'"
+        v-hasPerm="['module_system:param:update']"
         type="primary"
         :disabled="!hasChanges"
         @click="submitChanges"
@@ -209,10 +163,10 @@
 <script lang="ts" setup>
 import { ref, reactive, onMounted, computed } from "vue";
 import ParamsAPI, { type ConfigTable } from "@/api/module_system/params";
-import { useAppStore, useConfigStore } from "@stores";
+import { useConfigStore } from "@stores";
 import { useI18n } from "vue-i18n";
 import { ElMessage, ElMessageBox } from "element-plus";
-import { DeviceEnum } from "@/enums/settings/device.enum";
+import FaAiModelConfigPanel from "@/views/module_ai/chat/components/FaAiModelConfigPanel.vue";
 
 defineOptions({ name: "FaConfigInfoDrawer" });
 
@@ -224,7 +178,7 @@ interface ListItem {
 
 // 生成唯一ID
 const generateId = () => {
-  return Math.random().toString(36).substr(2, 9);
+  return Math.random().toString(36).substring(2, 11);
 };
 
 // IP地址验证函数
@@ -234,21 +188,14 @@ const isValidIp = (ip: string): boolean => {
   return ipRegex.test(ip);
 };
 
-// 接口路径验证函数
-const isValidApiPath = (path: string): boolean => {
-  const pathRegex = /^\/[\w\-/]+$/;
-  return pathRegex.test(path);
-};
-
-const appStore = useAppStore();
-const drawerSize = computed(() => (appStore.device === DeviceEnum.DESKTOP ? "60%" : "60%"));
+const drawerSize = ref("60%");
 
 const t = useI18n().t;
 const configStore = useConfigStore();
 
-const activeTabRef = ref("apiWhitelist");
+const activeTabRef = ref("ipBlacklist");
 
-// 与父组件的 v-model 同步
+// 配置状态管理与父组件的 v-model 同步
 interface Props {
   modelValue: boolean;
 }
@@ -292,24 +239,7 @@ const submitChanges = async () => {
   if (keysToSubmit.length === 0) return;
 
   try {
-    // 准备提交数据
-    // 1. 处理接口白名单
-    if (
-      "white_api_list_path" in modifiedFields &&
-      apiWhitelistConfigs.value.white_api_list_path?.id
-    ) {
-      const apiWhitelistArray = apiWhitelistItems.value
-        .map((item) => item.value.trim())
-        .filter(Boolean);
-      // 转换为JSON字符串格式保存
-      const apiWhitelistJson = JSON.stringify(apiWhitelistArray);
-      await ParamsAPI.updateParams(apiWhitelistConfigs.value.white_api_list_path.id, {
-        ...apiWhitelistConfigs.value.white_api_list_path,
-        config_value: apiWhitelistJson,
-      });
-    }
-
-    // 2. 处理IP黑名单
+    // 1. 处理IP黑名单
     if ("ip_black_list" in modifiedFields && ipBlacklistConfigs.value.ip_black_list?.id) {
       const ipBlacklistArray = ipBlacklistItems.value
         .map((item) => item.value.trim())
@@ -337,7 +267,7 @@ const submitChanges = async () => {
 
     // 4. 处理其他配置项（已迁移到租户管理的配置不再处理）
     const otherKeys = keysToSubmit.filter(
-      (key) => !["white_api_list_path", "ip_black_list", "ip_white_list"].includes(key)
+      (key) => !["ip_black_list", "ip_white_list"].includes(key)
     );
     const otherUpdatePromises = otherKeys.map((key) => {
       const item = demoConfigs.value[key as keyof typeof demoConfigs.value];
@@ -390,8 +320,6 @@ async function onDrawerClosed() {
   await resetForm();
 }
 
-// 接口白名单配置 - 动态管理
-const apiWhitelistItems = ref<ListItem[]>([]);
 // IP黑名单配置 - 动态管理
 const ipBlacklistItems = ref<ListItem[]>([]);
 // IP白名单配置 - 动态管理
@@ -399,34 +327,6 @@ const demoIpWhitelistItems = ref<ListItem[]>([]);
 
 // 从配置数据初始化列表
 const initializeLists = () => {
-  // 初始化接口白名单
-  const apiWhitelistStr = configStore.configData.white_api_list_path?.config_value || "";
-  try {
-    // 尝试解析为JSON数组
-    const apiWhitelistArray = JSON.parse(apiWhitelistStr);
-    if (Array.isArray(apiWhitelistArray)) {
-      apiWhitelistItems.value = apiWhitelistArray
-        .filter((item) => typeof item === "string" && item.trim())
-        .map((item) => ({ id: generateId(), value: item.trim() }));
-    } else {
-      // 如果不是数组，回退到按换行符分割
-      apiWhitelistItems.value = apiWhitelistStr
-        ? apiWhitelistStr
-            .split("\n")
-            .filter((item) => item.trim())
-            .map((item) => ({ id: generateId(), value: item.trim() }))
-        : [{ id: generateId(), value: "" }];
-    }
-  } catch {
-    // 解析失败，回退到按换行符分割
-    apiWhitelistItems.value = apiWhitelistStr
-      ? apiWhitelistStr
-          .split("\n")
-          .filter((item) => item.trim())
-          .map((item) => ({ id: generateId(), value: item.trim() }))
-      : [{ id: generateId(), value: "" }];
-  }
-
   // 初始化IP黑名单
   const ipBlacklistStr = configStore.configData.ip_black_list?.config_value || "";
   try {
@@ -484,22 +384,6 @@ const initializeLists = () => {
   }
 };
 
-// 添加接口白名单项
-const addApiWhitelistItem = () => {
-  apiWhitelistItems.value.push({ id: generateId(), value: "" });
-  markModified("white_api_list_path");
-};
-
-// 移除接口白名单项
-const removeApiWhitelistItem = (id: string) => {
-  if (apiWhitelistItems.value.length <= 1) {
-    ElMessage.warning("至少需要保留一个接口白名单配置");
-    return;
-  }
-  apiWhitelistItems.value = apiWhitelistItems.value.filter((item) => item.id !== id);
-  markModified("white_api_list_path");
-};
-
 // 添加IP黑名单项
 const addIpBlacklistItem = () => {
   ipBlacklistItems.value.push({ id: generateId(), value: "" });
@@ -531,11 +415,6 @@ const removeDemoIpWhitelistItem = (id: string) => {
   demoIpWhitelistItems.value = demoIpWhitelistItems.value.filter((item) => item.id !== id);
   markModified("ip_white_list");
 };
-
-// 接口白名单配置项
-const apiWhitelistConfigs = computed(() => ({
-  white_api_list_path: configStore.configData.white_api_list_path as ConfigTable | undefined,
-}));
 
 // IP黑名单配置项
 const ipBlacklistConfigs = computed(() => ({

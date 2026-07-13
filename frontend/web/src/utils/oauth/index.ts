@@ -5,7 +5,8 @@ import type { OAuthProvider } from "@/api/module_system/auth";
  */
 export function startOAuthLogin(provider: OAuthProvider): void {
   const base = (import.meta.env.VITE_APP_BASE_API || "/api/v1").replace(/\/$/, "");
-  const redirectUri = `${window.location.origin}/login`;
+  const basePath = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
+  const redirectUri = `${window.location.origin}${basePath}/login`;
   const url = `${base}/system/auth/oauth/${provider}/login?redirect_uri=${encodeURIComponent(redirectUri)}`;
   window.location.href = url;
 }

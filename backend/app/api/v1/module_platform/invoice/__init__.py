@@ -1,3 +1,3 @@
-from .controller import PlatformInvoiceRouter, TenantInvoiceRouter
+from .controller import InvoiceRouter
 
-__all__ = ["PlatformInvoiceRouter", "TenantInvoiceRouter"]
+__all__ = ["InvoiceRouter"]

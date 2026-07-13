@@ -1,11 +1,7 @@
-from dataclasses import dataclass
-
-from fastapi import Query
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.common.enums import QueueEnum
-from app.core.base_params import BaseQueryParam, TenantByQueryParam, UserByQueryParam
-from app.core.base_schema import BaseSchema, TenantBySchema, UserBySchema
+from app.core.base_schema import BaseQueryParam, BaseSchema, TenantByQueryParam, TenantBySchema
 
 ALLOWED_REQUEST_METHODS = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"]
 
@@ -39,7 +35,7 @@ class LoginLogCreateSchema(BaseModel):
         return v
 
 
-class LoginLogOutSchema(LoginLogCreateSchema, BaseSchema, UserBySchema, TenantBySchema):
+class LoginLogOutSchema(LoginLogCreateSchema, BaseSchema, TenantBySchema):
     """登录日志响应"""
 
     model_config = ConfigDict(from_attributes=True)
@@ -49,35 +45,46 @@ class LoginLogDetailOutSchema(LoginLogOutSchema):
     """登录日志详情响应"""
 
 
-@dataclass
-class LoginLogQueryParam(BaseQueryParam, UserByQueryParam, TenantByQueryParam):
+class LoginLogQueryParam(BaseQueryParam, TenantByQueryParam):
     """登录日志查询参数"""
 
-    username: str | None = Query(None, max_length=64, description="用户名")
+    username: str | tuple[str, str] | None = Field(None, max_length=64, description="用户名")
+    status: int | tuple[str, int] | None = Field(None, description="登录状态(1:成功 2:失败)")
 
-    def __post_init__(self) -> None:
-        if self.username:
+    @model_validator(mode="after")
+    def validate_query_params(self) -> "LoginLogQueryParam":
+        if isinstance(self.username, str):
             self.username = (QueueEnum.like.value, self.username)
+        if isinstance(self.status, int):
+            self.status = (QueueEnum.eq.value, self.status)
+        return self
 
 
-@dataclass
-class OperationLogQueryParam(BaseQueryParam, UserByQueryParam, TenantByQueryParam):
+class OperationLogQueryParam(BaseQueryParam, TenantByQueryParam):
     """操作日志查询参数"""
 
-    request_path: str | None = Query(None, description="请求路径")
-    request_method: str | None = Query(None, description="请求方式")
-    username: str | None = Query(None, description="用户名")
+    request_path: str | tuple[str, str] | None = Field(None, description="请求路径")
+    request_method: str | tuple[str, str] | None = Field(None, description="请求方式")
+    username: str | tuple[str, str] | None = Field(None, description="用户名")
+    status: int | tuple[str, int] | None = Field(None, ge=0, le=1, description="状态(0:成功 1:失败)")
+    request_ip: str | tuple[str, str] | None = Field(None, description="请求IP")
 
-    def __post_init__(self) -> None:
-        if self.request_path:
+    @model_validator(mode="after")
+    def validate_query_params(self) -> "OperationLogQueryParam":
+        if isinstance(self.request_path, str):
             self.request_path = (QueueEnum.like.value, self.request_path)
-        if self.request_method:
+        if isinstance(self.request_method, str):
             self.request_method = (QueueEnum.eq.value, self.request_method)
-        if self.username:
+        if isinstance(self.username, str):
             self.username = (QueueEnum.like.value, self.username)
+        if isinstance(self.status, int):
+            self.status = (QueueEnum.eq.value, self.status)
+        if isinstance(self.request_ip, str):
+            self.request_ip = (QueueEnum.eq.value, self.request_ip)
+        return self
 
 
-class OperationLogOutSchema(BaseSchema, UserBySchema, TenantBySchema):
+class OperationLogOutSchema(BaseSchema, TenantBySchema):
     """操作日志响应模型"""
 
     model_config = ConfigDict(from_attributes=True)
@@ -88,6 +95,7 @@ class OperationLogOutSchema(BaseSchema, UserBySchema, TenantBySchema):
     request_method: str = Field(..., description="请求方式")
     response_code: int = Field(..., description="响应状态码")
     process_time: str | None = Field(default=None, description="处理时间")
+    request_ip: str | None = Field(default=None, description="请求IP")
 
 
 class OperationLogDetailOutSchema(OperationLogOutSchema):
@@ -104,9 +112,8 @@ class OperationLogCreateSchema(BaseModel):
     response_code: int = Field(200, ge=100, le=599, description="响应状态码")
     response_json: str | None = Field(None, description="响应体")
     process_time: str | None = Field(None, max_length=20, description="处理时间")
-    created_id: int | None = Field(None, description="创建人ID")
-    updated_id: int | None = Field(None, description="更新人ID")
     description: str | None = Field(None, description="备注")
+    request_ip: str | None = Field(None, max_length=50, description="请求IP")
 
     @field_validator("request_method")
     @classmethod

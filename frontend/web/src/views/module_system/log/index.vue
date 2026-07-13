@@ -15,24 +15,13 @@
           :show-search="true"
           :disabled-search="false"
           :default-expanded="false"
+          include-audit
+          :audit-item-options="{ showTenantId: true }"
           @search="handleOpSearch"
           @reset="onOpResetSearch"
-        >
-          <template #created_id>
-            <FaUserTableSelect
-              :model-value="opSearchForm.created_id == null ? undefined : opSearchForm.created_id"
-              @update:model-value="(v: number | undefined) => (opSearchForm.created_id = v)"
-              @confirm-click="afterOpUserSelectSearch"
-              @clear-click="afterOpUserSelectSearch"
-            />
-          </template>
-        </FaSearchBar>
+        />
 
-        <ElCard
-          shadow="hover"
-          class="fa-table-card"
-          :style="{ 'margin-top': opShowSearchBar ? '12px' : '0' }"
-        >
+        <ElCard class="fa-table-card" :style="{ 'margin-top': opShowSearchBar ? '12px' : '0' }">
           <FaTableHeader
             v-model:columns="opColumnChecks"
             v-model:showSearchBar="opShowSearchBar"
@@ -126,16 +115,13 @@
           :show-search="true"
           :disabled-search="false"
           :default-expanded="false"
-          :button-left-limit="0"
+          include-audit
+          :audit-item-options="{ showTenantId: true }"
           @search="handleLoginSearch"
           @reset="onLoginResetSearch"
         />
 
-        <ElCard
-          shadow="hover"
-          class="fa-table-card"
-          :style="{ 'margin-top': loginShowSearchBar ? '12px' : '0' }"
-        >
+        <ElCard class="fa-table-card" :style="{ 'margin-top': loginShowSearchBar ? '12px' : '0' }">
           <FaTableHeader
             v-model:columns="loginColumnChecks"
             v-model:showSearchBar="loginShowSearchBar"
@@ -233,12 +219,14 @@ const activeTab = ref<"operation" | "login">("operation");
 
 type OpSearchForm = {
   request_path?: string;
+  request_ip?: string;
   created_id?: number;
   created_time?: string[];
 };
 
 const opSearchForm = ref<OpSearchForm>({
   request_path: undefined,
+  request_ip: undefined,
   created_id: undefined,
   created_time: undefined,
 });
@@ -255,27 +243,20 @@ const opSearchItems = computed<SearchFormItem[]>(() => [
     clearable: true,
     span: 6,
   },
-  { label: "创建人", key: "created_id", type: "input", span: 6 },
   {
-    label: "创建时间",
-    key: "created_time",
-    type: "datetimerange",
+    label: "请求IP",
+    key: "request_ip",
+    type: "input",
+    placeholder: "请输入请求IP",
+    clearable: true,
     span: 6,
-    props: {
-      type: "datetimerange",
-      rangeSeparator: "至",
-      startPlaceholder: "开始日期",
-      endPlaceholder: "结束日期",
-      format: "YYYY-MM-DD HH:mm:ss",
-      valueFormat: "YYYY-MM-DD HH:mm:ss",
-      style: { width: "100%" },
-    },
   },
 ]);
 
 function buildOpReplaceParams(p: OpSearchForm): Record<string, unknown> {
   return {
     request_path: p.request_path,
+    request_ip: p.request_ip,
     created_id: p.created_id,
     created_time:
       Array.isArray(p.created_time) && p.created_time.length === 2 ? p.created_time : undefined,
@@ -332,6 +313,7 @@ const {
             label: String(row.response_code ?? ""),
           }),
       },
+      { prop: "request_ip", label: "请求IP", minWidth: 140, showOverflowTooltip: true },
       { prop: "process_time", label: "处理时间", minWidth: 120 },
       { prop: "description", label: "描述", minWidth: 120, showOverflowTooltip: true },
       { prop: "created_time", label: "创建时间", width: 168, showOverflowTooltip: true },
@@ -340,7 +322,7 @@ const {
         label: "操作",
         width: 160,
         fixed: "right",
-        align: "right",
+        align: "center",
         formatter: (row: OperationLogTable) => formatOpActionCell(row),
       },
     ],
@@ -383,6 +365,7 @@ const opDetailItems: import("@/components/others/fa-descriptions/index.vue").Des
   { label: "请求路径", prop: "request_path" },
   { label: "请求方法", prop: "request_method", slot: "request_method" },
   { label: "响应状态码", prop: "response_code", slot: "response_code" },
+  { label: "请求IP", prop: "request_ip" },
   { label: "处理时间", prop: "process_time" },
   { label: "请求参数", prop: "request_payload", slot: "request_payload", span: 8 },
   { label: "响应数据", prop: "response_json", slot: "response_json", span: 8 },
@@ -398,19 +381,13 @@ async function handleOpSearch(params: OpSearchForm) {
   opGetData();
 }
 
-async function applyOpSearchFromForm() {
-  await opSearchBarRef.value?.validate?.();
-  opReplaceSearchParams(buildOpReplaceParams(opSearchForm.value));
-  opGetData();
-}
-
-async function afterOpUserSelectSearch() {
-  await nextTick();
-  await applyOpSearchFromForm();
-}
-
 function onOpResetSearch() {
-  opSearchForm.value = { request_path: undefined, created_id: undefined, created_time: undefined };
+  opSearchForm.value = {
+    request_path: undefined,
+    request_ip: undefined,
+    created_id: undefined,
+    created_time: undefined,
+  };
   void opResetSearchParams();
 }
 
@@ -486,9 +463,13 @@ async function handleOpBatchDelete() {
 
 // ==================== 登录日志 ====================
 
-type LoginSearchForm = { username?: string; status?: number };
+type LoginSearchForm = { username?: string; status?: number; created_time?: string[] };
 
-const loginSearchForm = ref<LoginSearchForm>({ username: undefined, status: undefined });
+const loginSearchForm = ref<LoginSearchForm>({
+  username: undefined,
+  status: undefined,
+  created_time: undefined,
+});
 const loginShowSearchBar = ref(true);
 const loginSearchBarRef = ref<InstanceType<typeof FaSearchBar> | null>(null);
 const loginSearchBarRules: Record<string, unknown> = {};
@@ -514,6 +495,21 @@ const loginSearchItems = computed<SearchFormItem[]>(() => [
     props: { placeholder: "请选择状态", options: loginStatusOptions.value, clearable: true },
     span: 6,
   },
+  {
+    label: "登录时间",
+    key: "created_time",
+    type: "datetimerange",
+    span: 6,
+    props: {
+      type: "datetimerange",
+      rangeSeparator: "至",
+      startPlaceholder: "开始日期",
+      endPlaceholder: "结束日期",
+      format: "YYYY-MM-DD HH:mm:ss",
+      valueFormat: "YYYY-MM-DD HH:mm:ss",
+      style: { width: "100%" },
+    },
+  },
 ]);
 
 function buildLoginReplaceParams(p: LoginSearchForm): Record<string, unknown> {
@@ -523,6 +519,8 @@ function buildLoginReplaceParams(p: LoginSearchForm): Record<string, unknown> {
       p.status !== undefined && p.status !== null && p.status !== ("" as unknown as number)
         ? Number(p.status)
         : undefined,
+    created_time:
+      Array.isArray(p.created_time) && p.created_time.length === 2 ? p.created_time : undefined,
   };
 }
 
@@ -585,7 +583,7 @@ const {
         label: "操作",
         width: 120,
         fixed: "right",
-        align: "right",
+        align: "center",
         formatter: (row: LoginLogTable) => formatLoginActionCell(row),
       },
     ]),
@@ -614,7 +612,7 @@ async function handleLoginSearch(params: LoginSearchForm) {
 }
 
 function onLoginResetSearch() {
-  loginSearchForm.value = { username: undefined, status: undefined };
+  loginSearchForm.value = { username: undefined, status: undefined, created_time: undefined };
   void loginResetSearchParams();
 }
 

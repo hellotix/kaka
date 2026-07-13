@@ -324,9 +324,7 @@ request.interceptors.response.use(
         isRefreshing = true;
         try {
           // 直接请求刷新令牌接口，避免动态导入 user.store 造成循环依赖
-          const refreshResp = await AuthAPI.refreshToken({
-            refresh_token: Auth.getRefreshToken(),
-          });
+          const refreshResp = await AuthAPI.refreshToken(Auth.getRefreshToken());
           const tokenData = refreshResp.data.data;
           const newAccessToken = tokenData?.access_token || "";
           const newRefreshToken = tokenData?.refresh_token || "";
@@ -355,6 +353,10 @@ request.interceptors.response.use(
     }
 
     // ── 业务错误（按 code 分类） ──
+    if (status === 403) {
+      ElMessage.error(data?.msg || "暂无权限操作");
+      return Promise.reject(new HttpError(data?.msg || "暂无权限操作", ApiStatus.forbidden));
+    }
     if (data?.code === ResultEnum.ERROR) {
       ElMessage.error(data.msg || "请求错误");
       return Promise.reject(new HttpError(data.msg || "请求错误", ApiStatus.error));

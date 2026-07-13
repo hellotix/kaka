@@ -7,6 +7,7 @@
       ref="formRef"
       :model="modelValue"
       :label-position="labelPosition"
+      @keyup.enter="emit('search', modelValue)"
       v-bind="{ ...$attrs }"
     >
       <ElRow :gutter="gutter">
@@ -191,7 +192,10 @@ const componentMap = {
 
 const { width } = useWindowSize();
 const { t } = useI18n();
-const isMobile = computed(() => width.value < 500);
+const isMobile = computed(() => width.value < 500); // 表单窄布局阈值
+/** H5 压缩模式：收起时只显示 1 个搜索项 */
+const h5Compact = computed(() => width.value < 768);
+const maxItemsPerRow = computed(() => (h5Compact.value ? 1 : Math.floor(24 / props.span) - 1));
 
 const formInstance = useTemplateRef<FormInstance>("formRef");
 
@@ -209,6 +213,8 @@ export interface SearchFormItem {
   render?: (() => VNode) | Component;
   /** 是否隐藏该表单项 */
   hidden?: boolean;
+  /** 是否仅在展开状态下显示（用于审计字段等次要字段） */
+  expandOnly?: boolean;
   /** 表单项占据的列宽，基于24格栅格系统 */
   span?: number;
   /** 选项数据，用于 select、checkbox-group、radio-group 等 */
@@ -280,7 +286,7 @@ const props = withDefaults(defineProps<Props>(), {
   labelWidth: "70px",
   showExpand: true,
   defaultExpanded: false,
-  buttonLeftLimit: 2,
+  buttonLeftLimit: 0,
   showReset: true,
   showSearch: true,
   disabledSearch: false,
@@ -491,20 +497,25 @@ const visibleFormItems = computed(() => {
   const filteredItems = mergedItems.value.filter((item) => !item.hidden);
   const shouldShowLess = !props.isExpand && !isExpanded.value;
   if (shouldShowLess) {
-    const maxItemsPerRow = Math.floor(24 / props.span) - 1;
-    return filteredItems.slice(0, maxItemsPerRow);
+    // 收起时：只显示非 expandOnly 的字段，且不超过最大数量
+    const nonExpandOnlyItems = filteredItems.filter((item) => !item.expandOnly);
+    return nonExpandOnlyItems.slice(0, maxItemsPerRow.value);
   }
+  // 展开时：显示所有字段
   return filteredItems;
 });
 
 /**
+ * 非隐藏表单项总数（包含审计字段）
+ */
+const visibleItemCount = computed(() => mergedItems.value.filter((item) => !item.hidden).length);
+
+/**
  * 是否应该显示展开/收起按钮
+ * 当合并后的总字段数超过一行可展示数量时显示展开按钮
  */
 const shouldShowExpandToggle = computed(() => {
-  const filteredItems = props.items.filter((item) => !item.hidden);
-  return (
-    !props.isExpand && props.showExpand && filteredItems.length > Math.floor(24 / props.span) - 1
-  );
+  return !props.isExpand && props.showExpand && visibleItemCount.value > maxItemsPerRow.value;
 });
 
 /**
@@ -626,9 +637,10 @@ const { span, gutter, labelPosition, labelWidth } = toRefs(props);
 
     .action-column {
       .action-buttons-wrapper {
-        flex-direction: column;
+        flex-direction: row;
         gap: 8px;
-        align-items: stretch;
+        align-items: center;
+        justify-content: center;
 
         .form-buttons {
           justify-content: center;

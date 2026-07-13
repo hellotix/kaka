@@ -1,4 +1,4 @@
-import type { Ref } from "vue";
+import { onMounted, onUnmounted, ref, type Ref } from "vue";
 import type { CrudDialogState, DialogType } from "./useCrudDialog";
 
 /**
@@ -157,4 +157,22 @@ export function useCrudForm<T extends object>(options: {
     handleOpenDialog,
     handleSubmit,
   };
+}
+
+// ── 全局快捷键（Ctrl+S / Cmd+S 保存表单） ──
+export function useFormKeyboardSubmit(options: {
+  dialogVisible: CrudDialogState;
+  submitFn: () => Promise<void>;
+}) {
+  function onKeydown(e: KeyboardEvent) {
+    if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+      if (options.dialogVisible.visible && options.dialogVisible.type !== "detail") {
+        e.preventDefault();
+        options.submitFn();
+      }
+    }
+  }
+
+  onMounted(() => window.addEventListener("keydown", onKeydown));
+  onUnmounted(() => window.removeEventListener("keydown", onKeydown));
 }

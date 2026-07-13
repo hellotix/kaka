@@ -108,18 +108,18 @@ withDefaults(defineProps<Props>(), {
 
 const configStore = useConfigStore();
 
-/** 接口 tenant_logo，空则 FaLogo 内置默认图 */
+/** 接口 logo_url，空则 FaLogo 内置默认图 */
 const webLogoSrc = computed(
-  () => configStore.configData.tenant_logo?.config_value?.trim() || undefined
+  () => configStore.configData.logo_url?.config_value?.trim() || undefined
 );
 
 const siteTitle = computed(
-  () => configStore.configData.tenant_name?.config_value?.trim() || AppConfig.systemInfo.name
+  () => configStore.configData.name?.config_value?.trim() || AppConfig.systemInfo.name
 );
 
 const DEFAULT_APP_VERSION = "3.0.0";
 const displayVersion = computed(() => {
-  const raw = configStore.configData.tenant_version?.config_value?.trim();
+  const raw = configStore.configData.version?.config_value?.trim();
   const ver = raw || DEFAULT_APP_VERSION;
   return ver.startsWith("v") || ver.startsWith("V") ? ver : `v${ver}`;
 });

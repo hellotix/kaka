@@ -1,5 +1,4 @@
-"""
-pdf_generator.py — PDF 生成工具
+"""pdf_generator.py — PDF 生成工具
 
 使用 WeasyPrint 将 HTML/CSS 渲染为 PDF。
 当前用于电子发票 PDF 本地生成（对接百望云/票通后可平滑替换）。
@@ -16,8 +15,7 @@ def render_html_template(
     template_dir: str | Path,
     variables: dict[str, Any],
 ) -> str:
-    """
-    渲染 Jinja2 HTML 模板文件
+    """渲染 Jinja2 HTML 模板文件
 
     参数:
     - template_name (str): 模板文件名（如 "invoice.html"）
@@ -33,8 +31,7 @@ def render_html_template(
 
 
 def html_to_pdf(html_str: str, css_str: str | None = None) -> bytes:
-    """
-    将 HTML 字符串转换为 PDF 字节流
+    """将 HTML 字符串转换为 PDF 字节流
 
     需要 weasyprint + 系统 libgobject（安装: brew install glib pango）。
 
@@ -49,13 +46,16 @@ def html_to_pdf(html_str: str, css_str: str | None = None) -> bytes:
 
     html = HTML(string=html_str, base_url=".")
     if css_str:
-        return html.write_pdf(stylesheets=[CSS(string=css_str)])
-    return html.write_pdf()
+        pdf = html.write_pdf(stylesheets=[CSS(string=css_str)])
+    else:
+        pdf = html.write_pdf()
+    if pdf is None:
+        raise RuntimeError("PDF 生成失败：write_pdf 返回 None")
+    return pdf
 
 
 def save_pdf(pdf_bytes: bytes, output_path: str | Path) -> Path:
-    """
-    将 PDF 字节流保存到文件
+    """将 PDF 字节流保存到文件
 
     参数:
     - pdf_bytes (bytes): PDF 内容
@@ -77,8 +77,7 @@ def generate_pdf_from_template(
     output_path: str | Path,
     css_str: str | None = None,
 ) -> Path:
-    """
-    一站式从模板生成 PDF 并保存
+    """一站式从模板生成 PDF 并保存
 
     参数:
     - template_name (str): 模板文件名
@@ -96,8 +95,7 @@ def generate_pdf_from_template(
 
 
 def _int_to_cn(num: int) -> str:
-    """
-    整数部分转中文（不含"元"单位）
+    """整数部分转中文（不含"元"单位）
 
     例如 100 -> "壹佰", 1000001 -> "壹佰万零壹"
     """
@@ -136,8 +134,7 @@ def _int_to_cn(num: int) -> str:
 
 
 def amount_to_cn_uppercase(amount_yuan: float) -> str:
-    """
-    数字金额转中文大写（人民币）
+    """数字金额转中文大写（人民币）
 
     支持 0.01 ~ 99999999999.99 元
 
@@ -180,8 +177,7 @@ def amount_to_cn_uppercase(amount_yuan: float) -> str:
 
 
 def amount_to_yuan(cents: int) -> str:
-    """
-    分转元字符串
+    """分转元字符串
 
     参数:
     - cents (int): 金额（分）

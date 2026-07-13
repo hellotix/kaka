@@ -37,14 +37,11 @@ class CallbackResult:
 
 
 class BasePaymentGateway(ABC):
+    @abstractmethod
+    async def create_payment(self, order_no: str, amount: int, subject: str, notify_url: str) -> PaymentInfo: ...
 
     @abstractmethod
-    async def create_payment(self, order_no: str, amount: int, subject: str, notify_url: str) -> PaymentInfo:
-        ...
-
-    @abstractmethod
-    async def verify_callback(self, data: dict[str, Any]) -> CallbackResult:
-        ...
+    async def verify_callback(self, data: dict[str, Any]) -> CallbackResult: ...
 
 
 # ── 支付宝 ──
@@ -71,10 +68,7 @@ class AlipayGateway(BasePaymentGateway):
         return base64.b64encode(signature).decode("utf-8")
 
     def _verify(self, params: dict[str, Any], signature: str) -> bool:
-        sorted_params = sorted(
-            (k, v) for k, v in params.items()
-            if k != "sign" and k != "sign_type" and v != "" and v is not None
-        )
+        sorted_params = sorted((k, v) for k, v in params.items() if k != "sign" and k != "sign_type" and v != "" and v is not None)
         sign_str = "&".join(f"{k}={v}" for k, v in sorted_params)
         try:
             public_key_obj = serialization.load_pem_public_key(self._alipay_public_key)
@@ -86,12 +80,15 @@ class AlipayGateway(BasePaymentGateway):
             return False
 
     async def create_payment(self, order_no: str, amount: int, subject: str, notify_url: str) -> PaymentInfo:
-        biz_content = json.dumps({
-            "out_trade_no": order_no,
-            "total_amount": f"{amount / 100:.2f}",
-            "subject": subject,
-            "product_code": "FAST_INSTANT_TRADE_PAY",
-        }, ensure_ascii=False)
+        biz_content = json.dumps(
+            {
+                "out_trade_no": order_no,
+                "total_amount": f"{amount / 100:.2f}",
+                "subject": subject,
+                "product_code": "FAST_INSTANT_TRADE_PAY",
+            },
+            ensure_ascii=False,
+        )
         params = {
             "app_id": self.app_id,
             "method": "alipay.trade.page.pay",
@@ -125,7 +122,6 @@ class AlipayGateway(BasePaymentGateway):
 
 
 class MockPaymentGateway(BasePaymentGateway):
-
     def __init__(self) -> None:
         self._pending_orders: dict[str, dict] = {}
 
@@ -182,8 +178,8 @@ def get_mock_gateway() -> MockPaymentGateway:
 
 __all__ = [
     "BasePaymentGateway",
-    "PaymentInfo",
     "CallbackResult",
+    "PaymentInfo",
     "create_payment_gateway",
     "get_mock_gateway",
 ]

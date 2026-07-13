@@ -15,16 +15,12 @@
           :show-search="true"
           :disabled-search="false"
           :default-expanded="false"
-          :button-left-limit="0"
+          include-audit
           @search="handleOrderSearch"
           @reset="handleOrderReset"
         />
 
-        <ElCard
-          shadow="hover"
-          class="fa-table-card"
-          :style="{ 'margin-top': orderShowSearchBar ? '12px' : '0' }"
-        >
+        <ElCard class="fa-table-card" :style="{ 'margin-top': orderShowSearchBar ? '12px' : '0' }">
           <FaTableHeader
             v-model:columns="orderColumnChecks"
             v-model:showSearchBar="orderShowSearchBar"
@@ -40,23 +36,6 @@
             :pagination="orderPagination"
             @pagination:size-change="handleOrderSizeChange"
             @pagination:current-change="handleOrderCurrentChange"
-          />
-        </ElCard>
-      </ElTabPane>
-
-      <!-- 支付记录 -->
-      <ElTabPane label="支付记录" name="payments">
-        <ElCard shadow="hover" class="fa-table-card" :style="{ 'margin-top': '0' }">
-          <FaTableHeader :loading="paymentLoading" @refresh="getPaymentData" />
-
-          <FaTable
-            ref="paymentTableRef"
-            :loading="paymentLoading"
-            :data="paymentData"
-            :columns="paymentColumns"
-            :pagination="paymentPagination"
-            @pagination:size-change="handlePaymentSizeChange"
-            @pagination:current-change="handlePaymentCurrentChange"
           />
         </ElCard>
       </ElTabPane>
@@ -80,11 +59,7 @@
           @reset="handleRefundReset"
         />
 
-        <ElCard
-          shadow="hover"
-          class="fa-table-card"
-          :style="{ 'margin-top': refundShowSearchBar ? '12px' : '0' }"
-        >
+        <ElCard class="fa-table-card" :style="{ 'margin-top': refundShowSearchBar ? '12px' : '0' }">
           <FaTableHeader
             v-model:columns="refundColumnChecks"
             v-model:showSearchBar="refundShowSearchBar"
@@ -139,7 +114,7 @@ import { ElMessageBox, ElButton, ElTabs, ElTabPane } from "element-plus";
 import { useTable } from "@/hooks/core/useTable";
 import { useAuth } from "@/hooks/core/useAuth";
 import OrderAPI from "@/api/module_platform/order";
-import type { OrderTable, PaymentRecordTable, RefundTable } from "@/api/module_platform/order";
+import type { OrderTable } from "@/api/module_platform/order";
 import type { SearchFormItem } from "@/components/forms/fa-search-bar/index.vue";
 import type { FormItem } from "@/components/forms/fa-form/index.vue";
 import { renderTableOperationCell, type TableOperationAction, resolveStatusColumns } from "@utils";
@@ -304,6 +279,7 @@ const {
       { prop: "expire_time", label: "过期时间", width: 160, showOverflowTooltip: true },
       {
         label: "操作",
+        prop: "operation",
         width: 140,
         fixed: "right",
         align: "center",
@@ -387,63 +363,10 @@ const detailItems = computed<
   ];
 });
 
-// ══════════════════ 支付记录 ════════════════════
-
-const {
-  columns: paymentColumns,
-  data: paymentData,
-  loading: paymentLoading,
-  pagination: paymentPagination,
-  getData: getPaymentData,
-  handleSizeChange: handlePaymentSizeChange,
-  handleCurrentChange: handlePaymentCurrentChange,
-} = useTable({
-  core: {
-    apiFn: OrderAPI.listPaymentRecords,
-    apiParams: {
-      page_no: 1,
-      page_size: 20,
-    },
-    columnsFactory: resolveStatusColumns<PaymentRecordTable>(() => [
-      { prop: "order_id", label: "订单ID", width: 80 },
-      {
-        prop: "transaction_id",
-        label: "交易流水号",
-        minWidth: 220,
-        showOverflowTooltip: true,
-        formatter: (row: PaymentRecordTable) => row.transaction_id || "—",
-      },
-      {
-        prop: "pay_method",
-        label: "支付方式",
-        width: 100,
-        formatter: (row: PaymentRecordTable) => payMethodLabel(row.pay_method),
-      },
-      {
-        prop: "amount",
-        label: "金额",
-        width: 120,
-        formatter: (row: PaymentRecordTable) => `¥${(row.amount / 100).toFixed(2)}`,
-      },
-      {
-        prop: "status",
-        label: "状态",
-        width: 90,
-        status: {
-          1: { type: "success", text: "成功" },
-          0: { type: "danger", text: "失败" },
-        },
-      },
-      { prop: "pay_time", label: "支付时间", width: 160, showOverflowTooltip: true },
-      { prop: "created_time", label: "创建时间", width: 160, showOverflowTooltip: true },
-    ]),
-  },
-});
-
 // ══════════════════ 退款审核 ════════════════════
 
-function buildRefundRowActions(row: RefundTable): TableOperationAction[] {
-  if (row.status !== 0) return [];
+function buildRefundRowActions(row: OrderTable): TableOperationAction[] {
+  if (row.refund_status !== 1) return [];
   const actions: TableOperationAction[] = [
     {
       key: "approve",
@@ -463,7 +386,7 @@ function buildRefundRowActions(row: RefundTable): TableOperationAction[] {
   return actions.filter((a) => a.perm != null && hasAuth(a.perm));
 }
 
-function formatRefundOpCell(row: RefundTable) {
+function formatRefundOpCell(row: OrderTable) {
   const actions = buildRefundRowActions(row);
   if (actions.length === 0) return "—";
   return renderTableOperationCell(actions, {
@@ -483,10 +406,9 @@ const refundSearchItems = computed<SearchFormItem[]>(() => [
     props: {
       clearable: true,
       options: [
-        { label: "待审核", value: 0 },
-        { label: "已批准", value: 1 },
-        { label: "已驳回", value: 2 },
-        { label: "已完成", value: 3 },
+        { label: "申请中", value: 1 },
+        { label: "已退款", value: 2 },
+        { label: "已驳回", value: 3 },
       ],
     },
   },
@@ -510,25 +432,24 @@ const {
       page_no: 1,
       page_size: 20,
     },
-    columnsFactory: resolveStatusColumns<RefundTable>(() => [
+    columnsFactory: resolveStatusColumns<OrderTable>(() => [
       { prop: "refund_no", label: "退款单号", minWidth: 180, showOverflowTooltip: true },
-      { prop: "order_id", label: "订单ID", width: 80 },
+      { prop: "id", label: "订单ID", width: 80 },
       {
-        prop: "amount",
+        prop: "refund_amount",
         label: "退款金额",
         width: 120,
-        formatter: (row: RefundTable) => `¥${(row.amount / 100).toFixed(2)}`,
+        formatter: (row: OrderTable) => `¥${((row.refund_amount ?? row.amount) / 100).toFixed(2)}`,
       },
-      { prop: "reason", label: "退款原因", minWidth: 160, showOverflowTooltip: true },
+      { prop: "refund_reason", label: "退款原因", minWidth: 160, showOverflowTooltip: true },
       {
-        prop: "status",
+        prop: "refund_status",
         label: "状态",
         width: 100,
         status: {
-          0: { type: "warning", text: "待审核" },
-          1: { type: "success", text: "已批准" },
-          2: { type: "danger", text: "已驳回" },
-          3: { type: "info", text: "已完成" },
+          1: { type: "warning", text: "申请中" },
+          2: { type: "success", text: "已退款" },
+          3: { type: "danger", text: "已驳回" },
         },
       },
       {
@@ -536,17 +457,18 @@ const {
         label: "驳回原因",
         minWidth: 140,
         showOverflowTooltip: true,
-        formatter: (row: RefundTable) =>
+        formatter: (row: OrderTable) =>
           row.reject_reason ? h("span", { style: "color: #f56c6c" }, row.reject_reason) : "—",
       },
       { prop: "review_time", label: "审核时间", width: 160, showOverflowTooltip: true },
       { prop: "created_time", label: "申请时间", width: 160, showOverflowTooltip: true },
       {
         label: "操作",
+        prop: "operation",
         width: 160,
         fixed: "right",
         align: "center",
-        formatter: (row: RefundTable) => formatRefundOpCell(row),
+        formatter: (row: OrderTable) => formatRefundOpCell(row),
       },
     ]),
   },
@@ -627,7 +549,6 @@ async function submitReject() {
 
 function onTabChange(tab: string | number) {
   if (tab === "orders") getOrderData();
-  else if (tab === "payments") getPaymentData();
   else if (tab === "refunds") getRefundData();
 }
 

@@ -1,15 +1,43 @@
-import traceback
+from functools import wraps
+from math import ceil
 from typing import Any
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError, ResponseValidationError
+from slowapi.errors import RateLimitExceeded
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
 
-from app.common.constant import RET
+from app.common.enums import RET, EnvironmentEnum
 from app.common.response import ErrorResponse
+from app.config.setting import settings
 from app.core.logger import logger
+
+
+def require_superadmin(func):
+    """装饰器：仅超级管理员可调用 Service 方法。
+
+    自动校验 ``self.auth.user.is_superuser`` 属性，非超管直接抛出 403。
+    适用于实例方法（``Service(auth).xxx(...)``），由 ``self.auth`` 取认证上下文。
+
+    用法:
+        class XxxService:
+            def __init__(self, auth: AuthSchema) -> None:
+                self.auth = auth
+
+            @require_superadmin
+            async def create(self, data: ...) -> ...:
+                ...
+    """
+
+    @wraps(func)
+    async def wrapper(self, *args, **kwargs):
+        if not self.auth.user or not self.auth.user.is_superuser:
+            raise CustomException(msg="仅平台管理员可操作")
+        return await func(self, *args, **kwargs)
+
+    return wrapper
 
 
 class CustomException(Exception):
@@ -32,58 +60,62 @@ class CustomException(Exception):
         return self.msg
 
 
-def _tb_source(exc: Exception) -> str:
-    """从 traceback 提取抛出的 文件名:行号:函数名"""
-    if exc.__traceback__ and (tb := traceback.extract_tb(exc.__traceback__)):
-        f = tb[-1]
-        return f"{f.filename}:{f.lineno}:{f.name}"
-    return "unknown"
-
-
-_VALIDATION_ERROR_MAP: dict[str, str] = {
-    "Field required": "请求失败，缺少必填项！",
-    "value is not a valid list": "类型错误，提交参数应该为列表！",
-    "value is not a valid int": "类型错误，提交参数应该为整数！",
-    "value could not be parsed to a boolean": "类型错误，提交参数应该为布尔值！",
-    "Input should be a valid list": "类型错误，输入应该是一个有效的列表！",
-}
-
-
 def handle_exception(app: FastAPI) -> None:
+    @app.exception_handler(RateLimitExceeded)
+    async def rate_limit_exception_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+        return ErrorResponse(
+            msg="请求过于频繁，请稍后重试！",
+            code=429,
+            status_code=429,
+            data={"Retry-After": str(ceil(getattr(exc, "retry_after", 60)))},
+        )
+
     @app.exception_handler(CustomException)
     async def custom_exception_handler(request: Request, exc: CustomException) -> JSONResponse:
         logger.error(
-            "[自定义异常] {} {} | source={} | code={} | msg={} | data={}",
-            request.method, request.url.path,
-            _tb_source(exc), exc.code, exc.msg, exc.data,
+            "[自定义异常] {} {} | code={} | msg={} | data={}",
+            request.method,
+            request.url.path,
+            exc.code,
+            exc.msg,
+            exc.data,
         )
-        return ErrorResponse(msg=exc.msg, code=exc.code, status_code=exc.status_code, data=exc.data)
+        # 生产环境不外泄 data（可能含 SQL 字段、约束名等内部细节）
+        expose_data = exc.data if settings.ENVIRONMENT != EnvironmentEnum.PROD else None
+        return ErrorResponse(msg=exc.msg, code=exc.code, status_code=exc.status_code, data=expose_data)
 
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
         logger.error(
             "[HTTP异常] {} {} | status_code={} | detail={}",
-            request.method, request.url.path, exc.status_code, exc.detail,
+            request.method,
+            request.url.path,
+            exc.status_code,
+            exc.detail,
         )
         return ErrorResponse(msg=exc.detail, status_code=exc.status_code)
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
-        raw_msg = exc.errors()[0].get("msg")
-        msg = _VALIDATION_ERROR_MAP.get(raw_msg, raw_msg)
-        if isinstance(msg, str) and msg.startswith("Value error"):
+        errors = exc.errors()
+        msg = errors[0].get("msg", str(errors[0])) if errors else "请求参数验证失败"
+        if msg.startswith("Value error"):
             msg = msg[11:].lstrip(" ,")
         logger.error(
-            "[参数验证异常] {} {} | msg={} | errors={}",
-            request.method, request.url.path, msg, exc.errors(),
+            "[参数验证异常] {} {} | errors={}",
+            request.method,
+            request.url.path,
+            errors,
         )
-        return ErrorResponse(msg=str(msg), status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, data=exc.body)
+        return ErrorResponse(msg=str(msg), status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, data=errors)
 
     @app.exception_handler(ResponseValidationError)
     async def response_validation_handler(request: Request, exc: ResponseValidationError) -> JSONResponse:
         logger.error(
             "[响应验证异常] {} {} | errors={}",
-            request.method, request.url.path, exc.errors(),
+            request.method,
+            request.url.path,
+            exc.errors(),
         )
         return ErrorResponse(msg="服务器响应格式错误", status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, data=exc.body)
 
@@ -92,18 +124,22 @@ def handle_exception(app: FastAPI) -> None:
         exc_type = type(exc).__name__
         logger.error(
             "[数据库异常] %s %s | type=%s | detail=%s",
-            request.method, request.url.path, exc_type, exc,
+            request.method,
+            request.url.path,
+            exc_type,
+            exc,
         )
 
         if isinstance(exc, IntegrityError):
             detail = str(exc.orig) if exc.orig else str(exc)
+            expose_detail = detail if settings.ENVIRONMENT != EnvironmentEnum.PROD else None
             if "Duplicate entry" in detail:
-                return ErrorResponse(msg="数据重复，请检查唯一字段", status_code=status.HTTP_409_CONFLICT, data=detail)
+                return ErrorResponse(msg="数据重复，请检查唯一字段", status_code=status.HTTP_409_CONFLICT, data=expose_detail)
             if "foreign key constraint" in detail:
-                return ErrorResponse(msg="存在关联数据，无法删除", status_code=status.HTTP_409_CONFLICT, data=detail)
+                return ErrorResponse(msg="存在关联数据，无法删除", status_code=status.HTTP_409_CONFLICT, data=expose_detail)
             if "cannot be null" in detail:
-                return ErrorResponse(msg="必填字段缺失", status_code=status.HTTP_409_CONFLICT, data=detail)
-            return ErrorResponse(msg="数据已存在或违反完整性约束", status_code=status.HTTP_409_CONFLICT, data=detail)
+                return ErrorResponse(msg="必填字段缺失", status_code=status.HTTP_409_CONFLICT, data=expose_detail)
+            return ErrorResponse(msg="数据已存在或违反完整性约束", status_code=status.HTTP_409_CONFLICT, data=expose_detail)
 
         lower = str(exc).lower()
         if "connect" in lower or "connection" in lower:
@@ -115,12 +151,14 @@ def handle_exception(app: FastAPI) -> None:
         logger.error("[值异常] {} {} | msg={}", request.method, request.url.path, exc)
         return ErrorResponse(msg=str(exc), status_code=status.HTTP_400_BAD_REQUEST)
 
-
     @app.exception_handler(Exception)
     async def all_exception_handler(request: Request, exc: Exception) -> JSONResponse:
         exc_type = type(exc).__name__
         logger.error(
             "[未捕获异常] {} {} | type={} | detail={}",
-            request.method, request.url.path, exc_type, exc,
+            request.method,
+            request.url.path,
+            exc_type,
+            exc,
         )
         return ErrorResponse(msg="服务器内部错误", status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)

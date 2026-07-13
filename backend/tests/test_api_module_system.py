@@ -1,9 +1,8 @@
-"""
-模块接口测试 —— module_system（系统管理）
+"""模块接口测试 —— module_system（系统管理）
 认证数据测试：admin 登录后验证 CRUD 真实数据。
 """
 
-from conftest import assert_route  # noqa: F401
+from conftest import assert_route
 from fastapi.testclient import TestClient
 
 
@@ -65,22 +64,6 @@ class TestAuth:
     def test_auth_auto_login_token(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(test_client, "POST", "/system/auth/auto-login/token?user_id=1", auth=auth_headers)
 
-    def test_auth_forgot_password(self, test_client: TestClient) -> None:
-        assert_route(
-            test_client,
-            "POST",
-            "/system/auth/forgot-password",
-            json={"username": "admin"},
-        )
-
-    def test_auth_reset_password(self, test_client: TestClient) -> None:
-        assert_route(
-            test_client,
-            "POST",
-            "/system/auth/reset-password",
-            json={"token": "mock_reset_token", "new_password": "newpass123"},
-        )
-
 
 class TestUser:
     """用户管理接口 — 数据验证。"""
@@ -102,13 +85,19 @@ class TestUser:
 
     def test_user_create(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "POST", "/system/user/create", auth=auth_headers,
+            test_client,
+            "POST",
+            "/system/user/create",
+            auth=auth_headers,
             json={"username": "test_user", "password": "test123", "name": "测试", "dept_id": 1},
         )
 
     def test_user_update(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "PUT", "/system/user/update/1", auth=auth_headers,
+            test_client,
+            "PUT",
+            "/system/user/update/1",
+            auth=auth_headers,
             json={"name": "更新用户"},
         )
 
@@ -123,43 +112,62 @@ class TestUser:
 
     def test_user_import_data(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "POST", "/system/user/import/data", auth=auth_headers,
+            test_client,
+            "POST",
+            "/system/user/import/data",
+            auth=auth_headers,
             json={"list": []},
         )
 
     def test_user_current_info_update(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "PUT", "/system/user/current/info/update", auth=auth_headers,
+            test_client,
+            "PUT",
+            "/system/user/current/info/update",
+            auth=auth_headers,
             json={"name": "更新个人信息"},
         )
 
     def test_user_password_change(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "PUT", "/system/user/password/change", auth=auth_headers,
+            test_client,
+            "PUT",
+            "/system/user/password/change",
+            auth=auth_headers,
             json={"old_password": "old", "new_password": "new123"},
         )
 
     def test_user_password_forget(self, test_client: TestClient) -> None:
         assert_route(
-            test_client, "POST", "/system/user/password/forget",
-            json={"username": "admin"},
+            test_client,
+            "POST",
+            "/system/user/password/forget",
+            json={"username": "admin", "new_password": "newpass123"},
         )
 
     def test_user_password_reset(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "PUT", "/system/user/password/reset/1", auth=auth_headers,
+            test_client,
+            "PUT",
+            "/system/user/password/reset/1",
+            auth=auth_headers,
             json={"password": "newpass123"},
         )
 
     def test_user_register(self, test_client: TestClient) -> None:
         assert_route(
-            test_client, "POST", "/system/user/register",
+            test_client,
+            "POST",
+            "/system/user/register",
             json={"username": "new_user", "password": "pass123", "name": "新用户"},
         )
 
     def test_user_status_batch(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "PATCH", "/system/user/status/batch", auth=auth_headers,
+            test_client,
+            "PATCH",
+            "/system/user/status/batch",
+            auth=auth_headers,
             json={"ids": [1], "status": 1},
         )
 
@@ -175,13 +183,19 @@ class TestRole:
 
     def test_role_create(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "POST", "/system/role/create", auth=auth_headers,
+            test_client,
+            "POST",
+            "/system/role/create",
+            auth=auth_headers,
             json={"name": "测试角色", "code": "test_role", "sort": 1},
         )
 
     def test_role_update(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "PUT", "/system/role/update/1", auth=auth_headers,
+            test_client,
+            "PUT",
+            "/system/role/update/1",
+            auth=auth_headers,
             json={"name": "更新角色"},
         )
 
@@ -193,13 +207,19 @@ class TestRole:
 
     def test_role_permission(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "PUT", "/system/role/permission", auth=auth_headers,
+            test_client,
+            "PUT",
+            "/system/role/permission",
+            auth=auth_headers,
             json={"role_id": 1, "menu_ids": [1, 2]},
         )
 
     def test_role_status_batch(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "PATCH", "/system/role/status/batch", auth=auth_headers,
+            test_client,
+            "PATCH",
+            "/system/role/status/batch",
+            auth=auth_headers,
             json={"ids": [1], "status": 1},
         )
 
@@ -215,13 +235,19 @@ class TestDept:
 
     def test_dept_create(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "POST", "/system/dept/create", auth=auth_headers,
+            test_client,
+            "POST",
+            "/system/dept/create",
+            auth=auth_headers,
             json={"name": "测试部门", "parent_id": 0, "sort": 1},
         )
 
     def test_dept_update(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "PUT", "/system/dept/update/1", auth=auth_headers,
+            test_client,
+            "PUT",
+            "/system/dept/update/1",
+            auth=auth_headers,
             json={"name": "更新部门"},
         )
 
@@ -230,7 +256,10 @@ class TestDept:
 
     def test_dept_status_batch(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "PATCH", "/system/dept/status/batch", auth=auth_headers,
+            test_client,
+            "PATCH",
+            "/system/dept/status/batch",
+            auth=auth_headers,
             json={"ids": [1], "status": 1},
         )
 
@@ -246,13 +275,19 @@ class TestPosition:
 
     def test_position_create(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "POST", "/system/position/create", auth=auth_headers,
+            test_client,
+            "POST",
+            "/system/position/create",
+            auth=auth_headers,
             json={"name": "测试岗位", "code": "test_pos", "sort": 1},
         )
 
     def test_position_update(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "PUT", "/system/position/update/1", auth=auth_headers,
+            test_client,
+            "PUT",
+            "/system/position/update/1",
+            auth=auth_headers,
             json={"name": "更新岗位"},
         )
 
@@ -264,7 +299,10 @@ class TestPosition:
 
     def test_position_status_batch(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "PATCH", "/system/position/status/batch", auth=auth_headers,
+            test_client,
+            "PATCH",
+            "/system/position/status/batch",
+            auth=auth_headers,
             json={"ids": [1], "status": 1},
         )
 
@@ -280,13 +318,19 @@ class TestDict:
 
     def test_dict_type_create(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "POST", "/system/dict/type/create", auth=auth_headers,
+            test_client,
+            "POST",
+            "/system/dict/type/create",
+            auth=auth_headers,
             json={"dict_name": "测试字典", "dict_type": "test_dict", "status": 0},
         )
 
     def test_dict_type_update(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "PUT", "/system/dict/type/update/1", auth=auth_headers,
+            test_client,
+            "PUT",
+            "/system/dict/type/update/1",
+            auth=auth_headers,
             json={"dict_name": "更新字典"},
         )
 
@@ -301,13 +345,19 @@ class TestDict:
 
     def test_dict_data_create(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "POST", "/system/dict/data/create", auth=auth_headers,
+            test_client,
+            "POST",
+            "/system/dict/data/create",
+            auth=auth_headers,
             json={"dict_type": "sys_normal_disable", "dict_label": "测试", "dict_value": "0", "sort": 1},
         )
 
     def test_dict_data_update(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "PUT", "/system/dict/data/update/1", auth=auth_headers,
+            test_client,
+            "PUT",
+            "/system/dict/data/update/1",
+            auth=auth_headers,
             json={"dict_label": "更新标签"},
         )
 
@@ -319,7 +369,10 @@ class TestDict:
 
     def test_dict_data_status_batch(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "PATCH", "/system/dict/data/status/batch", auth=auth_headers,
+            test_client,
+            "PATCH",
+            "/system/dict/data/status/batch",
+            auth=auth_headers,
             json={"ids": [1], "status": 1},
         )
 
@@ -331,7 +384,10 @@ class TestDict:
 
     def test_dict_type_status_batch(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "PATCH", "/system/dict/type/status/batch", auth=auth_headers,
+            test_client,
+            "PATCH",
+            "/system/dict/type/status/batch",
+            auth=auth_headers,
             json={"ids": [1], "status": 1},
         )
 
@@ -347,13 +403,19 @@ class TestNotice:
 
     def test_notice_create(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "POST", "/system/notice/create", auth=auth_headers,
+            test_client,
+            "POST",
+            "/system/notice/create",
+            auth=auth_headers,
             json={"notice_title": "测试公告", "notice_content": "内容", "status": 0},
         )
 
     def test_notice_update(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "PUT", "/system/notice/update/1", auth=auth_headers,
+            test_client,
+            "PUT",
+            "/system/notice/update/1",
+            auth=auth_headers,
             json={"notice_title": "更新公告"},
         )
 
@@ -380,7 +442,10 @@ class TestNotice:
 
     def test_notice_status_batch(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "PATCH", "/system/notice/status/batch", auth=auth_headers,
+            test_client,
+            "PATCH",
+            "/system/notice/status/batch",
+            auth=auth_headers,
             json={"ids": [1], "status": 1},
         )
 
@@ -393,13 +458,19 @@ class TestParams:
 
     def test_params_create(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "POST", "/system/param/create", auth=auth_headers,
+            test_client,
+            "POST",
+            "/system/param/create",
+            auth=auth_headers,
             json={"param_name": "测试参数", "param_key": "test.key", "param_value": "val", "param_type": "string"},
         )
 
     def test_params_update(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "PUT", "/system/param/update/1", auth=auth_headers,
+            test_client,
+            "PUT",
+            "/system/param/update/1",
+            auth=auth_headers,
             json={"param_value": "new_val"},
         )
 
@@ -423,7 +494,10 @@ class TestParams:
 
     def test_params_status_batch(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "PATCH", "/system/param/status/batch", auth=auth_headers,
+            test_client,
+            "PATCH",
+            "/system/param/status/batch",
+            auth=auth_headers,
             json={"ids": [1], "status": 1},
         )
 
@@ -455,13 +529,19 @@ class TestTicket:
 
     def test_ticket_create(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "POST", "/system/ticket/create", auth=auth_headers,
+            test_client,
+            "POST",
+            "/system/ticket/create",
+            auth=auth_headers,
             json={"title": "测试工单", "ticket_type": "bug", "ticket_content": "内容描述"},
         )
 
     def test_ticket_update(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
-            test_client, "PUT", "/system/ticket/update/1", auth=auth_headers,
+            test_client,
+            "PUT",
+            "/system/ticket/update/1",
+            auth=auth_headers,
             json={"title": "更新工单"},
         )
 

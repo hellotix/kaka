@@ -95,7 +95,7 @@ export const ResourceAPI = {
    */
   createDirectory(body: ResourceCreateDirQuery) {
     return request<ApiResponse>({
-      url: `${API_PATH}/create-dir`,
+      url: `${API_PATH}/mkdir`,
       method: "post",
       data: body,
     });

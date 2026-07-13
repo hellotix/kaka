@@ -1,0 +1,29 @@
+[
+  {
+    "config_name": "演示模式启用",
+    "config_key": "demo_enable",
+    "config_value": "off",
+    "config_type": true,
+    "status": 0,
+    "description": "是否启用演示模式（启用后非白名单IP只允许GET请求）",
+    "tenant_id": 1
+  },
+  {
+    "config_name": "演示访问IP白名单",
+    "config_key": "ip_white_list",
+    "config_value": "[\"127.0.0.1\"]",
+    "config_type": true,
+    "status": 0,
+    "description": "演示模式下允许访问的IP列表",
+    "tenant_id": 1
+  },
+  {
+    "config_name": "访问IP黑名单",
+    "config_key": "ip_black_list",
+    "config_value": "[]",
+    "config_type": true,
+    "status": 0,
+    "description": "禁止访问的IP列表（任意请求均拒绝）",
+    "tenant_id": 1
+  }
+]

@@ -3,8 +3,10 @@
 import io
 import pandas as pd
 from fastapi import UploadFile
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.base_schema import AuthSchema, BatchSetAvailable
+from app.core.base_schema import AuthSchema
+from app.core.base_schema import BatchSetAvailable
 from app.core.exceptions import CustomException
 from app.core.logger import logger
 from app.utils.excel_util import ExcelUtil
@@ -23,29 +25,31 @@ class {{ class_name }}Service:
     """
 
     @classmethod
-    async def detail_service(cls, auth: AuthSchema, id: int) -> dict:
+    async def detail_service(cls, auth: AuthSchema, db: AsyncSession, id: int) -> dict:
         """
         详情
 
         参数:
         - auth: AuthSchema - 认证信息
+        - db: AsyncSession - 数据库会话
         - id: int - 数据ID
 
         返回:
         - dict - 数据详情
         """
-        obj = await {{ class_name }}CRUD(auth).get(id=id)
+        obj = await {{ class_name }}CRUD(auth, db).get(id=id)
         if not obj:
             raise CustomException(msg="该数据不存在")
         return {{ class_name }}OutSchema.model_validate(obj).model_dump()
 
     @classmethod
-    async def list_service(cls, auth: AuthSchema, search: {{ class_name }}QueryParam | None = None, order_by: list[dict] | None = None) -> list[dict]:
+    async def list_service(cls, auth: AuthSchema, db: AsyncSession, search: {{ class_name }}QueryParam | None = None, order_by: list[dict] | None = None) -> list[dict]:
         """
         列表查询
 
         参数:
         - auth: AuthSchema - 认证信息
+        - db: AsyncSession - 数据库会话
         - search: {{ class_name }}QueryParam | None - 查询参数
         - order_by: list[dict] | None - 排序参数
 
@@ -53,16 +57,17 @@ class {{ class_name }}Service:
         - list[dict] - 数据列表
         """
         search_dict = search.__dict__ if search else None
-        obj_list = await {{ class_name }}CRUD(auth).list(search=search_dict, order_by=order_by)
+        obj_list = await {{ class_name }}CRUD(auth, db).list(search=search_dict, order_by=order_by)
         return [{{ class_name }}OutSchema.model_validate(obj).model_dump() for obj in obj_list]
 
     @classmethod
-    async def page_service(cls, auth: AuthSchema, page_no: int, page_size: int, search: {{ class_name }}QueryParam | None = None, order_by: list[dict] | None = None) -> dict:
+    async def page_service(cls, auth: AuthSchema, db: AsyncSession, page_no: int, page_size: int, search: {{ class_name }}QueryParam | None = None, order_by: list[dict] | None = None) -> dict:
         """
         分页查询（数据库分页）
 
         参数:
         - auth: AuthSchema - 认证信息
+        - db: AsyncSession - 数据库会话
         - page_no: int - 页码
         - page_size: int - 每页数量
         - search: {{ class_name }}QueryParam | None - 查询参数
@@ -74,7 +79,7 @@ class {{ class_name }}Service:
         search_dict = search.__dict__ if search else {}
         order_by_list = order_by or [{'{{ pk_column_name }}': 'asc'}]
         offset = (page_no - 1) * page_size
-        result = await {{ class_name }}CRUD(auth).page(
+        result = await {{ class_name }}CRUD(auth, db).page(
             offset=offset,
             limit=page_size,
             order_by=order_by_list,
@@ -84,34 +89,36 @@ class {{ class_name }}Service:
         return result
 
     @classmethod
-    async def create_service(cls, auth: AuthSchema, data: {{ class_name }}CreateSchema) -> dict:
+    async def create_service(cls, auth: AuthSchema, db: AsyncSession, data: {{ class_name }}CreateSchema) -> dict:
         """
         创建
 
         参数:
         - auth: AuthSchema - 认证信息
+        - db: AsyncSession - 数据库会话
         - data: {{ class_name }}CreateSchema - 创建数据
 
         返回:
         - dict - 创建结果
         """
         {% for column in columns %}
-        {% if column.is_unique %}
-        obj = await {{ class_name }}CRUD(auth).get({{ column.column_name }}=data.{{ column.column_name }})
+        {% if column.is_unique and column.column_name != 'uuid' %}
+        obj = await {{ class_name }}CRUD(auth, db).get({{ column.column_name }}=data.{{ column.column_name }})
         if obj:
             raise CustomException(msg='创建失败，{{ column.column_comment }}已存在')
         {% endif %}
         {% endfor %}
-        obj = await {{ class_name }}CRUD(auth).create(data=data)
+        obj = await {{ class_name }}CRUD(auth, db).create(data=data)
         return {{ class_name }}OutSchema.model_validate(obj).model_dump()
 
     @classmethod
-    async def update_service(cls, auth: AuthSchema, id: int, data: {{ class_name }}UpdateSchema) -> dict:
+    async def update_service(cls, auth: AuthSchema, db: AsyncSession, id: int, data: {{ class_name }}UpdateSchema) -> dict:
         """
         更新
 
         参数:
         - auth: AuthSchema - 认证信息
+        - db: AsyncSession - 数据库会话
         - id: int - 数据ID
         - data: {{ class_name }}UpdateSchema - 更新数据
 
@@ -119,29 +126,30 @@ class {{ class_name }}Service:
         - dict - 更新结果
         """
         # 检查数据是否存在
-        obj = await {{ class_name }}CRUD(auth).get(id=id)
+        obj = await {{ class_name }}CRUD(auth, db).get(id=id)
         if not obj:
             raise CustomException(msg='更新失败，该数据不存在')
 
         # 检查唯一性约束
         {% for column in columns %}
-        {% if column.is_unique %}
-        exist_obj = await {{ class_name }}CRUD(auth).get({{ column.column_name }}=data.{{ column.column_name }})
+        {% if column.is_unique and column.column_name != 'uuid' %}
+        exist_obj = await {{ class_name }}CRUD(auth, db).get({{ column.column_name }}=data.{{ column.column_name }})
         if exist_obj and getattr(exist_obj, '{{ pk_column_name }}') != id:
             raise CustomException(msg='更新失败，{{ column.column_comment }}重复')
         {% endif %}
         {% endfor %}
 
-        obj = await {{ class_name }}CRUD(auth).update(id=id, data=data)
+        obj = await {{ class_name }}CRUD(auth, db).update(id=id, data=data)
         return {{ class_name }}OutSchema.model_validate(obj).model_dump()
 
     @classmethod
-    async def delete_service(cls, auth: AuthSchema, ids: list[int]) -> None:
+    async def delete_service(cls, auth: AuthSchema, db: AsyncSession, ids: list[int]) -> None:
         """
         删除
 
         参数:
         - auth: AuthSchema - 认证信息
+        - db: AsyncSession - 数据库会话
         - ids: list[int] - 数据ID列表
 
         返回:
@@ -150,24 +158,25 @@ class {{ class_name }}Service:
         if len(ids) < 1:
             raise CustomException(msg='删除失败，删除对象不能为空')
         for id in ids:
-            obj = await {{ class_name }}CRUD(auth).get(id=id)
+            obj = await {{ class_name }}CRUD(auth, db).get(id=id)
             if not obj:
                 raise CustomException(msg=f'删除失败，ID为{id}的数据不存在')
-        await {{ class_name }}CRUD(auth).delete(ids=ids)
+        await {{ class_name }}CRUD(auth, db).delete(ids=ids)
 
     @classmethod
-    async def set_available_service(cls, auth: AuthSchema, data: BatchSetAvailable) -> None:
+    async def set_available_service(cls, auth: AuthSchema, db: AsyncSession, data: BatchSetAvailable) -> None:
         """
         批量设置状态
 
         参数:
         - auth: AuthSchema - 认证信息
+        - db: AsyncSession - 数据库会话
         - data: BatchSetAvailable - 批量设置状态数据
 
         返回:
         - None
         """
-        await {{ class_name }}CRUD(auth).set(ids=data.ids, status=data.status)
+        await {{ class_name }}CRUD(auth, db).set(ids=data.ids, status=data.status)
 
     @staticmethod
     def batch_export_service(obj_list: list[dict]) -> bytes:
@@ -182,7 +191,9 @@ class {{ class_name }}Service:
         """
         mapping_dict = {
             {% for column in columns %}
+            {% if column.column_name not in ['uuid', 'tenant_id', 'updated_id', 'is_deleted', 'deleted_time', 'deleted_id'] %}
             '{{ column.column_name }}': '{{ column.column_comment }}',
+            {% endif %}
             {% endfor %}
         }
         # 复制数据并转换状态
@@ -200,12 +211,13 @@ class {{ class_name }}Service:
         return ExcelUtil.export_list2excel(list_data=data, mapping_dict=mapping_dict)
 
     @classmethod
-    async def batch_import_service(cls, auth: AuthSchema, file: UploadFile, update_support: bool = False) -> str:
+    async def batch_import_service(cls, auth: AuthSchema, db: AsyncSession, file: UploadFile, update_support: bool = False) -> str:
         """
         批量导入
 
         参数:
         - auth: AuthSchema - 认证信息
+        - db: AsyncSession - 数据库会话
         - file: UploadFile - 上传的Excel文件
         - update_support: bool - 是否支持更新存在数据
 
@@ -214,7 +226,9 @@ class {{ class_name }}Service:
         """
         header_dict = {
             {% for column in columns %}
+            {% if column.column_name not in ['id', 'uuid', 'tenant_id', 'created_time', 'updated_time', 'created_id', 'updated_id', 'is_deleted', 'deleted_time', 'deleted_id'] and column.column_name != pk_column_name %}
             '{{ column.column_comment }}': '{{ column.column_name }}',
+            {% endif %}
             {% endfor %}
         }
 
@@ -237,7 +251,7 @@ class {{ class_name }}Service:
 
             # 验证必填字段（非主键且不允许为空的列）
             {% for column in columns %}
-            {% if column.is_nullable is false and column.is_pk is false %}
+            {% if column.is_nullable is false and column.is_pk is false and column.column_name not in ['id', 'uuid', 'tenant_id', 'created_time', 'updated_time', 'created_id', 'updated_id', 'is_deleted', 'deleted_time', 'deleted_id'] %}
             errors = []
             missing_rows = df[df['{{ column.column_name }}'].isnull()].index.tolist()
             if missing_rows:
@@ -258,7 +272,9 @@ class {{ class_name }}Service:
                 try:
                     data = {
                         {% for column in columns %}
+                        {% if column.column_name not in ['id', 'uuid', 'tenant_id', 'created_time', 'updated_time', 'created_id', 'updated_id', 'is_deleted', 'deleted_time', 'deleted_id'] and column.column_name != pk_column_name %}
                         "{{ column.column_name }}": row['{{ column.column_name }}'],
+                        {% endif %}
                         {% endfor %}
                     }
                     # 使用CreateSchema做校验后入库
@@ -266,11 +282,11 @@ class {{ class_name }}Service:
 
                     # 检查唯一性约束
                     {% for column in columns %}
-                    {% if column.is_unique %}
-                    exists_obj = await {{ class_name }}CRUD(auth).get({{ column.column_name }}=create_schema.{{ column.column_name }})
+                    {% if column.is_unique and column.column_name not in ['uuid', 'tenant_id', 'created_time', 'updated_time', 'created_id', 'updated_id', 'is_deleted', 'deleted_time', 'deleted_id'] %}
+                    exists_obj = await {{ class_name }}CRUD(auth, db).get({{ column.column_name }}=create_schema.{{ column.column_name }})
                     if exists_obj:
                         if update_support:
-                            await {{ class_name }}CRUD(auth).update(id=getattr(exists_obj, '{{ pk_column_name }}'), data=create_schema)
+                            await {{ class_name }}CRUD(auth, db).update(id=getattr(exists_obj, '{{ pk_column_name }}'), data=create_schema)
                             success_count += 1
                         else:
                             error_msgs.append(f"第{count}行: {{ column.column_comment }} {create_schema.{{ column.column_name }}} 已存在")
@@ -278,7 +294,7 @@ class {{ class_name }}Service:
                     {% endif %}
                     {% endfor %}
 
-                    await {{ class_name }}CRUD(auth).create(data=create_schema)
+                    await {{ class_name }}CRUD(auth, db).create(data=create_schema)
                     success_count += 1
                 except Exception as e:
                     error_msgs.append(f"第{count}行: {str(e)}")
@@ -303,14 +319,16 @@ class {{ class_name }}Service:
         """
         header_list = [
             {% for column in columns %}
+            {% if column.column_name not in ['id', 'uuid', 'tenant_id', 'created_time', 'updated_time', 'created_id', 'updated_id', 'is_deleted', 'deleted_time', 'deleted_id'] and column.column_name != pk_column_name %}
             '{{ column.column_comment }}',
+            {% endif %}
             {% endfor %}
         ]
         selector_header_list = []
         option_list = []
 
         {% for column in columns %}
-        {% if column.html_type == 'select' and column.dict_type %}
+        {% if (column.html_type == 'select' or column.html_type == 'radio') and column.dict_type and column.column_name not in ['id', 'uuid', 'tenant_id', 'created_time', 'updated_time', 'created_id', 'updated_id', 'is_deleted', 'deleted_time', 'deleted_id'] and column.column_name != pk_column_name %}
         selector_header_list.append('{{ column.column_comment }}')
         option_list.append({'{{ column.column_comment }}': []})
         {% endif %}

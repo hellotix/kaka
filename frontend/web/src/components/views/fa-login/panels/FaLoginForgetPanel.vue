@@ -9,6 +9,19 @@
       class="login-page-form mt-4"
       @keyup.enter="$emit('submit')"
     >
+      <ElFormItem prop="tenant_name">
+        <ElInput
+          v-model.trim="forgetForm.tenant_name"
+          class="custom-height"
+          clearable
+          :placeholder="$t('login.placeholder.tenantName')"
+          @keyup.enter="$emit('submit')"
+        >
+          <template #prefix>
+            <ElIcon><OfficeBuilding /></ElIcon>
+          </template>
+        </ElInput>
+      </ElFormItem>
       <ElFormItem prop="username">
         <ElInput
           v-model.trim="forgetForm.username"
@@ -80,7 +93,7 @@
 </template>
 
 <script setup lang="ts">
-import { Lock, User } from "@element-plus/icons-vue";
+import { Lock, OfficeBuilding, User } from "@element-plus/icons-vue";
 import type { ForgetPasswordForm } from "@/api/module_system/user";
 import type { FormRules } from "element-plus";
 

@@ -58,12 +58,20 @@ const PositionAPI = {
       responseType: "blob",
     });
   },
+
+  getPositionOptions() {
+    return request<ApiResponse<OptionType[]>>({
+      url: `${API_PATH}/options`,
+      method: "get",
+    });
+  },
 };
 
 export default PositionAPI;
 
 export interface PositionPageQuery extends PageQuery, UserByQueryParams {
   name?: string;
+  status?: number;
 }
 
 export interface PositionTable extends BaseType {

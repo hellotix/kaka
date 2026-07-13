@@ -9,6 +9,14 @@
     ]"
   >
     <div
+      v-if="isImpersonate"
+      class="h-8 bg-warning/10 flex items-center justify-center gap-2 text-sm text-warning border-b border-warning/20"
+    >
+      <FaSvgIcon icon="ri:shield-alert-line" class="text-warning" />
+      <span>当前为平台管理员代签入模式 · 租户：{{ impersonateTenantName }}</span>
+      <ElButton type="primary" size="small" @click="handleExitImpersonate">退出工作区</ElButton>
+    </div>
+    <div
       class="relative box-border flex justify-between h-15 leading-15 select-none"
       :class="[
         tabStyle === 'tab-card' || tabStyle === 'tab-google' || tabStyle === 'tab-default'
@@ -72,14 +80,16 @@
         <!-- 搜索 -->
         <div
           v-if="shouldShowGlobalSearch"
-          class="flex items-center justify-between w-40 h-9 px-2.5 cursor-pointer border border-g-400 rounded-custom-sm max-md:hidden! transition duration-300 hover:-translate-y-0.5 hover:shadow-md"
+          class="search-bar-trigger flex items-center justify-between w-40 h-9 px-2.5 cursor-pointer border border-g-400 rounded-custom-sm max-md:hidden! transition duration-300 hover:-translate-y-0.5 hover:shadow-md"
           @click="openSearchDialog"
         >
           <div class="flex items-center">
             <FaSvgIcon icon="ri:search-line" class="text-sm text-g-500" />
             <span class="ml-1 text-xs font-normal text-g-500">{{ $t("topBar.search.title") }}</span>
           </div>
-          <div class="flex items-center h-5 px-1.5 text-g-500/80 border border-g-400 rounded">
+          <div
+            class="flex items-center h-5 px-1.5 text-g-500/80 border border-(--el-color-primary) rounded"
+          >
             <FaSvgIcon v-if="isWindows" icon="vaadin:ctrl-a" class="text-sm" />
             <FaSvgIcon v-else icon="ri:command-fill" class="text-xs" />
             <span class="ml-0.5 text-xs">k</span>
@@ -132,7 +142,14 @@
           class="notice-button relative"
           @click="visibleNotice"
         >
-          <div class="absolute top-2 right-2 size-1.5 bg-danger! rounded-full"></div>
+          <ElBadge
+            v-if="noticeStore.total > 0"
+            :value="noticeStore.total > 99 ? '99+' : noticeStore.total"
+            :max="99"
+            class="absolute top-0 right-0"
+          >
+            <div class="size-1.5"></div>
+          </ElBadge>
         </FaIconButton>
 
         <!-- 聊天按钮 -->
@@ -172,6 +189,9 @@
           :icon="isDark ? 'ri:sun-fill' : 'ri:moon-line'"
         />
 
+        <!-- 租户切换器（全局可见，1步切换） -->
+        <FaTenantSwitcher />
+
         <!-- 用户头像、菜单 -->
         <FaUserMenu />
       </div>
@@ -190,13 +210,20 @@ import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { useFullscreen, useWindowSize } from "@vueuse/core";
 import { LanguageEnum, MenuTypeEnum } from "@/enums/appEnum";
-import { useSettingsStore, useMenuStore, useUserStore, useConfigStore } from "@stores";
+import {
+  useSettingsStore,
+  useMenuStore,
+  useUserStore,
+  useNoticeStore,
+  useConfigStore,
+} from "@stores";
 import AppConfig from "@/config";
 import { languageOptions } from "@/locales";
 import { mittBus, themeAnimation } from "@utils";
 import { useCommon } from "@/hooks/core/useCommon";
 import { useHeaderBar } from "@/hooks/core/useHeaderBar";
 import FaUserMenu from "./widgets/FaUserMenu.vue";
+import FaTenantSwitcher from "./widgets/FaTenantSwitcher.vue";
 
 defineOptions({ name: "FaHeaderBar" });
 
@@ -211,15 +238,16 @@ const settingStore = useSettingsStore();
 const userStore = useUserStore();
 const menuStore = useMenuStore();
 const configStore = useConfigStore();
+const noticeStore = useNoticeStore();
 
-/** 租户配置：tenant_logo / tenant_name */
+/** 租户配置：logo_url / name */
 const headerLogoSrc = computed(() => {
-  const raw = configStore.configData.tenant_logo?.config_value;
+  const raw = configStore.configData.logo_url?.config_value;
   return typeof raw === "string" && raw.trim() ? raw.trim() : undefined;
 });
 
 const headerSystemName = computed(() => {
-  const raw = configStore.configData.tenant_name?.config_value;
+  const raw = configStore.configData.name?.config_value;
   if (typeof raw === "string" && raw.trim()) return raw.trim();
   return AppConfig.systemInfo.name;
 });
@@ -245,10 +273,20 @@ const { menuOpen, systemThemeColor, showSettingGuide, menuType, isDark, tabStyle
   storeToRefs(settingStore);
 
 const { language } = storeToRefs(userStore);
-const { menuList } = storeToRefs(menuStore);
+const { visibleMenus: menuList } = storeToRefs(menuStore);
 
 const showNotice = ref(false);
 const notice = ref(null);
+
+const isImpersonate = computed(() => userStore.info.is_impersonate === true);
+
+const impersonateTenantName = computed(() => {
+  return userStore.workspaceTenant?.name || userStore.currentTenant?.name || "未知";
+});
+
+async function handleExitImpersonate() {
+  await userStore.exitTenantWorkspace();
+}
 
 // 菜单类型判断
 const isLeftMenu = computed(() => menuType.value === MenuTypeEnum.LEFT);
@@ -487,6 +525,11 @@ const openChat = (): void => {
 
 .exit-full-screen-btn:hover :deep(.fa-svg-icon) {
   animation: shrink 0.6s forwards;
+}
+
+/* 搜索触发按钮 hover 边框变主题色 */
+.search-bar-trigger:hover {
+  border-color: var(--el-color-primary) !important;
 }
 
 .notice-button:hover :deep(.fa-svg-icon) {

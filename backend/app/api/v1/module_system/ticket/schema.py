@@ -1,10 +1,15 @@
-from dataclasses import dataclass
-
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.common.enums import QueueEnum, TicketTypeEnum
-from app.core.base_params import BaseQueryParam, TenantByQueryParam, UserByQueryParam
-from app.core.base_schema import BaseSchema, CommonSchema, TenantBySchema, UserBySchema
+from app.core.base_schema import (
+    BaseQueryParam,
+    BaseSchema,
+    CommonSchema,
+    TenantByQueryParam,
+    TenantBySchema,
+    UserByQueryParam,
+    UserBySchema,
+)
 
 
 class TicketCreateSchema(BaseModel):
@@ -78,18 +83,35 @@ class TicketBatchSchema(BaseModel):
         return v
 
 
-@dataclass
 class TicketQueryParam(BaseQueryParam, UserByQueryParam, TenantByQueryParam):
     """工单查询参数"""
 
-    title: str | None = None
-    ticket_type: str | None = None
-    assigned_id: int | None = None
+    title: str | tuple[str, str] | None = Field(None, description="工单标题")
+    ticket_type: str | tuple[str, str] | None = Field(None, description="工单类型")
+    assigned_id: int | tuple[str, int] | None = Field(None, description="处理人ID")
+    status: int | tuple[str, int] | None = Field(None, ge=0, le=3, description="状态(0:待处理 1:处理中 2:已完成 3:已关闭)")
 
-    def __post_init__(self) -> None:
-        if self.title:
+    @model_validator(mode="after")
+    def validate_query_params(self) -> "TicketQueryParam":
+        if isinstance(self.title, str):
             self.title = (QueueEnum.like.value, self.title)
-        if self.ticket_type:
-            self.ticket_type = (QueueEnum.eq.value, self.ticket_type)
-        if self.assigned_id:
+        if isinstance(self.ticket_type, str):
+            self.ticket_type = (QueueEnum.like.value, self.ticket_type)
+        if isinstance(self.assigned_id, int):
             self.assigned_id = (QueueEnum.eq.value, self.assigned_id)
+        if isinstance(self.status, int):
+            self.status = (QueueEnum.eq.value, self.status)
+        return self
+
+
+class TicketCommentCreateSchema(BaseModel):
+    """创建评论"""
+    content: str = Field(..., min_length=1, description="评论内容")
+
+
+class TicketCommentOutSchema(BaseSchema, UserBySchema):
+    """评论响应"""
+    model_config = ConfigDict(from_attributes=True)
+    ticket_id: int
+    content: str
+    created_by_name: str | None = None

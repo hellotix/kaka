@@ -22,11 +22,11 @@ const AuthAPI = {
     });
   },
 
-  refreshToken(body: RefreshToekenBody) {
-    return request<ApiResponse<LoginResult>>({
+  refreshToken(refreshToken: string) {
+    return request<ApiResponse<JWTOut>>({
       url: `${API_PATH}/token/refresh`,
       method: "post",
-      data: body,
+      data: refreshToken,
     });
   },
 
@@ -42,32 +42,6 @@ const AuthAPI = {
       url: `${API_PATH}/logout`,
       method: "post",
       data: body,
-    });
-  },
-
-  /** 获取免登录用户列表 */
-  getAutoLoginUsers() {
-    return request<ApiResponse<AutoLoginUser[]>>({
-      url: `${API_PATH}/auto-login/users`,
-      method: "get",
-    });
-  },
-
-  /** 获取免登录Token */
-  getAutoLoginToken(userId: number) {
-    return request<ApiResponse<AutoLoginToken>>({
-      url: `${API_PATH}/auto-login/token`,
-      method: "post",
-      params: { user_id: userId },
-    });
-  },
-
-  /** 免登录 */
-  autoLogin(token: string) {
-    return request<ApiResponse<LoginResult>>({
-      url: `${API_PATH}/auto-login`,
-      method: "post",
-      params: { token },
     });
   },
 
@@ -87,12 +61,73 @@ const AuthAPI = {
       data: { tenant_id: tenantId },
     });
   },
+
+  /** 返回平台管理模式，清除 tenant_id 返回平台作用域 JWT */
+  enterPlatform() {
+    return request<ApiResponse<SelectTenantResult>>({
+      url: `${API_PATH}/enter-platform`,
+      method: "post",
+    });
+  },
+
+  /** 平台管理员代签入（以指定租户身份登录） */
+  impersonate(tenantId: number) {
+    return request<ApiResponse<ImpersonateResult>>({
+      url: `${API_PATH}/impersonate`,
+      method: "post",
+      data: { tenant_id: tenantId },
+    });
+  },
+
   /** 租户自助注册（PRD §4.5） */
   tenantRegister(body: TenantRegisterForm) {
     return request<ApiResponse<TenantRegisterResult>>({
       url: `${API_PATH}/tenant/register`,
       method: "post",
       data: body,
+    });
+  },
+
+  /** 根据编码查询租户 */
+  lookupTenant(code: string) {
+    return request<ApiResponse>({
+      url: `${API_PATH}/tenant/${encodeURIComponent(code)}`,
+      method: "get",
+    });
+  },
+
+  /** 根据域名查询租户 */
+  lookupTenantByDomain(domain: string) {
+    return request<ApiResponse>({
+      url: `${API_PATH}/tenant-by-domain`,
+      method: "get",
+      params: { domain },
+    });
+  },
+
+  /** 搜索租户（根据关键字模糊搜索编码或名称） */
+  tenantSearch(q: string) {
+    return request<ApiResponse<TenantOption[]>>({
+      url: `${API_PATH}/tenant-search`,
+      method: "get",
+      params: { q },
+    });
+  },
+
+  /** 获取所有活跃租户选项，用于登录页下拉选择 */
+  getTenantOptions() {
+    return request<ApiResponse<TenantOption[]>>({
+      url: `${API_PATH}/tenant-options`,
+      method: "get",
+    });
+  },
+
+  /** 滑块验证完成后端标记 */
+  sliderComplete(captchaKey: string) {
+    return request<ApiResponse<{ captcha_key: string; verified: boolean }>>({
+      url: `${API_PATH}/captcha/slider/complete`,
+      method: "post",
+      data: { captcha_key: captchaKey },
     });
   },
 };
@@ -123,43 +158,27 @@ export interface TenantRegisterResult {
 export interface LoginFormData {
   username: string;
   password: string;
-  captcha?: string;
   captcha_key?: string;
   remember?: boolean;
   login_type?: string;
 }
 
-/** 登录成功返回 (JWTOutSchema) */
-export interface LoginResult {
+/** JWT 响应 (JWTOutSchema) */
+export interface JWTOut {
   access_token: string;
   refresh_token: string;
   token_type: string;
   expires_in: number;
-  tenants?: TenantOption[];
 }
 
-/** 刷新 Token 请求体 */
-export interface RefreshToekenBody {
-  refresh_token: string;
+/** 登录成功返回 */
+export interface LoginResult extends JWTOut {
+  tenants?: TenantOption[];
 }
 
 /** 退出登录请求体 */
 export interface LogoutBody {
   token: string;
-}
-
-/** 免登录用户 (AutoLoginUserSchema) */
-export interface AutoLoginUser {
-  id: number;
-  username: string;
-  name: string;
-  avatar?: string | null;
-}
-
-/** 免登录 Token (AutoLoginTokenSchema) */
-export interface AutoLoginToken {
-  token: string;
-  user: AutoLoginUser;
 }
 
 /** 租户选项 */
@@ -174,6 +193,16 @@ export interface SelectTenantResult {
   access_token: string;
   token_type: string;
   expires_in: number;
+}
+
+/** 平台管理员代签入返回 (ImpersonateOutSchema) */
+export interface ImpersonateResult {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in: number;
+  tenant_id: number;
+  tenant_name: string;
 }
 
 /** 验证码信息 */
