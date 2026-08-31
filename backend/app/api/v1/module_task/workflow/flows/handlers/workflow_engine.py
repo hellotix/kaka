@@ -72,18 +72,22 @@ def _topological_levels(nodes: list[dict], edges: list[dict]) -> list[list[dict]
 def _execute_node(
     vue_node_id: str,
     node_type_code: str,
-    code_block: str,
+    tpl: dict[str, Any],
     args_str: str | None,
     kwargs_str: str | None,
     upstream: dict[str, Any],
     flow_variables: dict[str, Any],
 ) -> Any:
-    job_id = f"wfnode-{vue_node_id}"
     args = _parse_args(args_str)
     kw = _parse_kwargs(kwargs_str)
     kw.setdefault("upstream", upstream)
     kw.setdefault("variables", flow_variables)
-    return SchedulerUtil._task_wrapper(job_id, code_block, *args, **kw)
+    # 内置业务节点：直接调用 handler 函数，不走代码块 exec
+    handler = tpl.get("handler")
+    if handler is not None:
+        return handler(*args, **kw)
+    job_id = f"wfnode-{vue_node_id}"
+    return SchedulerUtil._task_wrapper(job_id, tpl["func"], *args, **kw)
 
 
 def run_workflow_sync(
@@ -103,7 +107,7 @@ def run_workflow_sync(
                 nid = node["id"]
                 ntype = node.get("type") or ""
                 tpl = node_templates.get(ntype)
-                if not tpl or not tpl.get("func"):
+                if not tpl or (not tpl.get("func") and "handler" not in tpl):
                     raise ValueError(f"未知或未配置节点类型: {ntype}")
                 data = node.get("data") or {}
                 args_str = data.get("args") if data.get("args") is not None else tpl.get("args")
@@ -116,7 +120,7 @@ def run_workflow_sync(
                     _execute_node,
                     nid,
                     ntype,
-                    tpl["func"],
+                    tpl,
                     args_str,
                     kwargs_str,
                     upstream,

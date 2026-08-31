@@ -11,11 +11,11 @@ import axios, {
 } from "axios";
 import qs from "qs";
 import { ElMessage } from "element-plus";
-import { ResultEnum } from "@/enums/api/result.enum";
 import { Auth } from "@/utils/auth";
 import { redirectToLogin } from "@/utils/auth";
 import { $t } from "@/locales";
 import AuthAPI from "@/api/module_system/auth";
+import { ResultEnum } from "@/enums/api/result.enum";
 
 // --- 配置常量 -----------------------------------------------------------------
 
@@ -112,7 +112,7 @@ const getErrorMessage = (status: number): string => {
 
 export function handleError(error: AxiosError<ApiResponse>): never {
   if (error.code === "ERR_CANCELED") {
-    console.warn("Request cancelled:", error.message);
+    console.info("Request cancelled:", error.message);
     throw new HttpError($t("httpMsg.requestCancelled"), ApiStatus.error);
   }
 
@@ -194,8 +194,9 @@ request.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const accessToken = Auth.getAccessToken();
     const auth = config.headers.Authorization;
+    const extConfig = config as ExtendedRequestConfig;
 
-    if (auth === NO_AUTH_FLAG) {
+    if (auth === NO_AUTH_FLAG || extConfig.skipAuth) {
       delete config.headers.Authorization;
       return config;
     }
@@ -236,9 +237,12 @@ request.interceptors.response.use(
     }
 
     const data = response.data;
+    const extConfig = response.config as ExtendedRequestConfig;
 
     if (data.code !== ResultEnum.SUCCESS) {
-      ElMessage.error(data.msg);
+      if (extConfig.showErrorMessage !== false) {
+        ElMessage.error(data.msg || $t("httpMsg.requestFailed"));
+      }
       return Promise.reject(response);
     }
 
@@ -247,20 +251,28 @@ request.interceptors.response.use(
       !response.config.url?.includes("login") &&
       !response.config.url?.includes("logout")
     ) {
-      ElMessage.success(data.msg);
+      if (extConfig.showSuccessMessage !== false && data.msg) {
+        ElMessage.success(data.msg);
+      }
     }
 
     return response;
   },
   async (error: AxiosError<ApiResponse>) => {
+    // ── 请求被取消（ERR_CANCELED），静默处理，不弹错误提示 ──
+    if (error.code === "ERR_CANCELED") {
+      console.info("Request cancelled:", error.message);
+      return Promise.reject(new HttpError($t("httpMsg.requestCancelled"), ApiStatus.error));
+    }
+
     // ── 网络错误（无响应体） ──
     if (!error.response) {
-      let errorMessage = "网络连接异常";
+      let errorMessage = $t("httpMsg.networkError");
 
       if (error.message?.includes("ECONNREFUSED")) {
         errorMessage = "服务器连接失败，请检查后端服务是否正常运行";
       } else if (error.message?.includes("timeout")) {
-        errorMessage = "请求超时，请稍后重试";
+        errorMessage = $t("httpMsg.requestTimeout");
       } else if (error.message?.includes("Network Error")) {
         errorMessage = "网络连接错误，请检查您的网络设置";
       }
@@ -279,44 +291,37 @@ request.interceptors.response.use(
         const jsonData: ApiResponse = JSON.parse(text);
 
         if (jsonData.code === ResultEnum.ERROR) {
-          ElMessage.error(jsonData.msg || "请求错误");
-          return Promise.reject(new Error(jsonData.msg || "请求错误"));
+          ElMessage.error(jsonData.msg || $t("httpMsg.requestFailed"));
+          return Promise.reject(new Error(jsonData.msg || $t("httpMsg.requestFailed")));
         } else if (jsonData.code === ResultEnum.EXCEPTION) {
-          ElMessage.error(jsonData.msg || "服务异常");
-          return Promise.reject(new Error(jsonData.msg || "服务异常"));
+          ElMessage.error(jsonData.msg || $t("httpMsg.internalServerError"));
+          return Promise.reject(new Error(jsonData.msg || $t("httpMsg.internalServerError")));
         }
       } catch (e) {
         console.error("请求异常:", e);
-        ElMessage.error("数据解析失败");
-        return Promise.reject(new Error("数据解析失败"));
+        ElMessage.error($t("httpMsg.requestFailed"));
+        return Promise.reject(new Error($t("httpMsg.requestFailed")));
       }
     }
 
     // ── 鉴权错误（401 / TOKEN_EXPIRED）：静默续期 ──
     const status = error.response.status;
 
-    const hasApiCode =
-      data !== undefined &&
-      data !== null &&
-      typeof data === "object" &&
-      "code" in data &&
-      typeof (data as ApiResponse).code === "number";
-
-    if ((status === 401 && !hasApiCode) || data?.code === ResultEnum.TOKEN_EXPIRED) {
+    if (status === 401 || data?.code === ResultEnum.TOKEN_EXPIRED) {
       const config = error.config as InternalAxiosRequestConfig | undefined;
 
       // 若 refresh 接口自身返回 401，不在此处跳转登录 ——
       // 交由下方 catch 块的 redirectToLogin 统一处理，避免双通知
-      if (config?.url?.includes("auth/token/refresh")) {
+      if (config?.url?.endsWith("/auth/token/refresh")) {
         return Promise.reject(
-          new HttpError(data?.msg || "刷新令牌过期，请重新登录", ApiStatus.unauthorized)
+          new HttpError(data?.msg || $t("httpMsg.unauthorized"), ApiStatus.unauthorized)
         );
       }
 
       // 无请求配置（罕见）或 logout 自身返回 401，直接跳转登录
       if (!config || config.url?.includes("auth/logout")) {
-        await redirectToLogin("登录状态异常，请重新登录");
-        return Promise.reject(new HttpError("Unauthorized", ApiStatus.unauthorized));
+        await redirectToLogin($t("httpMsg.unauthorized"));
+        return Promise.reject(new HttpError($t("httpMsg.unauthorized"), ApiStatus.unauthorized));
       }
 
       // 首次 401：发起 refresh；后续并发 401 入队等待
@@ -354,21 +359,29 @@ request.interceptors.response.use(
 
     // ── 业务错误（按 code 分类） ──
     if (status === 403) {
-      ElMessage.error(data?.msg || "暂无权限操作");
-      return Promise.reject(new HttpError(data?.msg || "暂无权限操作", ApiStatus.forbidden));
+      ElMessage.error(data?.msg || $t("httpMsg.forbidden"));
+      return Promise.reject(
+        new HttpError(data?.msg || $t("httpMsg.forbidden"), ApiStatus.forbidden)
+      );
     }
     if (data?.code === ResultEnum.ERROR) {
-      ElMessage.error(data.msg || "请求错误");
-      return Promise.reject(new HttpError(data.msg || "请求错误", ApiStatus.error));
+      ElMessage.error(data.msg || $t("httpMsg.requestFailed"));
+      return Promise.reject(
+        new HttpError(data.msg || $t("httpMsg.requestFailed"), ApiStatus.error)
+      );
     } else if (data?.code === ResultEnum.UNAUTHORIZED) {
-      ElMessage.error(data.msg || "暂无权限");
-      return Promise.reject(new HttpError(data.msg || "请求错误", ApiStatus.unauthorized));
+      ElMessage.error(data.msg || $t("httpMsg.unauthorized"));
+      return Promise.reject(
+        new HttpError(data.msg || $t("httpMsg.unauthorized"), ApiStatus.unauthorized)
+      );
     } else if (data?.code === ResultEnum.EXCEPTION) {
-      ElMessage.error(data.msg || "服务异常");
-      return Promise.reject(new HttpError(data.msg || "服务异常", ApiStatus.error));
+      ElMessage.error(data.msg || $t("httpMsg.internalServerError"));
+      return Promise.reject(
+        new HttpError(data.msg || $t("httpMsg.internalServerError"), ApiStatus.error)
+      );
     } else {
-      ElMessage.error("请求处理失败，请稍后重试");
-      return Promise.reject(new Error("请求处理失败"));
+      ElMessage.error($t("httpMsg.requestFailed"));
+      return Promise.reject(new Error($t("httpMsg.requestFailed")));
     }
   }
 );

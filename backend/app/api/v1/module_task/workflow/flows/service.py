@@ -9,6 +9,7 @@ from app.utils.common_util import search_to_dict
 
 from ..node_type.crud import WorkflowNodeTypeCRUD
 from .crud import WorkflowCRUD
+from .handlers.builtin_nodes import get_builtin_node
 from .handlers.workflow_engine import run_workflow_sync, utc_now_iso, validate_workflow_graph
 from .schema import (
     WorkflowCreateSchema,
@@ -143,19 +144,30 @@ class WorkflowService:
         codes_set = {n.get("type") for n in nodes if n.get("type")}
         code_list = list(codes_set)
         templates: dict[str, dict[str, Any]] = {}
-        type_objs = await WorkflowNodeTypeCRUD(self.auth, self.db).get_obj_list_crud(search={"code": ("in", code_list)})
-        type_map = {t.code: t for t in type_objs}
+        # 内置业务节点优先命中（不依赖数据库节点类型记录）
         for code in codes_set:
-            node_type = type_map.get(code)
-            if not node_type:
-                raise CustomException(msg=f"节点类型未注册（请在「工作流节点类型」中维护，非定时任务节点）: {code}")
-            if not node_type.func or not str(node_type.func).strip():
-                raise CustomException(msg=f"节点类型未配置 func 代码块: {code}")
-            templates[code] = {
-                "func": node_type.func,
-                "args": node_type.args,
-                "kwargs": node_type.kwargs,
-            }
+            builtin = get_builtin_node(code)
+            if builtin is not None:
+                templates[code] = {
+                    "handler": builtin.handler,
+                    "args": builtin.args,
+                    "kwargs": builtin.kwargs,
+                }
+        pending_codes = [c for c in code_list if c not in templates]
+        if pending_codes:
+            type_objs = await WorkflowNodeTypeCRUD(self.auth, self.db).get_obj_list_crud(search={"code": ("in", pending_codes)})
+            type_map = {t.code: t for t in type_objs}
+            for code in pending_codes:
+                node_type = type_map.get(code)
+                if not node_type:
+                    raise CustomException(msg=f"节点类型未注册（请在「工作流节点类型」中维护，非定时任务节点）: {code}")
+                if not node_type.func or not str(node_type.func).strip():
+                    raise CustomException(msg=f"节点类型未配置 func 代码块: {code}")
+                templates[code] = {
+                    "func": node_type.func,
+                    "args": node_type.args,
+                    "kwargs": node_type.kwargs,
+                }
 
         variables = body.variables or {}
         start = utc_now_iso()

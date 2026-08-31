@@ -6,13 +6,14 @@
     size="80%"
     class="workflow-drawer"
     @close="handleClose"
+    @opened="handleDrawerOpened"
   >
-    <ElContainer class="workflow-create-content">
+    <ElContainer class="workflow-create-content flex flex-col h-full">
       <ElSplitter direction="horizontal" :style="'height: 100%'">
         <ElSplitterPanel size="250px" :min="200" :max="400">
           <ElScrollbar :style="'height: 100%'">
-            <div class="panel-section">
-              <div class="section-title">基础信息</div>
+            <div class="p-3">
+              <div class="mb-3 text-sm font-bold">基础信息</div>
               <FaForm
                 ref="formRef"
                 v-model="formData"
@@ -31,43 +32,55 @@
 
             <ElDivider :style="'margin: 4px 0'" />
 
-            <div class="panel-section">
-              <div class="section-title">节点</div>
+            <div class="p-3">
+              <div class="mb-3 text-sm font-bold">节点</div>
               <ElInput
                 v-model="searchKeyword"
                 placeholder="搜索节点名称"
                 clearable
                 size="small"
-                class="search-box"
+                class="mb-3"
               >
                 <template #prefix>
                   <ElIcon><Search /></ElIcon>
                 </template>
               </ElInput>
-              <ElSpace direction="vertical" :size="8" fill :style="'width: 100%; margin-top: 8px'">
-                <ElTag
-                  v-for="item in filteredNodes"
-                  :key="item.id"
-                  :type="getCategoryType(item.category)"
-                  effect="plain"
+              <div v-if="filteredGroups.length === 0" class="py-6 text-center text-xs text-(--el-text-color-secondary)">
+                未找到匹配的节点
+              </div>
+              <template v-for="group in filteredGroups" :key="group.category">
+                <div class="mt-3 mb-1.5 flex items-center gap-1.5">
+                  <ElIcon :size="13" :color="group.color"><component :is="group.icon" /></ElIcon>
+                  <span class="text-xs font-semibold text-(--el-text-color-primary)">{{ group.label }}</span>
+                  <span class="text-[10px] text-(--el-text-color-secondary)">{{ group.items.length }}</span>
+                </div>
+                <div
+                  v-for="item in group.items"
+                  :key="item.id ?? item.type"
+                  class="mb-1.5 flex items-center gap-2.5 rounded-lg border border-(--el-border-color-lighter) bg-white px-2.5 py-2 cursor-move select-none transition-all hover:border-(--el-color-primary) hover:shadow-sm"
                   draggable="true"
-                  :style="'justify-content: center; cursor: move; user-select: none'"
+                  :title="item.description"
                   @dragstart="onDragStart($event, item)"
                   @dragend="onDragEnd"
                 >
-                  {{ item.name }}
-                  <span :style="'margin-left: 4px; font-size: 10px; opacity: 0.7'">
-                    [{{ getCategoryText(item.category) }}]
-                  </span>
-                </ElTag>
-              </ElSpace>
+                  <ElIcon :size="15" :color="group.color"><component :is="getNodeIcon(item)" /></ElIcon>
+                  <div class="flex flex-col min-w-0 leading-tight">
+                    <span class="truncate text-xs font-medium text-(--el-text-color-primary)">{{ item.name }}</span>
+                    <span class="truncate text-[10px] text-(--el-text-color-secondary)">{{ item.description || "自定义节点类型" }}</span>
+                  </div>
+                </div>
+              </template>
             </div>
           </ElScrollbar>
         </ElSplitterPanel>
 
         <ElSplitterPanel>
-          <div class="canvas-main">
-            <div class="canvas-container" @click="handleCanvasClick">
+          <div class="canvas-main relative flex flex-col h-full p-0">
+            <div
+              v-if="canvasReady"
+              class="canvas-container flex-1 w-full h-full min-h-100 overflow-hidden"
+              @click="handleCanvasClick"
+            >
               <VueFlow
                 v-model:nodes="nodes"
                 v-model:edges="edges"
@@ -84,7 +97,10 @@
               >
                 <Controls />
                 <Background pattern-color="#aaa" :gap="16" />
-                <Panel position="top-right" class="workflow-toolbar">
+                <Panel
+                  position="top-right"
+                  class="workflow-toolbar flex gap-1 p-2 rounded-md shadow-[0_2px_8px_rgba(0,0,0,0.1)]"
+                >
                   <ElButton
                     class="vue-flow__controls-button"
                     title="格式化画布"
@@ -174,7 +190,7 @@
     </ElContainer>
 
     <template #footer>
-      <div class="drawer-footer">
+      <div class="drawer-footer flex gap-3 justify-end">
         <ElButton @click="handleClose">取消</ElButton>
         <ElButton type="primary" @click="handleFinish">保存</ElButton>
       </div>
@@ -190,7 +206,26 @@ import { Background } from "@vue-flow/background";
 import { MiniMap } from "@vue-flow/minimap";
 import { Controls } from "@vue-flow/controls";
 import type { Node, Edge, DefaultEdgeOptions, MarkerType } from "@vue-flow/core";
-import { Search, Share, VideoPlay, Rank, Grid } from "@element-plus/icons-vue";
+import {
+  Bell,
+  ChatDotRound,
+  CircleCheckFilled,
+  Connection,
+  Delete,
+  Download,
+  Grid,
+  Link,
+  Odometer,
+  Promotion,
+  QuestionFilled,
+  Rank,
+  Search,
+  SetUp,
+  Share,
+  UploadFilled,
+  VideoPlay,
+} from "@element-plus/icons-vue";
+
 import dagre from "dagre";
 import "@vue-flow/core/dist/style.css";
 import "@vue-flow/core/dist/theme-default.css";
@@ -434,48 +469,72 @@ const handleFormatCanvas = () => {
 const nodes = ref<Node[]>([]);
 const edges = ref<Edge[]>([]);
 
+const canvasReady = ref(false);
 const searchKeyword = ref("");
 
 type LoadedNodeType = {
-  id: number;
+  id: number | null;
   type: string;
   name: string;
   category: string;
+  description?: string;
   args?: string;
   kwargs?: string;
 };
 
 const allNodes = ref<LoadedNodeType[]>([]);
 
-const filteredNodes = computed(() => {
-  if (!searchKeyword.value) {
-    return allNodes.value;
-  }
-  const keyword = searchKeyword.value.toLowerCase();
-  return allNodes.value.filter((node) => node.name.toLowerCase().includes(keyword));
+const CATEGORY_META: Record<string, { label: string; color: string; icon: Component }> = {
+  trigger: { label: "触发器", color: "#e6a23c", icon: Odometer },
+  action: { label: "动作", color: "#409eff", icon: Promotion },
+  condition: { label: "条件", color: "#67c23a", icon: QuestionFilled },
+  control: { label: "控制", color: "#909399", icon: SetUp },
+};
+
+const NODE_ICON: Record<string, Component> = {
+  storage_upload: UploadFilled,
+  storage_download: Download,
+  storage_url: Link,
+  storage_exists: CircleCheckFilled,
+  storage_delete: Delete,
+  notice_send: Bell,
+  ai_chat: ChatDotRound,
+  http_check: Connection,
+};
+
+const getNodeIcon = (item: LoadedNodeType): Component => NODE_ICON[item.type] || CATEGORY_META[item.category]?.icon || Promotion;
+
+const groupedNodes = computed(() => {
+  const order = ["trigger", "action", "condition", "control"];
+  const groups = new Map<string, LoadedNodeType[]>();
+  allNodes.value.forEach((node) => {
+    const category = node.category || "action";
+    if (!groups.has(category)) groups.set(category, []);
+    groups.get(category)!.push(node);
+  });
+  return order
+    .filter((category) => groups.has(category))
+    .map((category) => ({
+      category,
+      label: CATEGORY_META[category]?.label || category,
+      color: CATEGORY_META[category]?.color || "#409eff",
+      icon: CATEGORY_META[category]?.icon || Promotion,
+      items: groups.get(category)!,
+    }));
 });
 
-type ElTagType = "success" | "warning" | "info" | "primary" | "danger";
-
-const getCategoryType = (category: string): ElTagType => {
-  const typeMap: Record<string, ElTagType> = {
-    trigger: "warning",
-    action: "primary",
-    condition: "success",
-    control: "info",
-  };
-  return typeMap[category] || "info";
-};
-
-const getCategoryText = (category: string) => {
-  const textMap: Record<string, string> = {
-    trigger: "触发器",
-    action: "动作",
-    condition: "条件",
-    control: "控制",
-  };
-  return textMap[category] || category;
-};
+const filteredGroups = computed(() => {
+  if (!searchKeyword.value) {
+    return groupedNodes.value;
+  }
+  const keyword = searchKeyword.value.toLowerCase();
+  return groupedNodes.value
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((node) => node.name.toLowerCase().includes(keyword)),
+    }))
+    .filter((group) => group.items.length > 0);
+});
 
 const nodeTypesRegistry = ref<Record<string, Component>>({});
 
@@ -507,6 +566,7 @@ const loadNodeTypes = async () => {
         type: nodeType.code,
         name: nodeType.name,
         category: nodeType.category || "action",
+        description: nodeType.description || "",
         args: nodeType.args || "",
         kwargs: nodeType.kwargs || "{}",
       }));
@@ -589,15 +649,18 @@ function handleValidate() {
     );
   }
 
+  const escapeHtml = (str: string) =>
+    str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
   if (errors.length > 0) {
     ElMessageBox.alert(
-      `<div :style="'max-height: 300px; overflow-y: auto;'">
+      `<div style="max-height:300px;overflow-y:auto;">
         <strong>错误 (${errors.length}):</strong>
-        <ul>${errors.map((e) => `<li :style="'color: #f56c6c;'">${e}</li>`).join("")}</ul>
+        <ul>${errors.map((e) => `<li style="color:#f56c6c;">${escapeHtml(e)}</li>`).join("")}</ul>
         ${
           warnings.length > 0
             ? `<strong>警告 (${warnings.length}):</strong>
-        <ul>${warnings.map((w) => `<li :style="'color: #e6a23c;'">${w}</li>`).join("")}</ul>`
+        <ul>${warnings.map((w) => `<li style="color:#e6a23c;">${escapeHtml(w)}</li>`).join("")}</ul>`
             : ""
         }
       </div>`,
@@ -610,9 +673,9 @@ function handleValidate() {
     throw new Error("验证失败");
   } else if (warnings.length > 0) {
     ElMessageBox.alert(
-      `<div :style="'max-height: 300px; overflow-y: auto;'">
+      `<div style="max-height:300px;overflow-y:auto;">
         <strong>流程验证通过，但有警告 (${warnings.length}):</strong>
-        <ul>${warnings.map((w) => `<li :style="'color: #e6a23c;'">${w}</li>`).join("")}</ul>
+        <ul>${warnings.map((w) => `<li style="color:#e6a23c;">${escapeHtml(w)}</li>`).join("")}</ul>
       </div>`,
       "流程验证结果",
       {
@@ -671,11 +734,7 @@ function handleDeleteNode() {
   if (!nodeId) return;
   (async () => {
     try {
-      await ElMessageBox.confirm("确定要删除该节点吗？", "提示", {
-        confirmButtonText: "确定",
-        cancelButtonText: "取消",
-        type: "warning",
-      });
+      await confirmDelete(`确定删除节点「${selectedNode.value?.data?.label ?? nodeId}」吗？`);
       deleteNode(nodeId, getNodes, setNodes, getEdges, setEdges);
       handleClosePanel();
       saveToHistory(nodes.value as Node[], edges.value as Edge[]);
@@ -699,11 +758,7 @@ function handleDeleteEdge() {
   if (!edgeId) return;
   (async () => {
     try {
-      await ElMessageBox.confirm("确定要删除该连线吗？", "提示", {
-        confirmButtonText: "确定",
-        cancelButtonText: "取消",
-        type: "warning",
-      });
+      await confirmDelete(`确定删除连线「${selectedEdge.value?.label ?? edgeId}」吗？`);
       deleteEdge(edgeId, getEdges, setEdges);
       handleClosePanel();
       saveToHistory(nodes.value as Node[], edges.value as Edge[]);
@@ -767,17 +822,22 @@ const handleFinish = async () => {
   if (!formRef.value) return;
 
   try {
-    await formRef.value.validate?.();
-    await handleValidate();
+    formRef.value.validate?.();
+    handleValidate();
     await handleSave();
     emit("refresh");
     handleClose();
-  } catch (error) {
-    console.error("保存流程失败", error);
+  } catch (error: unknown) {
+    if (import.meta.env.DEV) console.error("保存流程失败", error);
   }
 };
 
+const handleDrawerOpened = () => {
+  canvasReady.value = true;
+};
+
 const handleClose = () => {
+  canvasReady.value = false;
   emit("update:visible", false);
 };
 
@@ -917,57 +977,11 @@ function deleteEdge(edgeId: string, getEdges: () => Edge[], setEdges: (edges: Ed
   }
 }
 
-.workflow-create-content {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
 :deep(.el-splitter) {
   flex: 1;
 }
 
 :deep(.el-splitter-panel) {
-  overflow: hidden;
-}
-
-.basic-info-section {
-  padding: 12px;
-
-  .section-title {
-    margin-bottom: 12px;
-    font-size: 14px;
-    font-weight: bold;
-  }
-}
-
-.panel-section {
-  padding: 12px;
-
-  .section-title {
-    margin-bottom: 12px;
-    font-size: 14px;
-    font-weight: bold;
-  }
-}
-
-.search-box {
-  margin-bottom: 12px;
-}
-
-.canvas-main {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  padding: 0;
-}
-
-.canvas-container {
-  flex: 1;
-  width: 100%;
-  height: 100%;
-  min-height: 400px;
   overflow: hidden;
 }
 
@@ -995,20 +1009,6 @@ function deleteEdge(edgeId: string, getEdges: () => Edge[], setEdges: (edges: Ed
 
 :deep(.el-dropdown) {
   display: flex;
-}
-
-.workflow-toolbar {
-  display: flex;
-  gap: 4px;
-  padding: 8px;
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 10%);
-}
-
-.drawer-footer {
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
 }
 
 .workflow-base-art-form :deep(.el-row > .el-col:last-child) {

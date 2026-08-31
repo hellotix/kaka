@@ -13,13 +13,9 @@ export interface RecentLoginItem {
 export interface DashboardStats {
   online_users: number;
   total_users: number;
-  total_tenants: number;
-  total_orders: number;
   today_login_count: number;
   today_unique_users: number;
   week_user_created: number;
-  week_tenant_created: number;
-  paid_orders: number;
   recent_logins: RecentLoginItem[];
 }
 

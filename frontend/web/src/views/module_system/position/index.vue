@@ -14,7 +14,6 @@
       :disabled-search="false"
       :default-expanded="false"
       include-audit
-      :audit-item-options="{ showTenantId: true }"
       @search="handleSearchBarSearch"
       @reset="onResetSearch"
     />
@@ -65,20 +64,21 @@
       :form-mode="dialogVisible.type"
       :confirm-loading="submitLoading"
       @cancel="handleCloseDialog"
-      @confirm="dialogVisible.type === 'detail' ? handleCloseDialog() : handleSubmit()"
+      @close="handleCloseDialog"
+      @confirm="handleSubmit()"
     >
       <template v-if="dialogVisible.type === 'detail'">
         <FaDescriptions
           :column="4"
           :data="detailFormData"
           :items="positionDetailItems"
-          max-height="75vh"
+          max-height="70vh"
         />
       </template>
       <template v-else>
         <FaForm
           scrollbar
-          max-height="75vh"
+          max-height="70vh"
           :key="positionFormRenderKey"
           ref="dataFormRef"
           v-model="formData"
@@ -114,42 +114,43 @@
 </template>
 
 <script setup lang="ts">
-import { useTable } from "@/hooks/core/useTable";
-import { useImportExport } from "@/hooks/core/useImportExport";
-import { useCrudDialog } from "@/hooks/core/useCrudDialog";
-import { useTableSelection } from "@/hooks/core/useTableSelection";
 import { useCrudForm } from "@/hooks/core/useCrudForm";
-import { confirmDelete, confirmBatchDelete, confirmToggleStatus } from "@/hooks/core/useConfirm";
-import { cleanEmptyArrayParams, stripPaginationParams } from "@/utils/query";
-import type { ColumnOption } from "@/types/component";
+import { confirmToggleStatus } from "@/hooks/core/useConfirm";
 import PositionAPI, {
   type PositionForm,
   type PositionPageQuery,
   type PositionTable,
 } from "@/api/module_system/position";
-import { useAuth } from "@/hooks/core/useAuth";
 import { useUserStore } from "@stores";
 import type { IObject } from "@/components/modal/types";
 import type { SearchFormItem } from "@/components/forms/fa-search-bar/index.vue";
 import type FaSearchBar from "@/components/forms/fa-search-bar/index.vue";
 import type { FormItem } from "@/components/forms/fa-form/index.vue";
-import type FaForm from "@/components/forms/fa-form/index.vue";
-import { resolveStatusColumns, renderTableOperationCell } from "@utils";
+import FaForm from "@/components/forms/fa-form/index.vue";
 import { ElMessage } from "element-plus";
+import FaTableHeader from "@/components/tables/fa-table-header/index.vue";
+import {
+  renderTableOperationCell,
+  resolveStatusColumns,
+  stripPaginationParams,
+  cleanEmptyArrayParams,
+  toCrudCols,
+} from "@utils";
 
 defineOptions({
   name: "Position",
   inheritAttrs: false,
 });
 
-const { hasAuth } = useAuth();
 const userStore = useUserStore();
 
 type PositionSearchForm = {
   name?: string;
   status?: number;
-  created_time?: string[];
   created_id?: number;
+  updated_id?: number;
+  created_time?: string[];
+  updated_time?: string[];
 };
 
 function normalizePositionQuery(params: Record<string, unknown>): PositionPageQuery {
@@ -161,8 +162,11 @@ function buildPositionReplaceParams(p: PositionSearchForm): Record<string, unkno
     name: p.name,
     status: p.status,
     created_id: p.created_id,
+    updated_id: p.updated_id,
     created_time:
       Array.isArray(p.created_time) && p.created_time.length === 2 ? p.created_time : undefined,
+    updated_time:
+      Array.isArray(p.updated_time) && p.updated_time.length === 2 ? p.updated_time : undefined,
   };
 }
 
@@ -181,7 +185,7 @@ function buildPositionRowActions(
   ctx: {
     onDetail: (id: number) => void;
     onEdit: (id: number) => void;
-    onDelete: (id: number) => void;
+    onDelete: (id: number, name: string) => void;
   }
 ): RowAction[] {
   const all: RowAction[] = [
@@ -204,10 +208,10 @@ function buildPositionRowActions(
       label: "删除",
       artType: "delete",
       perm: "module_system:position:delete",
-      run: () => ctx.onDelete(row.id!),
+      run: () => ctx.onDelete(row.id!, row.name ?? ""),
     },
   ];
-  return all.filter((a) => hasAuth(a.perm));
+  return all;
 }
 
 function formatPositionOperationCell(
@@ -215,25 +219,28 @@ function formatPositionOperationCell(
   ctx: Parameters<typeof buildPositionRowActions>[1]
 ) {
   return renderTableOperationCell(buildPositionRowActions(row, ctx), {
-    wrapperClass: "inline-flex flex-wrap items-center justify-end gap-1 position-table-actions",
+    wrapperClass:
+      "inline-flex flex-wrap items-center justify-end gap-1 position-table-actions align-middle",
   });
 }
 
 const searchForm = ref<PositionSearchForm>({
   name: undefined,
   status: undefined,
-  created_time: undefined,
   created_id: undefined,
+  updated_id: undefined,
+  created_time: undefined,
+  updated_time: undefined,
 });
 
 const showSearchBar = ref(true);
 const searchBarRef = ref<InstanceType<typeof FaSearchBar> | null>(null);
 const searchBarRules: Record<string, unknown> = {};
 
-const statusOptions = ref([
+const STATUS_OPTIONS = [
   { label: "启用", value: 0 },
   { label: "停用", value: 1 },
-]);
+] as const;
 
 const positionSearchItems = computed<SearchFormItem[]>(() => [
   {
@@ -250,7 +257,7 @@ const positionSearchItems = computed<SearchFormItem[]>(() => [
     type: "select",
     props: {
       placeholder: "请选择状态",
-      options: statusOptions.value,
+      options: STATUS_OPTIONS,
       clearable: true,
     },
     span: 6,
@@ -308,8 +315,20 @@ const {
       },
       { prop: "order", label: "岗位排序", width: 100, showOverflowTooltip: true },
       { prop: "description", label: "描述", minWidth: 120, showOverflowTooltip: true },
-      { prop: "created_time", label: "创建时间", width: 168, showOverflowTooltip: true },
-      { prop: "updated_time", label: "更新时间", width: 168, showOverflowTooltip: true },
+      {
+        prop: "created_time",
+        label: "创建时间",
+        width: 168,
+        sortable: true,
+        showOverflowTooltip: true,
+      },
+      {
+        prop: "updated_time",
+        label: "更新时间",
+        width: 168,
+        sortable: true,
+        showOverflowTooltip: true,
+      },
       {
         prop: "created_id",
         label: "创建人",
@@ -334,17 +353,7 @@ const {
   },
 });
 
-const positionCrudCols = computed(() =>
-  columns.value.map((c: ColumnOption<PositionTable>) => {
-    const t = (c as { type?: string }).type;
-    return {
-      prop: c.prop,
-      label: c.label,
-      type: t === "selection" ? ("selection" as const) : ("default" as const),
-      show: true,
-    };
-  })
-);
+const positionCrudCols = toCrudCols(columns);
 
 const exportQueryParams = computed(() => {
   return normalizePositionQuery(stripPaginationParams(searchParams)) as unknown as Record<
@@ -368,7 +377,7 @@ const positionExportContentConfig = computed(() => ({
 
 const detailFormData = ref<PositionTable>({});
 
-const positionDetailItems: import("@/components/others/fa-descriptions/index.vue").DescriptionsItem[] =
+const positionDetailItems: import("@/components/display/fa-descriptions/index.vue").DescriptionsItem[] =
   [
     { label: "岗位名称", prop: "name" },
     { label: "排序", prop: "order" },
@@ -376,14 +385,13 @@ const positionDetailItems: import("@/components/others/fa-descriptions/index.vue
       label: "状态",
       prop: "status",
       tag: {
-        map: { "0": { type: "success", text: "启用" }, "1": { type: "danger", text: "停用" } },
+        map: { 0: { type: "success", text: "启用" }, 1: { type: "danger", text: "停用" } },
       },
     },
     { label: "创建人", prop: "created_by.name" },
     { label: "更新人", prop: "updated_by.name" },
     { label: "创建时间", prop: "created_time" },
     { label: "更新时间", prop: "updated_time" },
-    { label: "所属租户", prop: "tenant_by.name" },
     { label: "描述", prop: "description", span: 4 },
   ];
 
@@ -472,13 +480,7 @@ const positionDialogFormItems = computed<FormItem[]>(() => [
     span: 24,
     props: { controlsPosition: "right", min: 1 },
   },
-  {
-    label: "状态",
-    key: "status",
-    type: "input",
-    span: 24,
-    placeholder: "",
-  },
+  { key: "status", label: "状态", type: "radiogroup", span: 24 },
   {
     label: "描述",
     key: "description",
@@ -498,28 +500,30 @@ const { exportVisible, openExport } = useImportExport();
 async function handleSearchBarSearch(params: PositionSearchForm) {
   await searchBarRef.value?.validate?.();
   replaceSearchParams(buildPositionReplaceParams(params));
-  getData();
+  await getData();
 }
 
-function onResetSearch() {
+async function onResetSearch() {
   searchForm.value = {
     name: undefined,
     status: undefined,
-    created_time: undefined,
     created_id: undefined,
+    updated_id: undefined,
+    created_time: undefined,
+    updated_time: undefined,
   };
-  void resetSearchParams();
+  await resetSearchParams();
 }
 
-async function deletePositionRow(id: number) {
+async function deletePositionRow(id: number, name: string) {
   try {
-    await confirmDelete();
+    await confirmDelete(`确定删除「${name}」吗？`);
     await PositionAPI.deletePosition([id]);
     await userStore.getUserInfo();
     faTableRef.value?.elTableRef?.clearSelection();
     await refreshRemove();
   } catch {
-    ElMessage.info("删除取消");
+    // 用户取消
   }
 }
 
@@ -527,7 +531,10 @@ async function handleBatchDelete() {
   const ids = selectedIds.value;
   if (ids.length === 0) return;
   try {
-    await confirmBatchDelete(ids.length);
+    await confirmBatchDelete(
+      ids.length,
+      selectedRows.value.map((r) => String(r.name ?? r.id))
+    );
     batchDeleting.value = true;
     await PositionAPI.deletePosition(ids);
     await userStore.getUserInfo();
@@ -540,15 +547,16 @@ async function handleBatchDelete() {
   }
 }
 
-async function handleMoreClick(status: number) {
+async function handleMoreClick(value: "enable" | "disable") {
   const ids = selectedIds.value;
   if (!ids.length) {
     ElMessage.warning("请先选择要操作的数据");
     return;
   }
   try {
-    await confirmToggleStatus(status);
+    await confirmToggleStatus(value);
     moreLoading.value = true;
+    const status = value === "enable" ? 0 : 1;
     await PositionAPI.batchPosition({ ids, status });
     await refreshData();
     await userStore.getUserInfo();
@@ -559,9 +567,3 @@ async function handleMoreClick(status: number) {
   }
 }
 </script>
-
-<style scoped lang="scss">
-:deep(.position-table-actions .inline-flex) {
-  vertical-align: middle;
-}
-</style>

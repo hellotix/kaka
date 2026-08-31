@@ -105,6 +105,12 @@ const containerRef = ref<HTMLDivElement>();
 const canvasRef = ref<HTMLCanvasElement>();
 const isFullscreen = ref(false);
 const updateTime = ref("");
+/** 窗口 resize 处理器，保存引用以便在 onUnmounted 中移除 */
+function onResize() {
+  resizeCanvas();
+  spawnParticles();
+}
+
 const tickerItems = ref([
   "交易引擎: 23%",
   "消息队列: 58%",
@@ -115,6 +121,7 @@ const tickerItems = ref([
 ]);
 const animFrame = shallowRef(0);
 let statsTimer = 0;
+let timeTickInterval = 0;
 
 const stats = reactive([
   { label: "总交易额", value: "¥128.6万", change: "12.5%", up: true, color: "cyan" as const },
@@ -287,19 +294,18 @@ onMounted(() => {
     updateTime.value = new Date().toLocaleTimeString("zh-CN", { hour12: false });
   };
   timeTick();
-  window.setInterval(timeTick, 1000);
+  timeTickInterval = window.setInterval(timeTick, 1000);
   initParticles();
   statsTimer = window.setInterval(updateStats, 3000);
   updateStats();
-  window.addEventListener("resize", () => {
-    resizeCanvas();
-    spawnParticles();
-  });
+  window.addEventListener("resize", onResize);
 });
 
 onUnmounted(() => {
   cancelAnimationFrame(animFrame.value);
   clearInterval(statsTimer);
+  clearInterval(timeTickInterval);
+  window.removeEventListener("resize", onResize);
   document.removeEventListener("fullscreenchange", onFullscreenChange);
   if (document.fullscreenElement) {
     document.exitFullscreen().catch(() => {});

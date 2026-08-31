@@ -11,11 +11,7 @@
     @touchend="dragFinish"
   >
     <!-- 进度条 -->
-    <div
-      class="dv_progress_bar"
-      ref="progressBar"
-      :style="progressBarStyle"
-    ></div>
+    <div class="dv_progress_bar" ref="progressBar" :style="progressBarStyle"></div>
 
     <!-- 提示文本 -->
     <div class="dv_text" :style="textStyle" ref="messageRef">
@@ -295,11 +291,11 @@ defineExpose({
     position: absolute;
     top: 0;
     left: 0;
+    z-index: 9;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: move;
-    z-index: 9;
 
     i {
       padding-left: 0;

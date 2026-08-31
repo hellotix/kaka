@@ -14,7 +14,6 @@
       :disabled-search="false"
       :default-expanded="false"
       include-audit
-      :audit-item-options="{ showTenantId: true }"
       @search="handleSearchBarSearch"
       @reset="onResetSearch"
     >
@@ -66,13 +65,14 @@
     <FaDialog
       v-model="dialogVisible.visible"
       :title="dialogVisible.title"
-      width="920px"
+      width="820px"
       dialog-class="crud-embed-dialog"
       modal-class="crud-embed-dialog"
       :form-mode="dialogVisible.type"
       :confirm-loading="submitLoading"
       @cancel="handleCloseDialog"
-      @confirm="dialogVisible.type === 'detail' ? handleCloseDialog() : handleSubmit()"
+      @close="handleCloseDialog"
+      @confirm="handleSubmit()"
     >
       <template v-if="dialogVisible.type === 'detail'">
         <FaDescriptions
@@ -80,7 +80,7 @@
           :data="detailFormData"
           :items="noticeDetailItems"
           label-width="120px"
-          max-height="75vh"
+          max-height="70vh"
         >
           <template #notice_type="{ row }">
             <FaStatusTag
@@ -89,12 +89,7 @@
             />
           </template>
           <template #notice_content>
-            <ElScrollbar class="notice-html-preview" view-class="p-3">
-              <template v-if="detailHasRenderableContent">
-                <div v-html="detailContentHtml" />
-              </template>
-              <p v-else class="notice-html-empty">暂无内容</p>
-            </ElScrollbar>
+            <FaMarkdownRenderer :content="detailFormData.notice_content ?? ''" />
           </template>
         </FaDescriptions>
       </template>
@@ -102,7 +97,7 @@
         <FaForm
           :key="noticeFormRenderKey"
           scrollbar
-          max-height="75vh"
+          max-height="70vh"
           ref="dataFormRef"
           v-model="formData"
           :items="noticeDialogFormItems"
@@ -125,7 +120,7 @@
           <template #notice_content>
             <FaWangEditor
               :model-value="formData.notice_content ?? ''"
-              height="min(38vh, 280px)"
+              height="min(18vh, 280px)"
               placeholder="请输入公告内容，支持完整排版与插入..."
               :exclude-keys="[]"
               @update:model-value="(v: string) => (formData.notice_content = v)"
@@ -138,21 +133,18 @@
 </template>
 
 <script setup lang="ts">
-import { useTable } from "@/hooks/core/useTable";
-import { useCrudDialog } from "@/hooks/core/useCrudDialog";
-import { useTableSelection } from "@/hooks/core/useTableSelection";
 import { useCrudForm } from "@/hooks/core/useCrudForm";
-import { confirmDelete, confirmBatchDelete, confirmToggleStatus } from "@/hooks/core/useConfirm";
+import { confirmToggleStatus } from "@/hooks/core/useConfirm";
 import NoticeAPI, { type NoticeForm, type NoticeTable } from "@/api/module_system/notice";
-import { useAuth } from "@/hooks/core/useAuth";
-import { renderTableOperationCell, type TableOperationAction, resolveStatusColumns } from "@utils";
+import { renderTableOperationCell, resolveStatusColumns, type TableOperationAction } from "@utils";
 import { useDictStore, useNoticeStore } from "@stores";
 import type { SearchFormItem } from "@/components/forms/fa-search-bar/index.vue";
-import type FaSearchBar from "@/components/forms/fa-search-bar/index.vue";
+import FaSearchBar from "@/components/forms/fa-search-bar/index.vue";
 import type { FormItem } from "@/components/forms/fa-form/index.vue";
-import type FaForm from "@/components/forms/fa-form/index.vue";
-import { ElMessage, ElScrollbar } from "element-plus";
-import DOMPurify from "dompurify";
+import FaForm from "@/components/forms/fa-form/index.vue";
+import { ElMessage } from "element-plus";
+import FaTableHeader from "@/components/tables/fa-table-header/index.vue";
+import FaDescriptions from "@/components/display/fa-descriptions/index.vue";
 
 defineOptions({
   name: "Notice",
@@ -161,14 +153,15 @@ defineOptions({
 
 const dictStore = useDictStore();
 const noticeStore = useNoticeStore();
-const { hasAuth } = useAuth();
 
 type NoticeSearchForm = {
   notice_title?: string;
   notice_type?: string;
   status?: number;
-  created_time?: string[];
   created_id?: number;
+  updated_id?: number;
+  created_time?: string[];
+  updated_time?: string[];
 };
 
 function noticeTypeLabel(val?: string) {
@@ -182,18 +175,20 @@ const searchForm = ref<NoticeSearchForm>({
   notice_title: undefined,
   notice_type: undefined,
   status: undefined,
-  created_time: undefined,
   created_id: undefined,
+  updated_id: undefined,
+  created_time: undefined,
+  updated_time: undefined,
 });
 
 const showSearchBar = ref(true);
 const searchBarRef = ref<InstanceType<typeof FaSearchBar> | null>(null);
 const searchBarRules: Record<string, unknown> = {};
 
-const statusOptions = ref([
+const STATUS_OPTIONS = [
   { label: "启用", value: 0 },
   { label: "停用", value: 1 },
-]);
+] as const;
 
 const noticeTypeSearchOptions = computed(() =>
   dictStore.getDictArray("sys_notice_type").map((item) => ({
@@ -228,7 +223,7 @@ const noticeSearchItems = computed<SearchFormItem[]>(() => [
     type: "select",
     props: {
       placeholder: "请选择状态",
-      options: statusOptions.value,
+      options: STATUS_OPTIONS,
       clearable: true,
     },
     span: 6,
@@ -248,7 +243,7 @@ const { dialogVisible } = useCrudDialog();
 
 const detailFormData = ref<NoticeTable>({});
 
-const noticeDetailItems: import("@/components/others/fa-descriptions/index.vue").DescriptionsItem[] =
+const noticeDetailItems: import("@/components/display/fa-descriptions/index.vue").DescriptionsItem[] =
   [
     { label: "标题", prop: "notice_title" },
     { label: "类型", prop: "notice_type", slot: "notice_type" },
@@ -256,7 +251,7 @@ const noticeDetailItems: import("@/components/others/fa-descriptions/index.vue")
       label: "状态",
       prop: "status",
       tag: {
-        map: { "0": { type: "success", text: "启用" }, "1": { type: "danger", text: "停用" } },
+        map: { 0: { type: "success", text: "启用" }, 1: { type: "danger", text: "停用" } },
       },
     },
     { label: "描述", prop: "description" },
@@ -265,30 +260,7 @@ const noticeDetailItems: import("@/components/others/fa-descriptions/index.vue")
     { label: "更新人", prop: "updated_by.name" },
     { label: "创建时间", prop: "created_time" },
     { label: "更新时间", prop: "updated_time" },
-    { label: "所属租户", prop: "tenant_by.name" },
   ];
-
-/** 详情富文本 HTML（用于预览，已做 XSS 净化） */
-const detailContentHtml = computed({
-  get: () => {
-    const raw = detailFormData.value.notice_content ?? "";
-    return DOMPurify.sanitize(raw);
-  },
-  set: (v: string) => {
-    detailFormData.value.notice_content = v;
-  },
-});
-
-/** 详情是否有可视文本 */
-const detailHasRenderableContent = computed(() => {
-  const raw = detailFormData.value.notice_content ?? "";
-  if (!raw.trim()) return false;
-  const plain = raw
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  return plain.length > 0;
-});
 
 const formData = ref<NoticeForm>({
   id: undefined,
@@ -338,7 +310,7 @@ const { submitLoading, handleCloseDialog, handleOpenDialog, handleSubmit } =
       await refreshUpdate();
     },
     onSubmitSuccess: async () => {
-      await noticeStore.getNotice();
+      await noticeStore.getNotice(true);
     },
   });
 
@@ -387,13 +359,7 @@ const noticeDialogFormItems = computed<FormItem[]>(() => [
       })),
     },
   },
-  {
-    label: "状态",
-    key: "status",
-    type: "input",
-    span: 24,
-    placeholder: "",
-  },
+  { key: "status", label: "状态", type: "radiogroup", span: 24 },
   {
     label: "内容",
     key: "notice_content",
@@ -447,10 +413,21 @@ const {
           "2": { type: "warning", text: "公告" },
         },
       },
-      { prop: "notice_content", label: "内容", minWidth: 200, showOverflowTooltip: true },
       { prop: "description", label: "描述", minWidth: 140, showOverflowTooltip: true },
-      { prop: "created_time", label: "创建时间", width: 168, showOverflowTooltip: true },
-      { prop: "updated_time", label: "更新时间", width: 168, showOverflowTooltip: true },
+      {
+        prop: "created_time",
+        label: "创建时间",
+        width: 168,
+        sortable: true,
+        showOverflowTooltip: true,
+      },
+      {
+        prop: "updated_time",
+        label: "更新时间",
+        width: 168,
+        sortable: true,
+        showOverflowTooltip: true,
+      },
       {
         prop: "created_id",
         label: "创建人",
@@ -481,21 +458,24 @@ function buildNoticeReplaceParams(p: NoticeSearchForm): Record<string, unknown> 
     notice_type: p.notice_type,
     status: p.status,
     created_id: p.created_id,
+    updated_id: p.updated_id,
     created_time:
       Array.isArray(p.created_time) && p.created_time.length === 2 ? p.created_time : undefined,
+    updated_time:
+      Array.isArray(p.updated_time) && p.updated_time.length === 2 ? p.updated_time : undefined,
   };
 }
 
 async function handleSearchBarSearch(params: NoticeSearchForm) {
   await searchBarRef.value?.validate?.();
   replaceSearchParams(buildNoticeReplaceParams(params));
-  getData();
+  await getData();
 }
 
 async function applyNoticeSearchFromForm() {
   await searchBarRef.value?.validate?.();
   replaceSearchParams(buildNoticeReplaceParams(searchForm.value));
-  getData();
+  await getData();
 }
 
 async function afterUserSelectSearch() {
@@ -503,26 +483,28 @@ async function afterUserSelectSearch() {
   await applyNoticeSearchFromForm();
 }
 
-function onResetSearch() {
+async function onResetSearch() {
   searchForm.value = {
     notice_title: undefined,
     notice_type: undefined,
     status: undefined,
-    created_time: undefined,
     created_id: undefined,
+    updated_id: undefined,
+    created_time: undefined,
+    updated_time: undefined,
   };
-  void resetSearchParams();
+  await resetSearchParams();
 }
 
-async function deleteNoticeRow(id: number) {
+async function deleteNoticeRow(id: number, name: string) {
   try {
-    await confirmDelete();
+    await confirmDelete(`确定删除「${name}」吗？`);
     await NoticeAPI.deleteNotice([id]);
-    await noticeStore.getNotice();
+    await noticeStore.getNotice(true);
     faTableRef.value?.elTableRef?.clearSelection();
     await refreshRemove();
   } catch {
-    ElMessage.info("删除取消");
+    // 用户取消
   }
 }
 
@@ -554,11 +536,11 @@ function buildNoticeRowActions(row: NoticeTable): TableOperationAction[] {
       icon: "ri:delete-bin-4-line",
       perm: "module_system:notice:delete",
       run: () => {
-        if (row.id != null) deleteNoticeRow(row.id);
+        if (row.id != null) deleteNoticeRow(row.id, row.notice_title ?? "");
       },
     },
   ];
-  return all.filter((a) => a.perm != null && hasAuth(a.perm));
+  return all;
 }
 
 function formatNoticeOperationCell(row: NoticeTable) {
@@ -571,31 +553,37 @@ async function handleBatchDelete() {
   const ids = selectedIds.value;
   if (ids.length === 0) return;
   try {
-    await confirmBatchDelete(ids.length);
+    await confirmBatchDelete(
+      ids.length,
+      (data.value as NoticeTable[])
+        .filter((r) => ids.includes(r.id!))
+        .map((r) => String(r.notice_title ?? r.id))
+    );
     batchDeleting.value = true;
     await NoticeAPI.deleteNotice(ids);
-    await noticeStore.getNotice();
+    await noticeStore.getNotice(true);
     faTableRef.value?.elTableRef?.clearSelection();
     await refreshRemove();
   } catch {
-    ElMessage.info("删除取消");
+    // 用户取消
   } finally {
     batchDeleting.value = false;
   }
 }
 
-async function handleMoreClick(status: number) {
+async function handleMoreClick(value: "enable" | "disable") {
   const ids = selectedIds.value;
   if (!ids.length) {
     ElMessage.warning("请先选择要操作的数据");
     return;
   }
   try {
-    await confirmToggleStatus(status);
+    await confirmToggleStatus(value);
     moreLoading.value = true;
+    const status = value === "enable" ? 0 : 1;
     await NoticeAPI.batchNotice({ ids, status });
     await refreshData();
-    await noticeStore.getNotice();
+    await noticeStore.getNotice(true);
   } catch {
     // 用户取消或操作失败
   } finally {
@@ -607,61 +595,3 @@ onMounted(async () => {
   await dictStore.getDict(["sys_notice_type"]);
 });
 </script>
-
-<style scoped lang="scss">
-/* 富文本预览区域阅读样式（与 FaWangEditor 输出 HTML 展示一致） */
-.notice-html-preview {
-  box-sizing: border-box;
-  min-height: 120px;
-  max-height: min(360px, 45vh);
-  background-color: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: calc(var(--custom-radius) / 3 + 2px);
-}
-
-.notice-html-empty {
-  margin: 0;
-  font-size: 14px;
-  color: var(--el-text-color-placeholder);
-}
-
-.notice-html-preview :deep(h1),
-.notice-html-preview :deep(h2),
-.notice-html-preview :deep(h3) {
-  margin: 12px 0 8px;
-}
-
-.notice-html-preview :deep(p) {
-  margin: 8px 0;
-  line-height: 1.6;
-}
-
-.notice-html-preview :deep(table) {
-  margin: 12px 0;
-}
-
-.notice-html-preview :deep(table th),
-.notice-html-preview :deep(table td) {
-  padding: 8px 12px;
-}
-
-.notice-html-preview :deep(pre) {
-  padding: 12px;
-  margin: 12px 0;
-  overflow-x: auto;
-  background-color: var(--el-fill-color-light);
-  border-radius: 4px;
-}
-
-.notice-html-preview :deep(blockquote) {
-  padding-left: 16px;
-  margin: 12px 0;
-  color: var(--el-text-color-regular);
-  border-left: 4px solid var(--el-color-primary);
-}
-
-.notice-html-preview :deep(img) {
-  max-width: 100%;
-  height: auto;
-}
-</style>

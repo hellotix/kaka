@@ -115,11 +115,12 @@ def create_access_token(payload: JWTPayloadSchema) -> str:
     )
 
 
-def decode_access_token(token: str) -> JWTPayloadSchema:
+def decode_access_token(token: str, verify_exp: bool = True) -> JWTPayloadSchema:
     """解析JWT访问令牌
 
     参数:
     - token (str): JWT访问令牌字符串。
+    - verify_exp (bool): 是否校验 exp 声明。滑动续期场景设为 False，由 Redis session 决定有效期。
 
     返回:
     - JWTPayloadSchema: 解析后的JWT有效载荷,包含用户信息等。
@@ -131,7 +132,10 @@ def decode_access_token(token: str) -> JWTPayloadSchema:
         raise CustomException(msg="认证不存在,请重新登录", code=10401, status_code=401)
 
     try:
-        payload = jwt.decode(jwt=token, key=settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        options: dict = {}
+        if not verify_exp:
+            options["verify_exp"] = False
+        payload = jwt.decode(jwt=token, key=settings.SECRET_KEY, algorithms=[settings.ALGORITHM], options=options)  # type: ignore[arg-type]
 
         online_user_info = payload.get("sub")
         if not online_user_info:

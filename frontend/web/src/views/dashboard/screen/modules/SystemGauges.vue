@@ -12,13 +12,14 @@
 
 <script setup lang="ts">
 import { onMounted, onUnmounted } from "vue";
-import * as echarts from "echarts";
+import { echarts } from "@/plugins/echarts";
 
 defineOptions({ name: "SystemGauges" });
 
 const gaugeRefs: Record<string, HTMLDivElement> = {};
 const charts: echarts.ECharts[] = [];
 let timer = 0;
+let isMounted = true;
 
 const gauges = [
   { label: "CPU", value: 42 },
@@ -32,11 +33,16 @@ function setGaugeRef(label: string, el: unknown) {
 
 function waitForSize(el: HTMLDivElement): Promise<void> {
   return new Promise((resolve) => {
+    if (!isMounted) {
+      resolve();
+      return;
+    }
     if (el.clientWidth > 0 && el.clientHeight > 0) {
       resolve();
       return;
     }
     const check = () => {
+      if (!isMounted) return;
       if (el.clientWidth > 0 && el.clientHeight > 0) {
         resolve();
       } else {
@@ -123,6 +129,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  isMounted = false;
   clearInterval(timer);
   window.removeEventListener("resize", handleResize);
   charts.forEach((c) => c.dispose());

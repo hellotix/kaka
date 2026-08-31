@@ -32,9 +32,11 @@
             >
               <div class="model-switcher" :class="{ 'is-active': dropdownVisible }">
                 <ElIcon class="model-icon"><Cpu /></ElIcon>
-                <span class="model-name" :title="activeModelName">
-                  {{ activeModelName }}
-                </span>
+                <ElTooltip :content="activeModelName" placement="top">
+                  <span class="model-name">
+                    {{ activeModelName }}
+                  </span>
+                </ElTooltip>
                 <ElIcon class="model-arrow" :class="{ expanded: dropdownVisible }">
                   <ArrowDown />
                 </ElIcon>

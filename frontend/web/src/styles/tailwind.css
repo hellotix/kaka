@@ -51,6 +51,15 @@
   --color-g-700: var(--fa-gray-700);
   --color-g-800: var(--fa-gray-800);
   --color-g-900: var(--fa-gray-900);
+
+  /* Font Size Configuration */
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 13px;
+  --font-size-lg: 15px;
+  --font-size-xl: 18px;
+  --font-size-2xl: 22px;
+  --font-size-3xl: 28px;
 }
 
 /* ==================== Custom Border Radius Utilities ==================== */
@@ -62,11 +71,6 @@
   border-radius: calc(var(--custom-radius) / 2 + 2px);
 }
 
-/* ==================== Flex Shortcut Utilities ====================
- * 解决项目里大量重复的 flex 居中 / 两端对齐 / 列布局组合（详见
- * scripts/find-tailwind-candidates.py 统计结果）。
- * 在模板里直接 class="flex-cc gap-2" 比 class="flex items-center justify-center gap-2" 短 60%。
- */
 /* ==================== Custom Utility Classes ==================== */
 @layer utilities {
   /* Flexbox Layout Utilities */
@@ -103,30 +107,101 @@
     @apply transition-all duration-300;
   }
 
+  /* Hover Lift Effect */
+  .hover-lift {
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+    &:hover {
+      transform: translateY(-2px);
+    }
+  }
+
+  /* Text Truncate */
+  .text-truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   /* Border Utilities */
   .border-full-d {
-    @apply border border-[var(--default-border)];
+    @apply border border-(--default-border);
   }
 
   .border-b-d {
-    @apply border-b border-[var(--default-border)];
+    @apply border-b border-(--default-border);
   }
 
   .border-t-d {
-    @apply border-t border-[var(--default-border)];
+    @apply border-t border-(--default-border);
   }
 
   .border-l-d {
-    @apply border-l border-[var(--default-border)];
+    @apply border-l border-(--default-border);
   }
 
   .border-r-d {
-    @apply border-r border-[var(--default-border)];
+    @apply border-r border-(--default-border);
   }
 
   /* Cursor Utilities */
   .c-p {
     @apply cursor-pointer;
+  }
+
+  /* Gap utility aliases for consistency */
+  .gap-xs {
+    gap: 4px;
+  }
+
+  .gap-sm {
+    gap: 8px;
+  }
+
+  .gap-md {
+    gap: 12px;
+  }
+
+  .gap-lg {
+    gap: 16px;
+  }
+
+  .gap-xl {
+    gap: 24px;
+  }
+
+  /* Text Color Shortcuts */
+  .text-secondary {
+    color: var(--fa-gray-500);
+  }
+
+  .text-muted {
+    color: var(--fa-gray-400);
+  }
+
+  /* Background Color Shortcuts */
+  .bg-subtle {
+    background-color: var(--fa-gray-100);
+  }
+
+  .bg-hover {
+    background-color: var(--fa-hover-color);
+  }
+
+  /* Scrollable container (overflow auto, hidden scrollbar) */
+  .scrollable-y {
+    overflow: auto hidden;
+    scrollbar-color: var(--fa-gray-300) transparent;
+    scrollbar-width: thin;
+
+    &::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background-color: var(--fa-gray-300);
+      border-radius: 4px;
+    }
   }
 }
 

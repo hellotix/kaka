@@ -1,17 +1,11 @@
 <!-- 聊天页 -->
 <template>
-  <div class="page-content flex p-0! max-md:flex-col" :style="{ height: containerMinHeight }">
-    <ElRow>
-      <ElCol :span="12">
-        <div class="grid-content ep-bg-purple" />
-      </ElCol>
-      <ElCol :span="12">
-        <div class="grid-content ep-bg-purple-light" />
-      </ElCol>
-    </ElRow>
-    <div
-      class="box-border w-90 h-full p-5 border-r border-g-300 max-md:w-full max-md:h-42 max-md:border-r-0"
-    >
+  <div :style="{ height: containerMinHeight }">
+    <ElSplitter :style="'height: 100%'">
+      <ElSplitterPanel size="360px" :min="260" :max="500">
+        <div
+          class="box-border h-full p-5"
+        >
       <div class="pb-5 max-md:hidden!">
         <div class="flex items-center gap-3">
           <ElAvatar :size="50" :src="selectedPerson?.avatar" />
@@ -47,14 +41,12 @@
           :class="{ 'bg-active-color': selectedPerson?.id === item.id }"
           @click="selectPerson(item)"
         >
-          <div class="relative mr-3">
-            <ElAvatar :size="40" :src="item.avatar">
-              {{ item.name.charAt(0) }}
-            </ElAvatar>
-            <div
-              class="absolute right-1 bottom-1 size-2 rounded-full"
-              :class="item.online ? 'bg-success' : 'bg-error'"
-            ></div>
+          <div class="mr-3">
+            <ElBadge is-dot :color="item.online ? 'var(--el-color-success)' : 'var(--el-color-error)'">
+              <ElAvatar :size="40" :src="item.avatar">
+                {{ item.name.charAt(0) }}
+              </ElAvatar>
+            </ElBadge>
           </div>
           <div class="flex-1 min-w-0">
             <div class="flex items-center justify-between mb-1">
@@ -69,8 +61,11 @@
           </div>
         </div>
       </ElScrollbar>
-    </div>
-    <div class="box-border flex-1 h-full max-md:h-[calc(70%-30px)]">
+        </div>
+      </ElSplitterPanel>
+
+      <ElSplitterPanel :min="300">
+        <div class="box-border h-full">
       <div class="flex items-center justify-between pt-4 px-4 pb-0 mb-5">
         <div>
           <span class="text-base font-medium">Art Bot</span>
@@ -151,13 +146,15 @@
           </div>
         </div>
       </div>
-    </div>
+        </div>
+      </ElSplitterPanel>
+    </ElSplitter>
   </div>
 </template>
 
 <script setup lang="ts">
 import { Picture, Paperclip, ArrowDown } from "@element-plus/icons-vue";
-import { ElScrollbar } from "element-plus";
+
 import { mittBus } from "@utils";
 import meAvatar from "@imgs/avatar/avatar5.webp";
 import aiAvatar from "@imgs/avatar/avatar10.webp";

@@ -1,13 +1,12 @@
 import re
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.common.enums import QueueEnum
-from app.core.base_schema import BaseQueryParam, BaseSchema, TenantByQueryParam, TenantBySchema, UserByQueryParam, UserBySchema
+from app.core.base_schema import BaseSchema
 
 
-class ParamsCreateSchema(BaseModel):
-    """参数创建模型
+class ParamsBaseSchema(BaseModel):
+    """参数基础字段
     """
 
     config_name: str = Field(..., min_length=1, max_length=64, description="参数名称")
@@ -35,35 +34,13 @@ class ParamsCreateSchema(BaseModel):
         return v
 
 
-class ParamsUpdateSchema(ParamsCreateSchema):
+class ParamsUpdateSchema(ParamsBaseSchema):
     """参数更新模型
     """
 
 
-class ParamsOutSchema(ParamsCreateSchema, BaseSchema, UserBySchema, TenantBySchema):
+class ParamsOutSchema(ParamsBaseSchema, BaseSchema):
     """参数响应模型
     """
 
     model_config = ConfigDict(from_attributes=True)
-
-
-class ParamsQueryParam(BaseQueryParam, UserByQueryParam, TenantByQueryParam):
-    """参数管理查询参数
-    """
-
-    config_name: str | tuple[str, str] | None = Field(None, description="参数名称")
-    config_key: str | tuple[str, str] | None = Field(None, description="参数键名")
-    config_type: bool | tuple[str, bool] | None = Field(None, description="是否系统内置(True:是 False:否)")
-    status: int | tuple[str, int] | None = Field(None, ge=0, le=1, description="状态(0:启动 1:停用)")
-
-    @model_validator(mode="after")
-    def validate_query_params(self) -> "ParamsQueryParam":
-        if isinstance(self.config_name, str):
-            self.config_name = (QueueEnum.like.value, self.config_name)
-        if isinstance(self.config_key, str):
-            self.config_key = (QueueEnum.like.value, self.config_key)
-        if isinstance(self.config_type, bool):
-            self.config_type = (QueueEnum.eq.value, self.config_type)
-        if isinstance(self.status, int):
-            self.status = (QueueEnum.eq.value, self.status)
-        return self

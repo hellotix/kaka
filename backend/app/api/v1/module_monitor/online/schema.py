@@ -1,8 +1,7 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
-from app.common.enums import QueueEnum
 from app.core.base_schema import SessionInfoSchema
 
 
@@ -13,19 +12,9 @@ class OnlineOutSchema(SessionInfoSchema):
 class OnlineQueryParam(BaseModel):
     """在线用户查询参数"""
 
-    name: str | tuple[str, str] | None = Field(None, description="登录名称")
-    ipaddr: str | tuple[str, str] | None = Field(None, description="登陆IP地址")
-    login_location: str | tuple[str, str] | None = Field(None, description="登录所属地")
-
-    @model_validator(mode="after")
-    def validate_query_params(self) -> "OnlineQueryParam":
-        if isinstance(self.name, str):
-            self.name = (QueueEnum.like.value, self.name)
-        if isinstance(self.ipaddr, str):
-            self.ipaddr = (QueueEnum.like.value, self.ipaddr)
-        if isinstance(self.login_location, str):
-            self.login_location = (QueueEnum.like.value, self.login_location)
-        return self
+    name: str | None = Field(None, description="登录名称")
+    ipaddr: str | None = Field(None, description="登陆IP地址")
+    login_location: str | None = Field(None, description="登录所属地")
 
 
 class RecentLoginItem(BaseModel):
@@ -37,15 +26,20 @@ class RecentLoginItem(BaseModel):
     login_location: str | None = None
 
 
+class LoginTrendItem(BaseModel):
+    """登录趋势（按天聚合）"""
+    day: str  # 日期 YYYY-MM-DD
+    logins: int = 0  # 登录次数
+    unique_users: int = 0  # 独立用户数
+    new_users: int = 0  # 当日新增用户数
+
+
 class DashboardStatsSchema(BaseModel):
     """仪表盘统计数据"""
     online_users: int = 0
     total_users: int = 0
-    total_tenants: int = 0
-    total_orders: int = 0
     today_login_count: int = 0
     today_unique_users: int = 0
     week_user_created: int = 0
-    week_tenant_created: int = 0
-    paid_orders: int = 0
+    login_trend: list[LoginTrendItem] = []
     recent_logins: list[RecentLoginItem] = []

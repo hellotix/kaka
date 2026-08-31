@@ -12,15 +12,6 @@ LOG_DIR = BASE_DIR / "logs"
 # 静态资源目录
 STATIC_DIR = BASE_DIR / "static"
 
-# 上传文件目录
-UPLOAD_DIR = STATIC_DIR / "upload"
-
-# 下载文件目录
-DOWNLOAD_DIR = STATIC_DIR / "download"
-
-# 发票 PDF 输出目录
-INVOICE_DIR = STATIC_DIR / "invoice"
-
 # 环境配置目录
 ENV_DIR = BASE_DIR / "env"
 

@@ -30,11 +30,10 @@
  */
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
-import { AppRouteRecord } from "@/types/router";
+import type { AppRouteRecord } from "@/types/router";
 import { getFirstMenuPath } from "@utils";
 import { HOME_PAGE_PATH } from "@/router";
-import { mergeShellRoutesIntoMenu } from "@/router/staticRoutes";
-import { useUserStore } from "./user.store";
+import { mergeShellRoutesIntoMenu } from "@/router/MenuProcessor";
 
 /**
  * 菜单状态管理
@@ -53,18 +52,10 @@ export const useMenuStore = defineStore(
     const removeRouteFns = ref<(() => void)[]>([]);
 
     /**
-     * 按当前工作区模式过滤后的可见菜单
-     * 平台模式仅显示 scope="platform" 的菜单，租户模式仅显示 scope="tenant" 的菜单
-     * 菜单未设置 scope 时默认在两种模式下均可见（向后兼容）
+     * 可见菜单列表，当前直接返回所有菜单（保留 computed 以供未来 scope 过滤扩展）
+     * TODO: 移除本别名，消费者直接使用 menuList
      */
-    const visibleMenus = computed(() => {
-      const userStore = useUserStore();
-      const targetScope = userStore.isPlatformMode ? "platform" : "tenant";
-      return menuList.value.filter((menu) => {
-        if (!menu.meta?.scope) return true;
-        return menu.meta.scope === targetScope;
-      });
-    });
+    const visibleMenus = computed(() => menuList.value);
 
     /**
      * 设置菜单列表

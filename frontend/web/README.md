@@ -161,118 +161,101 @@ src/
 - **格式化与校验**：`pnpm lint`
 - **提交**：husky、lint-staged、commitlint；可使用 **`pnpm commit`**（Commitizen / cz-git）
 
-/\*\*
-
-- 浅蓝色系主题 — #1975FC
--
-- 来源：花瓣网 B端淡蓝色配色参考
-- 主色 #1975FC — 明快透亮、B端专业感
--
-- 【启用方式】在本文件中取消注释对应主题模式的变量块，
-- 并在 src/styles/index.scss 中 @use "./core/theme-blue";
-- 同时在 src/config/setting.ts 中将 themeColor 改为 "#1975FC"。
--
-- 【色阶 palette】
-- #f8fcff 最浅底色（页面背景）
-- #f0f5ff 浅蓝悬停态
-- #e5f2ff 选中态 / tag 背景
-- #c5ddff 浅蓝边框 / 分割线点缀
-- #82b8ff 中浅蓝（图标辅助色）
-- #1975FC ★ 主色
-- #115ac8 深蓝（hover 按下态）
--
-- 【功能色】
-- success: #16a34a
-- warning: #d97706
-- danger: #dc2626
-- error: #fa896b
-- info: #8b92a0
--
-- ================================================================
-  \*/
-
-// ================================================================
-// 亮色主题 — 浅蓝色系
-// ================================================================
-
-// :root {
-// /_ ---- 侧边栏 ---- _/
-// --sidebar-bg-color: #ffffff;
-// --sidebar-border-color: #edf0f2;
-// --sidebar-text-color: #485260;
-// --sidebar-text-hover-color: #1975fc;
-// --sidebar-text-active-color: #1975fc;
-// --sidebar-bg-hover-color: #f0f5ff;
-// --sidebar-bg-active-color: #e5f2ff;
-// --sidebar-logo-color: #121926;
-// --sidebar-section-title-color: #8b92a0;
-//
-// /_ ---- 页面 ---- _/
-// --main-bg-color: #f4f6f9;
-// --header-bg-color: #ffffff;
-// --header-border-color: #edf0f2;
-//
-// /_ ---- 卡片 ---- _/
-// --card-bg-color: #ffffff;
-// --card-border-color: #edf0f2;
-//
-// /_ ---- 表格 ---- _/
-// --table-header-bg: #f8fafc;
-// --table-header-color: #8b92a0;
-// --table-row-hover-bg: #f8fafc;
-// --table-border-color: #edf0f2;
-//
-// /_ ---- 文字 ---- _/
-// --text-primary: #121926;
-// --text-regular: #334155;
-// --text-secondary: #8b92a0;
-//
-// /_ ---- 标签 ---- _/
-// --tag-bg-color: #e5f2ff;
-// --tag-text-color: #1975fc;
-//
-// /_ ---- 按钮 —— 由 Element Plus 通过 primary 色阶自动生成 ---- _/
-// /_ ---- 进度条 ---- _/
-// --nprogress-color: #1975fc;
-//
-// /_ ---- 边框模式 ---- _/
-// --fa-card-border: #edf0f2;
-// --default-box-color: #ffffff;
-// --default-border: #edf0f2;
-// --custom-radius: 0.75rem;
-// }
-
-// ================================================================
-// 暗色主题 — 浅蓝色系（可选）
-// ================================================================
-
-// html.dark {
-// --sidebar-bg-color: #0c1031;
-// --sidebar-border-color: #1a1e3d;
-// --sidebar-text-color: #a8adcc;
-// --sidebar-text-hover-color: #5c9fff;
-// --sidebar-text-active-color: #1975fc;
-// --sidebar-bg-hover-color: rgba(25, 117, 252, 0.15);
-// --sidebar-bg-active-color: rgba(25, 117, 252, 0.25);
-// --sidebar-logo-color: #ffffff;
-// --sidebar-section-title-color: #6b7094;
-//
-// --main-bg-color: #0f1420;
-// --header-bg-color: #151a2d;
-// --header-border-color: #1a1e3d;
-//
-// --card-bg-color: #151a2d;
-// --card-border-color: #1a1e3d;
-//
-// --table-header-bg: #1a1e3d;
-// --table-header-color: #6b7094;
-// --table-row-hover-bg: #1a1e3d;
-// --table-border-color: #1a1e3d;
-//
-// --text-primary: #e5e7eb;
-// --text-regular: #a8adcc;
-// --text-secondary: #6b7094;
-//
-// --tag-bg-color: rgba(25, 117, 252, 0.2);
-// --tag-text-color: #5c9fff;
-// }
+element-plus 组件库
+    基础组件：
+        el-button 按钮
+        el-container 容器
+        el-header 头部
+        el-aside 侧边栏
+        el-main 主体
+        el-footer 底部
+        el-icon 图标
+        el-row 行布局
+        el-col 列布局单元
+        el-link 链接
+        el-text 文本内容
+        el-scrollbar 滚动条
+        el-space 空格
+        el-splitter、el-splitter-panel 分割面板
+        Typography 排版
+    配置组件：
+        el-config-provider 全局配置
+    Form表单组件：
+        el-autocomplete 自动补全
+        el-cascader 级联选择器
+        el-checkbox 多选框
+        el-color-picker-panel 颜色选择器面板
+        el-color-picker 颜色选择器
+        el-date-picker-panel 日期选择器面板
+        el-radio-group、el-radio-button 日期选择器
+        el-date-picker 日期时间选择器
+        el-time-picker 时间选择器
+        el-time-select 时间选择
+        el-form、el-form-item 表单
+        el-input 输入框
+        el-input-number 数字输入框
+        el-input-tag 标签输入框
+        el-input-otp 一次性密码输入框
+        el-mention 提及
+        el-radio-group、el-radio 单选框
+        el-rate 评分
+        el-select、el-option 选择器
+        el-select-v2 虚拟化选择器
+        el-slider 滑块
+        el-switch 开关按钮
+        el-transfer 穿梭框
+        el-tree-select 树形选择
+        el-upload 上传器
+    Data数据展示组件：
+        el-avatar 头像
+        el-badge 徽章
+        el-calendar 日历
+        el-card 卡片
+        el-carousel 走马灯
+        el-collapse、el-collapse-item 折叠面板
+        el-descriptions、el-descriptions-item 描述列表.
+        el-empty 空状态
+        el-image 图片
+        Infinite Scroll 无限滚动：在要实现滚动加载的列表上添加v-infinite-scroll，并赋值相应的加载方法，可实现滚动到底部时自动执行加载方法。
+        el-pagination 分页
+        el-progress 进度条
+        el-result 结果
+        el-skeleton 骨架屏
+        el-table、el-table-col 表格
+        el-table-v2 虚拟化表格
+        el-tag 标签
+        el-timeline、el-timeline-item 时间线
+        el-tour、el-tour-step 漫游式引导
+        el-tree 树形控件
+        el-tree-v2 虚拟化树形控件
+        el-statistic 统计组件
+        el-segmented 分段控制器
+    导航类组件：
+        el-affix 固钉
+        el-anchor、el-anchor-link 锚点
+        el-backtop 回到顶部按钮
+        el-breadcrumb、el-breadcrumb-item 面包屑
+        el-dropdown、el-dropdown-menu、el-dropdown-item 下拉菜单
+        el-menu、el-sub-menu、el-menu-item-group、el-menu-item 菜单
+        el-page-header 页头
+        el-steps、el-step 步骤条
+        el-tabs、el-tab-pane 标签页
+    Feedback 反馈组件：
+        el-alert 提示
+        el-dialog 对话框
+        el-drawer 抽屉
+        loading：Element Plus 提供了两种调用 Loading 的方法：指令和服务。 
+            对于自定义指令 v-loading，只需要绑定 boolean 值即可。
+            默认状况下，Loading 遮罩会插入到绑定元素的子节点。 
+            通过添加 body 修饰符，可以使遮罩插入至 Dom 中的 body 上。
+        ElMessage 消息:与 Notification 的区别是后者更多用于系统级通知的被动提醒,默认情况下在顶部显示并在 3 秒后消失。 
+        ElMessageBox 消息弹框：
+            ElMessageBox.confirm 方法以打开 confirm 框。它模拟了系统的 confirm 方法。
+            ElMessageBox.prompt 方法以打开 prompt 框。它模拟了系统的 prompt 方法。
+        ElNotification 通知
+        el-popconfirm 气泡确认框
+        el-popover 弹出框
+        el-tooltip 文字提示
+    Others 其他组件：
+        el-divider 分割线
+        el-watermark 水印

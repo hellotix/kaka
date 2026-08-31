@@ -11,7 +11,7 @@ from sqlalchemy.orm.collections import InstrumentedList
 from sqlalchemy.sql.elements import Null
 from sqlalchemy.sql.expression import null
 
-from app.config.setting import settings
+from app.config.path_conf import STATIC_DIR
 from app.core.exceptions import CustomException
 from app.core.logger import logger
 
@@ -87,7 +87,9 @@ def search_to_dict(search: Any, default: Any = None) -> dict | None:
     """将 Pydantic 查询模型转为参数字典。
 
     - search 为 None 时返回 default（默认 None）。
-    - search 非空时调用 vars() 提取字段字典。
+    - search 非空时调用 model_dump() 提取字段字典，排除 None 值。
+    - 自动合并 ``_start`` / ``_end`` 时间范围对为 ``("between", [start, end])``。
+    - 自动将 ``json_schema_extra={"q": "op"}`` 标记的字段转为 ``("op", value)`` 元组。
 
     参数:
     - search: Pydantic 查询模型或 None。
@@ -96,7 +98,22 @@ def search_to_dict(search: Any, default: Any = None) -> dict | None:
     返回:
     - dict | None: 查询参数字典或 None。
     """
-    return vars(search) if search else default
+    if not search:
+        return default
+    d = search.model_dump(exclude_none=True)
+
+    # 处理数组格式的时间范围参数 → ("between", [start, end])
+    for key in list(d.keys()):
+        if isinstance(d[key], list) and len(d[key]) == 2 and key.endswith("_time"):
+            d[key] = ("between", d[key])
+
+    for field_name, field_info in search.model_fields.items():
+        if field_name not in d:
+            continue
+        q_op = (field_info.json_schema_extra or {}).get("q")
+        if q_op:
+            d[field_name] = (q_op, d[field_name])
+    return d
 
 
 def get_parent_id_map(model_list: Sequence[DeclarativeBase]) -> dict[int, int]:
@@ -278,7 +295,7 @@ def get_filepath_from_url(url: str) -> Path:
     task_id = file_info[0].split("=")[1]
     file_name = file_info[1].split("=")[1]
     task_path = file_info[2].split("=")[1]
-    filepath = settings.STATIC_ROOT.joinpath(task_path, task_id, file_name)
+    filepath = STATIC_DIR.joinpath(task_path, task_id, file_name)
 
     return filepath
 

@@ -1,0 +1,245 @@
+/* ============================================================================
+ * Dark Theme — 深色主题下的 UI 覆盖
+ * 导航栏、侧边栏、Features 卡片、Hero 区域、表格、Footer
+ * ============================================================================ */
+
+/* 导航栏 — 全息玻璃效果 */
+.dark :deep(.VPNavBar) {
+  background: rgba(8, 8, 20, 0.78);
+  backdrop-filter: blur(24px) saturate(1.6);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  border-bottom: 1px solid rgba(99, 102, 241, 0.08);
+}
+
+.dark :deep(.VPNavBar::before) {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent,
+    rgba(99, 102, 241, 0.6),
+    rgba(236, 72, 153, 0.4),
+    rgba(6, 182, 212, 0.5),
+    transparent
+  );
+}
+
+.dark :deep(.VPNavBarTitle) {
+  font-weight: 700;
+  background: linear-gradient(135deg, #e0e7ff 0%, #c084fc 50%, #f472b6 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  transition: filter 0.3s ease;
+}
+
+.dark :deep(.VPNavBarTitle:hover) {
+  filter: brightness(1.3);
+}
+
+.dark :deep(.VPNavBarMenuLink) {
+  position: relative;
+  transition: color 0.3s ease;
+}
+
+.dark :deep(.VPNavBarMenuLink:hover) {
+  color: #c4b5fd;
+}
+
+.dark :deep(.VPNavBarMenuLink::after) {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #6366f1, #a855f7, #ec4899);
+  border-radius: 1px;
+  transition: width 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.dark :deep(.VPNavBarMenuLink:hover::after) {
+  width: 100%;
+}
+
+/* 搜索框增强(亮 + 深都适用) */
+:deep(.DocSearch-Button) {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: var(--vp-radius-md) !important;
+  transition: background 0.3s, border-color 0.3s, color 0.3s !important;
+  backdrop-filter: blur(8px);
+}
+
+:deep(.DocSearch-Button:hover) {
+  border-color: rgba(99, 102, 241, 0.4) !important;
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.15) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* 侧边栏 — 玻璃质感 */
+.dark :deep(.VPSidebar) {
+  background: rgba(8, 8, 20, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-right: 1px solid rgba(99, 102, 241, 0.06);
+}
+
+.dark :deep(.VPSidebarItem.is-active > .item > .link) {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(139, 92, 246, 0.08));
+  border-radius: var(--vp-radius-sm);
+  color: #c4b5fd;
+}
+
+.dark :deep(.VPSidebarItem .link:hover) {
+  color: #c4b5fd;
+}
+
+/* 侧边栏展开动画 */
+:deep(.VPSidebarItem .items) {
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.25s, border-color 0.25s, box-shadow 0.35s;
+}
+
+/* Features 卡片 — 全息科技感 */
+.dark :deep(.VPHero .features .VPFeature) {
+  position: relative;
+  padding: 2rem 1.8rem;
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--vp-radius-lg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  transition: transform 0.55s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.3s, border-color 0.3s, box-shadow 0.55s;
+  overflow: hidden;
+}
+
+.dark :deep(.VPHero .features .VPFeature::before) {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 15%;
+  right: 15%;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent,
+    rgba(99, 102, 241, 0.5),
+    rgba(236, 72, 153, 0.3),
+    transparent
+  );
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+.dark :deep(.VPHero .features .VPFeature::after) {
+  content: '';
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 6px;
+  height: 6px;
+  background: #a855f7;
+  border-radius: 50%;
+  box-shadow: 0 0 12px #a855f7;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+.dark :deep(.VPHero .features .VPFeature:hover) {
+  /* hover lift 增大到 10px(feature 卡片是主视觉,允许比普通卡片多一倍) */
+  transform: translateY(calc(-1 * var(--vp-hover-lift) * 2.5)) scale(1.03);
+  border-color: rgba(99, 102, 241, 0.35);
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow:
+    0 20px 50px rgba(99, 102, 241, 0.18),
+    0 0 70px rgba(139, 92, 246, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.dark :deep(.VPHero .features .VPFeature:hover::before),
+.dark :deep(.VPHero .features .VPFeature:hover::after) {
+  opacity: 1;
+}
+
+/* Features 图标发光 */
+.dark :deep(.VPHero .features .VPFeature .icon) {
+  transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.3s, border-color 0.3s;
+}
+
+.dark :deep(.VPHero .features .VPFeature:hover .icon) {
+  transform: scale(1.2);
+  filter: drop-shadow(0 0 24px rgba(139, 92, 246, 0.9));
+}
+
+/* Features 标题渐变 */
+.dark :deep(.VPHero .features .VPFeature .title) {
+  background: linear-gradient(135deg, #e0e7ff 0%, #c4b5fd 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  transition: transform 0.4s, background 0.25s, border-color 0.25s, box-shadow 0.4s;
+}
+
+.dark :deep(.VPHero .features .VPFeature:hover .title) {
+  background: linear-gradient(135deg, #c4b5fd 0%, #f9a8d4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+/* Hero 区域增强 */
+.dark :deep(.VPHero) {
+  position: relative;
+  padding-bottom: 5rem;
+}
+
+.dark :deep(.VPHero .text) {
+  color: rgba(255, 255, 255, 0.7);
+  text-shadow: 0 0 40px rgba(99, 102, 241, 0.2);
+}
+
+.dark :deep(.VPHero .tagline) {
+  color: rgba(255, 255, 255, 0.55);
+  text-shadow: 0 0 30px rgba(139, 92, 246, 0.15);
+}
+
+.dark :deep(.VPHero .actions) {
+  gap: 1.2rem;
+}
+
+.dark :deep(.VPHero .image-container .image-bg) {
+  transition: background 1.5s, border-color 1.5s;
+}
+
+.dark :deep(.VPHero .image-container:hover .image-bg) {
+  filter: blur(80px) saturate(1.8);
+  opacity: 0.8;
+}
+
+/* 表格科技感 */
+.dark :deep(.vp-doc table) {
+  border-radius: var(--vp-radius-md);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.dark :deep(.vp-doc th) {
+  background: rgba(99, 102, 241, 0.08);
+  font-weight: 600;
+}
+
+.dark :deep(.vp-doc tr:nth-child(2n)) {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.dark :deep(.vp-doc tr:hover) {
+  background: rgba(99, 102, 241, 0.05);
+}
+
+/* Footer */
+.dark :deep(.VPFooter) {
+  border-top: 1px solid rgba(99, 102, 241, 0.06);
+  background: rgba(8, 8, 20, 0.4);
+  backdrop-filter: blur(12px);
+}

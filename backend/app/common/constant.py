@@ -166,19 +166,19 @@ class GenConstant:
         "bool",
     ]
     # 页面不需要显示的添加字段
-    COLUMNNAME_NOT_ADD_SHOW = ["created_time", "updated_time", "tenant_id"]
+    COLUMNNAME_NOT_ADD_SHOW = ["created_time", "updated_time"]
 
     # 页面不需要显示的编辑字段
-    COLUMNNAME_NOT_EDIT_SHOW = ["uuid", "tenant_id"]
+    COLUMNNAME_NOT_EDIT_SHOW = ["uuid"]
 
     # 页面不需要编辑字段
-    COLUMNNAME_NOT_EDIT = ["id", "uuid", "tenant_id", "created_time", "updated_time"]
+    COLUMNNAME_NOT_EDIT = ["id", "uuid", "created_time", "updated_time"]
 
     # 页面不需要显示的列表字段
-    COLUMNNAME_NOT_LIST = ["id", "uuid", "tenant_id"]
+    COLUMNNAME_NOT_LIST = ["id", "uuid"]
 
     # 页面不需要查询字段
-    COLUMNNAME_NOT_QUERY = ["id", "uuid", "tenant_id", "description"]
+    COLUMNNAME_NOT_QUERY = ["id", "uuid", "description"]
 
     # Crud基类字段
     CRUD_COLUMN_NOT_EDIT = [
@@ -192,7 +192,6 @@ class GenConstant:
     BASE_ENTITY = [
         "id",
         "uuid",
-        "tenant_id",
         "status",
         "description",
         "created_time",

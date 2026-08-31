@@ -61,12 +61,13 @@ const WorkflowNodeTypeAPI = {
 export default WorkflowNodeTypeAPI;
 export { WorkflowNodeTypeAPI };
 
-/** 节点类型选项（对应后端 task_workflow_node_type） */
+/** 节点类型选项（对应后端 task_workflow_node_type，内置业务节点 id 为 null） */
 export interface WorkflowNodeTypeOption {
-  id: number;
+  id: number | null;
   code: string;
   name: string;
   category: string;
+  description?: string;
   args?: string;
   kwargs?: string;
 }

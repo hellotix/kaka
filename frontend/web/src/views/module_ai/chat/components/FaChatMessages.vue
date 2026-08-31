@@ -17,7 +17,7 @@
 
 <script setup lang="ts">
 import { ref, nextTick, watch } from "vue";
-import { ElScrollbar } from "element-plus";
+
 import WelcomeScreen from "./FaWelcomeScreen.vue";
 import FaMessageItem from "./FaMessageItem.vue";
 import type { ChatMessage } from "../types";

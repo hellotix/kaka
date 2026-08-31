@@ -53,7 +53,7 @@ const DeptAPI = {
 
 export default DeptAPI;
 
-export interface DeptPageQuery extends UserByQueryParams, TenantByQueryParams {
+export interface DeptPageQuery extends UserByQueryParams {
   name?: string;
   status?: number;
 }
@@ -62,9 +62,6 @@ export interface DeptTable extends BaseType {
   name?: string;
   order?: number;
   code: string;
-  leader?: string;
-  phone?: string;
-  email?: string;
   parent_id?: number;
   parent_name?: string;
   children?: DeptTable[];
@@ -75,9 +72,6 @@ export interface DeptTable extends BaseType {
 export interface DeptForm extends BaseFormType {
   name?: string;
   code: string;
-  leader?: string;
-  phone?: string;
-  email?: string;
   parent_id?: number;
   order?: number;
   status?: number;

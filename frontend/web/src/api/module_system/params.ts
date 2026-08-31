@@ -23,29 +23,6 @@ const ParamsAPI = {
     });
   },
 
-  listParams(query: ConfigPageQuery) {
-    return request<ApiResponse<PageResult<ConfigTable>>>({
-      url: `${API_PATH}/list`,
-      method: "get",
-      params: query,
-    });
-  },
-
-  detailParams(query: number) {
-    return request<ApiResponse<ConfigTable>>({
-      url: `${API_PATH}/detail/${query}`,
-      method: "get",
-    });
-  },
-
-  createParams(body: ConfigForm) {
-    return request<ApiResponse>({
-      url: `${API_PATH}/create`,
-      method: "post",
-      data: body,
-    });
-  },
-
   updateParams(id: number, body: ConfigForm) {
     return request<ApiResponse>({
       url: `${API_PATH}/update/${id}`,
@@ -53,41 +30,9 @@ const ParamsAPI = {
       data: body,
     });
   },
-
-  deleteParams(body: number[]) {
-    return request<ApiResponse>({
-      url: `${API_PATH}/delete`,
-      method: "delete",
-      data: body,
-    });
-  },
-
-  batchParams(body: BatchType) {
-    return request<ApiResponse>({
-      url: `${API_PATH}/status/batch`,
-      method: "patch",
-      data: body,
-    });
-  },
-
-  exportParams(body: ConfigPageQuery) {
-    return request<Blob>({
-      url: `${API_PATH}/export`,
-      method: "post",
-      data: body,
-      responseType: "blob",
-    });
-  },
 };
 
 export default ParamsAPI;
-
-export interface ConfigPageQuery extends PageQuery, UserByQueryParams {
-  config_name?: string;
-  config_key?: string;
-  config_type?: boolean;
-  status?: number;
-}
 
 export interface ConfigTable extends BaseType {
   config_name?: string;

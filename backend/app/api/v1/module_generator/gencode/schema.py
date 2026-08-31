@@ -1,9 +1,8 @@
 import re
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.common.enums import QueueEnum
-from app.core.base_schema import BaseQueryParam, BaseSchema, TenantByQueryParam, TenantBySchema, UserByQueryParam, UserBySchema
+from app.core.base_schema import BaseQueryParam, BaseSchema, UserByQueryParam, UserBySchema
 
 
 class GenDBTableSchema(BaseModel):
@@ -239,7 +238,7 @@ class GenTableSchema(BaseModel):
         return s if s else None
 
 
-class GenTableOutSchema(GenTableSchema, BaseSchema, UserBySchema, TenantBySchema):
+class GenTableOutSchema(GenTableSchema, BaseSchema, UserBySchema):
     """业务表输出模型（面向控制器/前端）。"""
 
     model_config = ConfigDict(from_attributes=True)
@@ -280,22 +279,14 @@ class GenSyncPreviewSchema(BaseModel):
     sub: "GenSyncPreviewSchema | None" = Field(default=None, description="子表差异（若配置了主子表）")
 
 
-class GenTableQueryParam(BaseQueryParam, UserByQueryParam, TenantByQueryParam):
+class GenTableQueryParam(BaseQueryParam, UserByQueryParam):
     """代码生成业务表查询参数
     - 支持按`table_name`、`table_comment`进行模糊检索（由CRUD层实现like）。
     - 空值将被忽略，不参与过滤。
     """
 
-    table_name: str | tuple[str, str] | None = Field(None, description="表名称")
-    table_comment: str | tuple[str, str] | None = Field(None, description="表注释")
-    status: int | tuple[str, int] | None = Field(None, ge=0, le=1, description="状态(0:启动 1:停用)")
+    table_name: str | None = Field(None, description="表名称", json_schema_extra={"q": "like"})
+    table_comment: str | None = Field(None, description="表注释", json_schema_extra={"q": "like"})
+    status: int | None = Field(None, ge=0, le=1, description="状态(0:启动 1:停用)", json_schema_extra={"q": "eq"})
 
-    @model_validator(mode="after")
-    def validate_query_params(self) -> "GenTableQueryParam":
-        if isinstance(self.table_name, str):
-            self.table_name = (QueueEnum.like.value, self.table_name)
-        if isinstance(self.table_comment, str):
-            self.table_comment = (QueueEnum.like.value, self.table_comment)
-        if isinstance(self.status, int):
-            self.status = (QueueEnum.eq.value, self.status)
-        return self
+

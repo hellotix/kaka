@@ -1,0 +1,24 @@
+{
+  "name": "fastdocs",
+  "version": "3.1.0",
+  "description": "FastapiAdmin 项目文档",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.15.3",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview"
+  },
+  "dependencies": {
+    "vue": "^3.5.35"
+  },
+  "devDependencies": {
+    "medium-zoom": "^1.1.0",
+    "vitepress": "1.6.4"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.1.0"
+  }
+}

@@ -57,17 +57,15 @@ defineOptions({
 });
 
 import { h, ref, computed } from "vue";
-import { useTable } from "@/hooks/core/useTable";
 import OnlineAPI, { type OnlineUserTable } from "@/api/module_monitor/online";
-import type { ColumnOption } from "@/types/component";
 import { ElMessageBox } from "element-plus";
-import { useAuth } from "@/hooks/core/useAuth";
-import { renderTableOperationCell, type TableOperationAction } from "@/utils/table";
-import type { SearchFormItem } from "@/components/forms/fa-search-bar/index.vue";
+import type { TableOperationAction } from "@/utils/table";
+import { renderTableOperationCell } from "@utils";
 import type FaSearchBar from "@/components/forms/fa-search-bar/index.vue";
-import FaCopyButton from "@/components/others/fa-copy-button/index.vue";
-
-const { hasAuth } = useAuth();
+import type { SearchFormItem } from "@/components/forms/fa-search-bar/index.vue";
+import FaCopyButton from "@/components/actions/fa-copy-button/index.vue";
+import type { ColumnOption } from "@/types/component";
+import FaTableHeader from "@/components/tables/fa-table-header/index.vue";
 
 type OnlineSearchForm = {
   ipaddr?: string;
@@ -122,21 +120,19 @@ const onlineSearchItems = computed<SearchFormItem[]>(() => [
 
 const clearAllLoading = ref(false);
 
-function kickSession(sessionId: string) {
-  (async () => {
-    try {
-      await ElMessageBox.confirm(`确认强制退出会话 ${sessionId}?`, "警告", {
-        confirmButtonText: "确定",
-        cancelButtonText: "取消",
-        type: "warning",
-      });
-      await OnlineAPI.deleteOnline(sessionId);
-      // 成功 / 失败提示由 axios 拦截器统一处理
-      await refreshData();
-    } catch {
-      // 用户取消或操作失败
-    }
-  })();
+async function kickSession(sessionId: string) {
+  try {
+    await ElMessageBox.confirm(`确认强制退出会话 ${sessionId}?`, "警告", {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      type: "warning",
+    });
+    await OnlineAPI.deleteOnline(sessionId);
+    // 成功 / 失败提示由 axios 拦截器统一处理
+    await refreshData();
+  } catch {
+    // 用户取消或操作失败
+  }
 }
 
 function buildOnlineRowActions(row: OnlineUserTable): TableOperationAction[] {
@@ -149,7 +145,7 @@ function buildOnlineRowActions(row: OnlineUserTable): TableOperationAction[] {
       run: () => kickSession(row.session_id),
     },
   ];
-  return all.filter((a) => a.perm != null && hasAuth(a.perm));
+  return all;
 }
 
 function formatOnlineOperationCell(row: OnlineUserTable) {
@@ -194,7 +190,7 @@ const {
         label: "IP地址",
         minWidth: 150,
         formatter: (row: OnlineUserTable) =>
-          h("span", { class: "inline-flex items-center flex-wrap gap-0.5" }, [
+          h("span", { class: "inline-flex items-center gap-0.5 whitespace-nowrap" }, [
             row.ipaddr ?? "",
             row.ipaddr
               ? h(FaCopyButton, {
@@ -261,33 +257,27 @@ async function onResetSearch() {
   await resetSearchParams();
 }
 
-function handleClearAll() {
-  (async () => {
-    try {
-      await ElMessageBox.confirm("确认强制退出所有用户?", "警告", {
-        confirmButtonText: "确定",
-        cancelButtonText: "取消",
-        type: "warning",
-      });
-      clearAllLoading.value = true;
-      await OnlineAPI.clearOnline();
-      // 成功 / 失败提示由 axios 拦截器统一处理
-      await refreshData();
-    } catch {
-      // 用户取消
-    } finally {
-      clearAllLoading.value = false;
-    }
-  })();
+async function handleClearAll() {
+  try {
+    await ElMessageBox.confirm("确认强制退出所有用户?", "警告", {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      type: "warning",
+    });
+    clearAllLoading.value = true;
+    await OnlineAPI.clearOnline();
+    // 成功 / 失败提示由 axios 拦截器统一处理
+    await refreshData();
+  } catch {
+    // 用户取消
+  } finally {
+    clearAllLoading.value = false;
+  }
 }
 
-// 在线用户列表自动刷新（30 秒轮询）
-let refreshTimer: ReturnType<typeof setInterval> | undefined;
+// 列表数据在页面挂载时加载一次，不自动轮询
 onMounted(() => {
-  refreshTimer = setInterval(() => refreshData(), 30000);
-});
-onUnmounted(() => {
-  if (refreshTimer) clearInterval(refreshTimer);
+  refreshData();
 });
 </script>
 

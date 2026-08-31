@@ -4,10 +4,10 @@ from app.core.base_crud import CRUDBase
 from app.core.base_schema import AuthSchema
 
 from .model import ParamsModel
-from .schema import ParamsCreateSchema, ParamsUpdateSchema
+from .schema import ParamsUpdateSchema
 
 
-class ParamsCRUD(CRUDBase[ParamsModel, ParamsCreateSchema, ParamsUpdateSchema]):
+class ParamsCRUD(CRUDBase[ParamsModel, ParamsUpdateSchema, ParamsUpdateSchema]):
     """配置管理数据层"""
 
     def __init__(self, auth: AuthSchema, db: AsyncSession) -> None:

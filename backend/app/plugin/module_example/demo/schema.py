@@ -6,8 +6,7 @@ from pydantic import (
     model_validator,
 )
 
-from app.common.enums import QueueEnum
-from app.core.base_schema import BaseQueryParam, BaseSchema, TenantByQueryParam, TenantBySchema, UserByQueryParam, UserBySchema
+from app.core.base_schema import BaseQueryParam, BaseSchema, UserByQueryParam, UserBySchema
 from app.core.validator import DateStr, DateTimeStr, TimeStr
 
 
@@ -55,7 +54,7 @@ class DemoCreateSchema(BaseModel):
         if len(self.name) < 2 or len(self.name) > 50:
             raise ValueError("名称长度必须在2-50个字符之间")
         # 格式校验：名称只能包含字母、数字、下划线和中划线
-        if not self.name.isalnum() and not all(c in "-_" for c in self.name):
+        if not all(c.isalnum() or c in "-_" for c in self.name):
             raise ValueError("名称只能包含字母、数字、下划线和中划线")
         if self.status not in [0, 1]:
             raise ValueError("是否启用必须为0或1")
@@ -65,29 +64,32 @@ class DemoCreateSchema(BaseModel):
         return self
 
 
-class DemoUpdateSchema(DemoCreateSchema):
+class DemoUpdateSchema(BaseModel):
     """更新模型"""
 
+    name: str | None = Field(default=None, description="名称")
+    status: int | None = Field(default=None, ge=0, le=1, description="是否启用(0:启用 1:禁用)")
+    description: str | None = Field(default=None, description="描述")
+    int_val: int | None = Field(default=None, description="整数")
+    bigint_val: int | None = Field(default=None, description="大整数")
+    float_val: float | None = Field(default=None, description="浮点数")
+    bool_val: bool | None = Field(default=None, description="布尔型")
+    date_val: DateStr | None = Field(default=None, description="日期")
+    time_val: TimeStr | None = Field(default=None, description="时间")
+    datetime_val: DateTimeStr | None = Field(default=None, description="日期时间")
+    text_val: str | None = Field(default=None, description="长文本")
+    json_val: dict | None = Field(default=None, description="元数据(JSON格式)")
 
-class DemoOutSchema(DemoCreateSchema, BaseSchema, UserBySchema, TenantBySchema):
+
+class DemoOutSchema(DemoCreateSchema, BaseSchema, UserBySchema):
     """响应模型"""
 
     model_config = ConfigDict(from_attributes=True)
 
 
-class DemoQueryParam(BaseQueryParam, UserByQueryParam, TenantByQueryParam):
+class DemoQueryParam(BaseQueryParam, UserByQueryParam):
     """示例查询参数（演示 Mixin 继承用法）"""
 
-    name: str | tuple[str, str] | None = Field(None, description="名称")
-    description: str | tuple[str, str] | None = Field(None, description="描述")
-    status: int | tuple[str, int] | None = Field(None, description="是否启用")
-
-    @model_validator(mode="after")
-    def validate_query_params(self) -> "DemoQueryParam":
-        if isinstance(self.name, str):
-            self.name = (QueueEnum.like.value, self.name)
-        if isinstance(self.description, str):
-            self.description = (QueueEnum.like.value, self.description)
-        if isinstance(self.status, int):
-            self.status = (QueueEnum.eq.value, self.status)
-        return self
+    name: str | None = Field(None, description="名称", json_schema_extra={"q": "like"})
+    description: str | None = Field(None, description="描述", json_schema_extra={"q": "like"})
+    status: int | None = Field(None, description="是否启用", json_schema_extra={"q": "eq"})

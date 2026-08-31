@@ -44,7 +44,7 @@ const DemoAPI = {
 
   batchDemo(body: BatchType) {
     return request<ApiResponse>({
-      url: `${API_PATH}/available/setting`,
+      url: `${API_PATH}/status/batch`,
       method: "patch",
       data: body,
     });
@@ -60,7 +60,7 @@ const DemoAPI = {
   },
 
   downloadTemplateDemo() {
-    return request<ApiResponse>({
+    return request<Blob>({
       url: `${API_PATH}/download/template`,
       method: "post",
       responseType: "blob",
@@ -81,7 +81,7 @@ const DemoAPI = {
 
 export default DemoAPI;
 
-export interface DemoPageQuery extends PageQuery, UserByQueryParams, TenantByQueryParams {
+export interface DemoPageQuery extends PageQuery, UserByQueryParams {
   name?: string;
   status?: number;
 }

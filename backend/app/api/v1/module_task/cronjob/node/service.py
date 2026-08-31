@@ -6,6 +6,7 @@ from apscheduler.jobstores.base import ConflictingIdError, JobLookupError
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
+from croniter import croniter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.ap_scheduler import (
@@ -16,7 +17,6 @@ from app.core.base_schema import AuthSchema, PageResultSchema
 from app.core.exceptions import CustomException
 from app.core.logger import logger
 from app.utils.common_util import search_to_dict
-from app.utils.cron_util import CronUtil
 
 from .crud import NodeCRUD
 from .model import NodeModel
@@ -130,7 +130,9 @@ class NodeService:
         elif trigger == "cron":
             if not trigger_args:
                 raise CustomException(msg="Cron执行需要提供Cron表达式")
-            if not CronUtil.validate_cron_expression(trigger_args):
+            try:
+                croniter(trigger_args)
+            except (KeyError, ValueError):
                 raise CustomException(msg=f"Cron表达式不正确: {trigger_args}")
             add_cron_job(
                 job_info=obj,
@@ -248,7 +250,9 @@ def add_cron_job(
     fields = cron_expr.strip().split()
     if len(fields) not in (6, 7):
         raise ValueError("无效的 Cron 表达式")
-    if not CronUtil.validate_cron_expression(cron_expr):
+    try:
+        croniter(cron_expr)
+    except (KeyError, ValueError):
         raise ValueError(f"Cron表达式不正确: {cron_expr}")
 
     parsed_fields = [field if field != "?" else "*" for field in fields]

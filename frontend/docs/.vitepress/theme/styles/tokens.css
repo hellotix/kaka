@@ -1,0 +1,204 @@
+/* ============================================================================
+ * Design Tokens — 品牌光晕 / Brand Glow
+ * 全部设计变量集中在这里。其他文件只引用 var(--xxx),不再写魔法值。
+ * ============================================================================ */
+
+/* 波斯语字体回退(预留) */
+:root:where(:lang(fa)) {
+  --vp-font-family-base:
+    'Vazirmatn', 'Inter', ui-sans-serif, system-ui, sans-serif,
+    'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+}
+
+/* 强制使用系统字体栈,跳过 Inter Web 字体下载(中文站不需要 Inter 加载,可节省 ~500KB 字体流量) */
+:root {
+  --vp-font-family-base:
+    -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', 'Helvetica Neue', Arial, 'Noto Sans', 'Noto Sans CJK SC',
+    sans-serif;
+  --vp-font-family-mono:
+    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas,
+    'Liberation Mono', monospace;
+}
+
+/* 亮色主题(默认) */
+:root {
+  /* 文字颜色(亮色) — text-3 从 0.4 提到 0.55,保证 AA 对比度 */
+  --vp-home-text-1: rgba(60, 60, 60, 0.92);
+  --vp-home-text-2: rgba(60, 60, 60, 0.72);
+  --vp-home-text-3: rgba(60, 60, 60, 0.55);
+
+  /* 卡片(亮色) */
+  --vp-home-card-bg: rgba(255, 255, 255, 0.6);
+  --vp-home-card-border: rgba(0, 0, 0, 0.08);
+  --vp-home-card-hover-bg: rgba(255, 255, 255, 0.8);
+
+  /* 定价页(亮色) */
+  --vp-pricing-text-1: rgba(60, 60, 60, 0.9);
+  --vp-pricing-text-2: rgba(60, 60, 60, 0.6);
+  --vp-pricing-text-3: rgba(60, 60, 60, 0.4);
+  --vp-pricing-bg: rgba(255, 255, 255, 0.4);
+  --vp-pricing-border: rgba(0, 0, 0, 0.08);
+  --vp-pricing-badge-bg: rgba(99, 102, 241, 0.1);
+  --vp-pricing-badge-border: rgba(99, 102, 241, 0.2);
+  --vp-pricing-badge-text: #6366f1;
+
+  /* 主色 */
+  --vp-c-indigo: #6366f1;
+  --vp-c-indigo-deep: #4f46e5;
+  --vp-c-violet: #8b5cf6;
+  --vp-c-cyan: #06b6d4;
+  --vp-c-pink: #ec4899;
+
+  /* 品牌主渐变(token 化,所有组件统一引用) */
+  --vp-brand-gradient: linear-gradient(135deg, #5b6cf7 0%, #8b5cf6 50%, #ec4899 100%);
+  --vp-brand-gradient-soft: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(139, 92, 246, 0.08) 50%, rgba(236, 72, 153, 0.10) 100%);
+  --vp-brand-accent: #8b5cf6;
+  --vp-brand-accent-light: #a78bfa;
+
+  /* 状态色 token(EndToEndShowcase 步骤勾选等) */
+  --vp-status-shipped: #10b981;          /* 翠绿 - 已发布 */
+
+  /* 间距系统(基于 4 的倍数) */
+  --vp-space-1: 0.25rem;
+  --vp-space-2: 0.5rem;
+  --vp-space-3: 0.75rem;
+  --vp-space-4: 1rem;
+  --vp-space-6: 1.5rem;
+  --vp-space-8: 2rem;
+  --vp-space-12: 3rem;
+  --vp-space-16: 4rem;
+  --vp-space-20: 5rem;
+  --vp-section-padding: var(--vp-space-20) var(--vp-space-6);
+  --vp-section-padding-mobile: var(--vp-space-12) var(--vp-space-4);
+
+  /* Section 标题尺寸 — 全站统一(原 9 处混用 1.6/1.8 两档) */
+  --vp-section-title-size: clamp(1.7rem, 3.8vw, 2.3rem);
+  --vp-section-subtitle-size: 1rem;
+
+  /* Eyebrow 颜色 — 4 处 section 用同一品牌紫
+   * ✅ R5 P1-5:亮色模式从 #8b6cf6 (3.77:1 ⚠️ Large) → #6d28d9 (7.10:1 ✅ AAA)
+   *   R5 报告实测 #a78bfa (某些 section 用了更浅的) 2.72:1 严重 fail
+   *   现统一使用品牌深紫,WCAG AAA 通过 */
+  --vp-eyebrow-color: #6d28d9;
+
+  /* ============================================================================
+   * 设计系统最后一公里 — 圆角/悬停/动效 token
+   * 目的:替换 30+ 处散落的 12/14/16/20px 与 -3/-4/-10px 悬停幅度
+   * ============================================================================ */
+  --vp-radius-sm: 8px;   /* 小元素(button, input, pill) */
+  --vp-radius-md: 12px;  /* 中等卡片 */
+  --vp-radius-lg: 16px;  /* 大卡片(stats) */
+  --vp-radius-xl: 24px;  /* 容器(showcase 卡片, image) */
+
+  --vp-hover-lift: 4px;  /* 统一悬停上浮幅度(原 -3/-4/-10 混用) */
+
+  --vp-ease-emphasis: cubic-bezier(0.34, 1.56, 0.64, 1);  /* spring 缓出 */
+  --vp-ease-standard: cubic-bezier(0.4, 0, 0.2, 1);        /* 标准 ease */
+
+  --vp-focus-ring: 2px solid var(--vp-brand-accent);
+  --vp-focus-offset: 2px;
+
+  /* 触屏目标最小尺寸(WCAG 2.5.5 AA 24×24, AAA 44×44) */
+  --vp-target-min: 2.5rem;  /* 40px,符合 AA */
+  --vp-target-comfortable: 2.75rem;  /* 44px,符合 AAA */
+
+  /* ============================================================================
+   * z-index 阶梯(避免与 VitePress 内置元素撞层)
+   * VitePress 默认:nav=10, sidebar=20, backdrop=50, modal=100
+   * 我们的 fixed 元素要在 backdrop 之上,modal 之下
+   * ============================================================================ */
+  --vp-z-index-sidebar-drawer: 20;   /* VitePress 移动端 sidebar 抽屉 */
+  --vp-z-index-content: 1;            /* 文档内容(默认) */
+  --vp-z-index-sticky-cta: 70;        /* StickyCta fixed 底栏 — 高于 VPDoc 默认,低于搜索 modal */
+  --vp-z-index-lightbox: 200;         /* ImageLightbox 全屏 */
+  --vp-z-index-tooltip: 300;          /* tooltip/popover */
+
+  /* 标题渐变(亮色) */
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(
+    135deg,
+    #3b82f6 0%,
+    #6366f1 30%,
+    #8b5cf6 60%,
+    #a78bfa 100%
+  );
+
+  /* Hero 图标背景 */
+  --vp-home-hero-image-background-image: linear-gradient(
+    -45deg,
+    rgba(99, 102, 241, 0.2) 30%,
+    rgba(139, 92, 246, 0.12) 70%
+  );
+  --vp-home-hero-image-filter: blur(44px);
+
+  /* Brand 按钮(亮色) */
+  --vp-button-brand-text: #fff;
+  --vp-button-brand-bg: #6366f1;
+  --vp-button-brand-border: #6366f1;
+  --vp-button-brand-hover-text: #fff;
+  --vp-button-brand-hover-bg: #4f46e5;
+  --vp-button-brand-hover-border: #8b5cf6;
+  --vp-button-brand-active-border: #6366f1;
+
+  /* Alt 按钮(亮色) */
+  --vp-button-alt-text: #1f2937;
+  --vp-button-alt-bg: rgba(255, 255, 255, 0.5);
+  --vp-button-alt-border: rgba(0, 0, 0, 0.12);
+  --vp-button-alt-hover-text: #1f2937;
+  --vp-button-alt-hover-bg: rgba(255, 255, 255, 0.7);
+  --vp-button-alt-hover-border: rgba(99, 102, 241, 0.35);
+}
+
+/* 深色主题覆盖 */
+.dark {
+  --vp-c-bg: #0a0a0a;
+  --vp-c-bg-soft: #0f0f15;
+  --vp-c-bg-mute: #14141e;
+
+  /* 文字(深色) — text-3 从 0.4 提到 0.55,保证 AA 对比度 */
+  --vp-home-text-1: rgba(255, 255, 255, 0.92);
+  --vp-home-text-2: rgba(255, 255, 255, 0.72);
+  --vp-home-text-3: rgba(255, 255, 255, 0.55);
+
+  /* 卡片(深色) */
+  --vp-home-card-bg: #141420;
+  --vp-home-card-border: rgba(255, 255, 255, 0.08);
+  --vp-home-card-hover-bg: #1a1a2e;
+
+  /* Eyebrow 颜色(深色) — 亮一档,深底更醒目
+   * ✅ R5 P1-5:在 dark 背景(#0a0a14)上 #a78bfa 实测 ~6.8:1 ✅ AAA,无需改
+   *   但保留注释以说明对比度验证状态 */
+  --vp-eyebrow-color: #a78bfa;
+
+  /* 定价页(深色) */
+  --vp-pricing-text-1: rgba(255, 255, 255, 0.9);
+  --vp-pricing-text-2: rgba(255, 255, 255, 0.6);
+  --vp-pricing-text-3: rgba(255, 255, 255, 0.4);
+  --vp-pricing-bg: #141420;
+  --vp-pricing-border: rgba(255, 255, 255, 0.08);
+  --vp-pricing-badge-bg: rgba(91, 108, 247, 0.15);
+  --vp-pricing-badge-border: rgba(91, 108, 247, 0.3);
+  --vp-pricing-badge-text: #5B6CF7;
+
+  /* Alt 按钮(深色 — 玻璃拟态) */
+  --vp-button-alt-text: #fff;
+  --vp-button-alt-bg: rgba(255, 255, 255, 0.04);
+  --vp-button-alt-border: rgba(255, 255, 255, 0.12);
+  --vp-button-alt-hover-text: #fff;
+  --vp-button-alt-hover-bg: rgba(255, 255, 255, 0.08);
+  --vp-button-alt-hover-border: rgba(255, 255, 255, 0.22);
+}
+
+/* 响应式断点调整 Hero 模糊度 */
+@media (min-width: 640px) {
+  :root {
+    --vp-home-hero-image-filter: blur(56px);
+  }
+}
+
+@media (min-width: 960px) {
+  :root {
+    --vp-home-hero-image-filter: blur(72px);
+  }
+}

@@ -1,10 +1,11 @@
 from fastapi import APIRouter
 
-from app.api.v1.module_system.api_token.controller import ApiTokenRouter
 from app.api.v1.module_system.auth.controller import AuthRouter
+from app.api.v1.module_system.chat.controller import ChatRouter
 from app.api.v1.module_system.dept.controller import DeptRouter
 from app.api.v1.module_system.dict.controller import DictRouter
 from app.api.v1.module_system.log import LogRouter
+from app.api.v1.module_system.menu.controller import MenuRouter
 from app.api.v1.module_system.notice.controller import NoticeRouter
 from app.api.v1.module_system.params.controller import ParamsRouter
 from app.api.v1.module_system.position.controller import PositionRouter
@@ -16,6 +17,7 @@ from app.api.v1.module_system.versions.controller import VersionRouter
 system_router = APIRouter(prefix="/system")
 
 system_router.include_router(AuthRouter)
+system_router.include_router(ChatRouter)
 system_router.include_router(DeptRouter)
 system_router.include_router(DictRouter)
 system_router.include_router(LogRouter)
@@ -26,4 +28,4 @@ system_router.include_router(RoleRouter)
 system_router.include_router(TicketRouter)
 system_router.include_router(UserRouter)
 system_router.include_router(VersionRouter)
-system_router.include_router(ApiTokenRouter)
+system_router.include_router(MenuRouter)

@@ -38,32 +38,6 @@ class TestAuth:
             json={"refresh_token": "mock_refresh_token"},
         )
 
-    def test_auth_tenants(self, test_client: TestClient, auth_headers: dict) -> None:
-        assert_route(test_client, "GET", "/system/auth/tenants", auth=auth_headers)
-
-    def test_auth_select_tenant(self, test_client: TestClient, auth_headers: dict) -> None:
-        assert_route(
-            test_client,
-            "POST",
-            "/system/auth/select-tenant",
-            auth=auth_headers,
-            json={"tenant_id": 1},
-        )
-
-    def test_auth_tenant_register(self, test_client: TestClient) -> None:
-        assert_route(
-            test_client,
-            "POST",
-            "/system/auth/tenant/register",
-            json={"name": "测试租户", "username": "admin", "password": "admin123"},
-        )
-
-    def test_auth_auto_login_users(self, test_client: TestClient, auth_headers: dict) -> None:
-        assert_route(test_client, "GET", "/system/auth/auto-login/users", auth=auth_headers)
-
-    def test_auth_auto_login_token(self, test_client: TestClient, auth_headers: dict) -> None:
-        assert_route(test_client, "POST", "/system/auth/auto-login/token?user_id=1", auth=auth_headers)
-
 
 class TestUser:
     """用户管理接口 — 数据验证。"""
@@ -364,9 +338,6 @@ class TestDict:
     def test_dict_data_delete(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(test_client, "DELETE", "/system/dict/data/delete", auth=auth_headers, json=[9999])
 
-    def test_dict_data_export(self, test_client: TestClient, auth_headers: dict) -> None:
-        assert_route(test_client, "POST", "/system/dict/data/export", auth=auth_headers)
-
     def test_dict_data_status_batch(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
             test_client,
@@ -375,9 +346,6 @@ class TestDict:
             auth=auth_headers,
             json={"ids": [1], "status": 1},
         )
-
-    def test_dict_type_export(self, test_client: TestClient, auth_headers: dict) -> None:
-        assert_route(test_client, "POST", "/system/dict/type/export", auth=auth_headers)
 
     def test_dict_type_optionselect(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(test_client, "GET", "/system/dict/type/optionselect", auth=auth_headers)
@@ -422,23 +390,8 @@ class TestNotice:
     def test_notice_delete(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(test_client, "DELETE", "/system/notice/delete", auth=auth_headers, json=[9999])
 
-    def test_notice_unread_count(self, test_client: TestClient, auth_headers: dict) -> None:
-        assert_route(test_client, "GET", "/system/notice/unread-count", auth=auth_headers)
-
     def test_notice_available(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(test_client, "GET", "/system/notice/available", auth=auth_headers)
-
-    def test_notice_export(self, test_client: TestClient, auth_headers: dict) -> None:
-        assert_route(test_client, "POST", "/system/notice/export", auth=auth_headers)
-
-    def test_notice_panel(self, test_client: TestClient, auth_headers: dict) -> None:
-        assert_route(test_client, "GET", "/system/notice/panel", auth=auth_headers)
-
-    def test_notice_read(self, test_client: TestClient, auth_headers: dict) -> None:
-        assert_route(test_client, "POST", "/system/notice/read/1", auth=auth_headers)
-
-    def test_notice_read_all(self, test_client: TestClient, auth_headers: dict) -> None:
-        assert_route(test_client, "POST", "/system/notice/read-all", auth=auth_headers)
 
     def test_notice_status_batch(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
@@ -451,19 +404,7 @@ class TestNotice:
 
 
 class TestParams:
-    """参数管理接口 — 数据验证。"""
-
-    def test_params_list(self, test_client: TestClient, auth_headers: dict) -> None:
-        assert_route(test_client, "GET", "/system/param/list", auth=auth_headers)
-
-    def test_params_create(self, test_client: TestClient, auth_headers: dict) -> None:
-        assert_route(
-            test_client,
-            "POST",
-            "/system/param/create",
-            auth=auth_headers,
-            json={"param_name": "测试参数", "param_key": "test.key", "param_value": "val", "param_type": "string"},
-        )
+    """参数管理接口 — 数据验证（当前仅实现缓存参数信息查询与更新）。"""
 
     def test_params_update(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(
@@ -474,32 +415,8 @@ class TestParams:
             json={"param_value": "new_val"},
         )
 
-    def test_params_delete(self, test_client: TestClient, auth_headers: dict) -> None:
-        assert_route(test_client, "DELETE", "/system/param/delete", auth=auth_headers, json=[9999])
-
-    def test_params_detail(self, test_client: TestClient, auth_headers: dict) -> None:
-        assert_route(test_client, "GET", "/system/param/detail/1", auth=auth_headers)
-
-    def test_params_export(self, test_client: TestClient, auth_headers: dict) -> None:
-        assert_route(test_client, "GET", "/system/param/export", auth=auth_headers)
-
     def test_params_info(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(test_client, "GET", "/system/param/info", auth=auth_headers)
-
-    def test_params_by_key(self, test_client: TestClient, auth_headers: dict) -> None:
-        assert_route(test_client, "GET", "/system/param/key/test.key", auth=auth_headers)
-
-    def test_params_value_by_key(self, test_client: TestClient, auth_headers: dict) -> None:
-        assert_route(test_client, "GET", "/system/param/value/test.key", auth=auth_headers)
-
-    def test_params_status_batch(self, test_client: TestClient, auth_headers: dict) -> None:
-        assert_route(
-            test_client,
-            "PATCH",
-            "/system/param/status/batch",
-            auth=auth_headers,
-            json={"ids": [1], "status": 1},
-        )
 
 
 class TestLog:

@@ -40,18 +40,15 @@ async def get_workflow_node_type_detail_controller(
 async def get_workflow_node_type_list_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_task:workflow:nodes:query"]))],
     db: Annotated[AsyncSession, Depends(db_getter)],
-    page: Annotated[PaginationQueryParam, Query(description="分页参数")],
-    search: Annotated[WorkflowNodeTypeQueryParam, Query(description="查询参数")],
+    page: Annotated[PaginationQueryParam, Depends()],
+    search: Annotated[WorkflowNodeTypeQueryParam, Query()],
 ) -> JSONResponse:
-    order_by = [{"sort_order": "asc"}, {"id": "asc"}]
-    if page.order_by:
-        order_by = page.order_by
     service = WorkflowNodeTypeService(auth, db)
     result_dict = await service.get_page(
         page_no=page.page_no,
         page_size=page.page_size,
         search=search,
-        order_by=order_by,
+        order_by=page.order_by,
     )
     return SuccessResponse(data=result_dict, msg="查询节点列表成功")
 

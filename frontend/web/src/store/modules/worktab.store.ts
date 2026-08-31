@@ -40,10 +40,11 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { router } from "@/router";
-import { LocationQueryRaw, Router } from "vue-router";
-import { WorkTab } from "@/types";
+import type { LocationQueryRaw, Router } from "vue-router";
+import type { WorkTab } from "@/types/store";
+
 import { useCommon } from "@/hooks/core/useCommon";
-import { ROUTE_PATH_LOGIN_ALT } from "@/router/staticRoutes";
+import { ROUTE_PATH_LOGIN_ALT } from "@/router/routes";
 
 interface WorktabState {
   current: Partial<WorkTab>;
@@ -95,7 +96,7 @@ export const useWorktabStore = defineStore(
      */
     const safeRouterPush = (tab: Partial<WorkTab>): void => {
       if (!tab.path) {
-        console.warn("尝试跳转到无效路径的标签页");
+        if (import.meta.env.DEV) console.warn("尝试跳转到无效路径的标签页");
         return;
       }
 
@@ -105,7 +106,7 @@ export const useWorktabStore = defineStore(
           query: tab.query as LocationQueryRaw,
         });
       } catch (error) {
-        console.error("路由跳转失败:", error);
+        if (import.meta.env.DEV) console.error("路由跳转失败:", error);
       }
     };
 
@@ -127,7 +128,7 @@ export const useWorktabStore = defineStore(
      */
     const openTab = (tab: WorkTab): void => {
       if (!tab.path) {
-        console.warn("尝试打开无效的标签页");
+        if (import.meta.env.DEV) console.warn("尝试打开无效的标签页");
         return;
       }
 
@@ -194,12 +195,12 @@ export const useWorktabStore = defineStore(
       const targetIndex = findTabIndex(path);
 
       if (targetIndex === -1) {
-        console.warn(`尝试关闭不存在的标签页: ${path}`);
+        if (import.meta.env.DEV) console.warn(`尝试关闭不存在的标签页: ${path}`);
         return;
       }
 
       if (targetTab && !isTabClosable(targetTab)) {
-        console.warn(`尝试关闭固定标签页: ${path}`);
+        if (import.meta.env.DEV) console.warn(`尝试关闭固定标签页: ${path}`);
         return;
       }
 
@@ -239,7 +240,7 @@ export const useWorktabStore = defineStore(
       const targetIndex = findTabIndex(path);
 
       if (targetIndex === -1) {
-        console.warn(`尝试关闭左侧标签页，但目标标签页不存在: ${path}`);
+        if (import.meta.env.DEV) console.warn(`尝试关闭左侧标签页，但目标标签页不存在: ${path}`);
         return;
       }
 
@@ -248,7 +249,7 @@ export const useWorktabStore = defineStore(
       const closableLeftTabs = leftTabs.filter(isTabClosable);
 
       if (closableLeftTabs.length === 0) {
-        console.warn("左侧没有可关闭的标签页");
+        if (import.meta.env.DEV) console.warn("左侧没有可关闭的标签页");
         return;
       }
 
@@ -275,7 +276,7 @@ export const useWorktabStore = defineStore(
       const targetIndex = findTabIndex(path);
 
       if (targetIndex === -1) {
-        console.warn(`尝试关闭右侧标签页，但目标标签页不存在: ${path}`);
+        if (import.meta.env.DEV) console.warn(`尝试关闭右侧标签页，但目标标签页不存在: ${path}`);
         return;
       }
 
@@ -284,7 +285,7 @@ export const useWorktabStore = defineStore(
       const closableRightTabs = rightTabs.filter(isTabClosable);
 
       if (closableRightTabs.length === 0) {
-        console.warn("右侧没有可关闭的标签页");
+        if (import.meta.env.DEV) console.warn("右侧没有可关闭的标签页");
         return;
       }
 
@@ -311,7 +312,7 @@ export const useWorktabStore = defineStore(
       const targetTab = getTab(path);
 
       if (!targetTab) {
-        console.warn(`尝试关闭其他标签页，但目标标签页不存在: ${path}`);
+        if (import.meta.env.DEV) console.warn(`尝试关闭其他标签页，但目标标签页不存在: ${path}`);
         return;
       }
 
@@ -320,7 +321,7 @@ export const useWorktabStore = defineStore(
       const closableTabs = otherTabs.filter(isTabClosable);
 
       if (closableTabs.length === 0) {
-        console.warn("没有其他可关闭的标签页");
+        if (import.meta.env.DEV) console.warn("没有其他可关闭的标签页");
         return;
       }
 
@@ -350,7 +351,7 @@ export const useWorktabStore = defineStore(
       });
 
       if (closableTabs.length === 0) {
-        console.warn("没有可关闭的标签页");
+        if (import.meta.env.DEV) console.warn("没有可关闭的标签页");
         return;
       }
 
@@ -432,7 +433,7 @@ export const useWorktabStore = defineStore(
       const targetIndex = findTabIndex(path);
 
       if (targetIndex === -1) {
-        console.warn(`尝试切换不存在标签页的固定状态: ${path}`);
+        if (import.meta.env.DEV) console.warn(`尝试切换不存在标签页的固定状态: ${path}`);
         return;
       }
 
@@ -464,12 +465,12 @@ export const useWorktabStore = defineStore(
      */
     const validateWorktabs = (routerInstance: Router): void => {
       try {
+        const allRoutes = routerInstance.getRoutes(); // 只调用一次，避免在循环中重复拷贝
         // 动态路由校验：优先使用路由 name 判断有效性；否则用 resolve 匹配参数化路径
         const isTabRouteValid = (tab: Partial<WorkTab>): boolean => {
           try {
             if (tab.name) {
-              const routes = routerInstance.getRoutes();
-              if (routes.some((r) => r.name === tab.name)) return true;
+              if (allRoutes.some((r) => r.name === tab.name)) return true;
             }
             if (tab.path) {
               const resolved = routerInstance.resolve({
@@ -494,7 +495,7 @@ export const useWorktabStore = defineStore(
         );
 
         if (validTabs.length !== opened.value.length) {
-          console.warn("发现无效的标签页路由，已自动清理");
+          if (import.meta.env.DEV) console.warn("发现无效的标签页路由，已自动清理");
           const validPaths = new Set(validTabs.map((t) => t.path));
           // 未走 removeTab 批量剔除的标签：须同步 exclude；同名多标签时仅最后一条删尽才 exclude
           for (const tab of opened.value) {
@@ -510,23 +511,31 @@ export const useWorktabStore = defineStore(
           current.value && isTabRouteValid(current.value) && !isLoginWorktab(current.value);
 
         if (!isCurrentValid && validTabs.length > 0) {
-          console.warn("当前激活标签无效，已自动切换");
+          if (import.meta.env.DEV) console.warn("当前激活标签无效，已自动切换");
           const firstValid = validTabs[0];
           if (firstValid) current.value = firstValid;
         } else if (!isCurrentValid) {
           current.value = {};
         }
       } catch (error) {
-        console.error("验证工作台标签页失败:", error);
+        if (import.meta.env.DEV) console.error("验证工作台标签页失败:", error);
       }
     };
 
     /**
      * 清空所有状态（用于登出等场景）
+     *
+     * 保留固定标签页（fixedTab: true），登出后重新登录时首页等常驻标签依然存在。
      */
     const clearAll = (): void => {
-      current.value = {};
-      opened.value = [];
+      const fixedTabs = opened.value.filter((tab) => tab.fixedTab);
+      if (fixedTabs.length > 0) {
+        opened.value = fixedTabs;
+        current.value = { ...fixedTabs[0] };
+      } else {
+        current.value = {};
+        opened.value = [];
+      }
       keepAliveExclude.value = [];
     };
 

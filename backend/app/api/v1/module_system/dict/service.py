@@ -13,7 +13,6 @@ from app.core.exceptions import CustomException
 from app.core.logger import logger
 from app.core.redis_crud import RedisCURD
 from app.utils.common_util import search_to_dict
-from app.utils.excel_util import ExcelUtil
 
 from .crud import DictDataCRUD, DictTypeCRUD
 from .schema import (
@@ -113,7 +112,7 @@ class DictTypeService:
 
         new_obj_dict = DictTypeOutSchema.model_validate(obj)
 
-        redis_key = f"{RedisInitKeyConfig.SYSTEM_DICT.key}:{self.auth.user.tenant_id}:{data.dict_type}"
+        redis_key = f"{RedisInitKeyConfig.SYSTEM_DICT.key}:1:{data.dict_type}"
 
         try:
             await RedisCURD(redis).set(
@@ -166,7 +165,7 @@ class DictTypeService:
 
         new_obj_dict = DictTypeOutSchema.model_validate(obj)
 
-        redis_key = f"{RedisInitKeyConfig.SYSTEM_DICT.key}:{self.auth.user.tenant_id}:{data.dict_type}"
+        redis_key = f"{RedisInitKeyConfig.SYSTEM_DICT.key}:1:{data.dict_type}"
         try:
             # 获取当前字典类型的所有字典数据，确保包含最新状态
             dict_data_list = await DictDataCRUD(self.auth, self.db).get_list(search={"dict_type": data.dict_type})
@@ -214,7 +213,7 @@ class DictTypeService:
         # 验证通过后统一删除 Redis 缓存
         existing_dict_types = {obj.dict_type for obj in existing if obj.id in ids}
         for dt in existing_dict_types:
-            redis_key = f"{RedisInitKeyConfig.SYSTEM_DICT.key}:{self.auth.user.tenant_id}:{dt}"
+            redis_key = f"{RedisInitKeyConfig.SYSTEM_DICT.key}:1:{dt}"
             try:
                 await RedisCURD(redis).delete(redis_key)
                 logger.info(f"删除字典类型缓存: {dt}")
@@ -233,37 +232,6 @@ class DictTypeService:
         - None
         """
         await DictTypeCRUD(self.auth, self.db).set(ids=data.ids, status=data.status)
-
-    @staticmethod
-    def export(data_list: list[dict]) -> bytes:
-        """导出数据字典类型列表（无状态工具方法）
-
-        参数:
-        - data_list (list[dict]): 数据字典类型列表
-
-        返回:
-        - bytes: Excel文件字节流
-        """
-        mapping_dict = {
-            "id": "编号",
-            "dict_name": "字典名称",
-            "dict_type": "字典类型",
-            "status": "状态",
-            "description": "备注",
-            "created_time": "创建时间",
-            "updated_time": "更新时间",
-            "created_id": "创建者ID",
-            "updated_id": "更新者ID",
-        }
-
-        # 复制数据并转换状态
-        data = data_list.copy()
-        for item in data:
-            # 处理状态
-            item["status"] = "启用" if item.get("status") == 0 else "停用"
-
-        return ExcelUtil.export_list2excel(list_data=data, mapping_dict=mapping_dict)
-
 
 class DictDataService:
     """字典数据管理服务
@@ -343,7 +311,7 @@ class DictDataService:
         """
         try:
             async with async_db_session() as session, session.begin():
-                init_auth = AuthSchema(check_data_scope=False)
+                init_auth = AuthSchema()
                 obj_list = await DictTypeCRUD(init_auth, session).get_list()
                 if not obj_list:
                     logger.warning("未找到任何字典类型数据")
@@ -351,11 +319,10 @@ class DictDataService:
 
                 for obj in obj_list:
                     dict_type = obj.dict_type
-                    tenant_id = obj.tenant_id
                     try:
-                        dict_data_list = await DictDataCRUD(init_auth, session).get_list(search={"dict_type": dict_type, "tenant_id": tenant_id})
+                        dict_data_list = await DictDataCRUD(init_auth, session).get_list(search={"dict_type": dict_type})
                         dict_data = [DictDataOutSchema.model_validate(row).model_dump(mode="json") for row in dict_data_list if row]
-                        redis_key = f"{RedisInitKeyConfig.SYSTEM_DICT.key}:{tenant_id}:{dict_type}"
+                        redis_key = f"{RedisInitKeyConfig.SYSTEM_DICT.key}:1:{dict_type}"
                         value = json.dumps(dict_data, ensure_ascii=False)
                         await RedisCURD(redis).set(
                             key=redis_key,
@@ -366,17 +333,16 @@ class DictDataService:
                         logger.error(f"❌ 初始化字典数据失败 [{dict_type}]: {e}")
 
         except Exception as e:
-            logger.error(f"字典初始化过程发生错误: {e}")
+            logger.error(f"❌️ 字典初始化过程发生错误: {e}")
             raise CustomException(msg="字典数据初始化失败") from e
 
     @staticmethod
-    async def get_init_cache(redis: Redis, dict_type: str, tenant_id: int = 1) -> list[dict]:
+    async def get_init_cache(redis: Redis, dict_type: str) -> list[dict]:
         """从缓存获取字典数据列表信息（无 auth）。
 
         参数:
         - redis (Redis): Redis客户端
         - dict_type (str): 字典类型
-        - tenant_id (int): 租户ID
 
         返回:
         - list[dict]: 字典数据列表
@@ -394,7 +360,7 @@ class DictDataService:
                 return None
 
         try:
-            redis_key = f"{RedisInitKeyConfig.SYSTEM_DICT.key}:{tenant_id}:{dict_type}"
+            redis_key = f"{RedisInitKeyConfig.SYSTEM_DICT.key}:1:{dict_type}"
             obj_list_dict = await RedisCURD(redis).get(redis_key)
 
             result = _parse(obj_list_dict)
@@ -425,7 +391,7 @@ class DictDataService:
         - redis (Redis): Redis 客户端
         - dict_type (str): 字典类型
         """
-        redis_key = f"{RedisInitKeyConfig.SYSTEM_DICT.key}:{self.auth.user.tenant_id}:{dict_type}"
+        redis_key = f"{RedisInitKeyConfig.SYSTEM_DICT.key}:1:{dict_type}"
         dict_data_list = await DictDataCRUD(self.auth, self.db).get_list(search={"dict_type": dict_type})
         dict_data = [DictDataOutSchema.model_validate(row).model_dump(mode="json") for row in dict_data_list if row]
         value = json.dumps(dict_data, ensure_ascii=False)
@@ -555,38 +521,3 @@ class DictDataService:
         - None
         """
         await DictDataCRUD(self.auth, self.db).set(ids=data.ids, status=data.status)
-
-    @staticmethod
-    def export(data_list: list[dict]) -> bytes:
-        """导出数据字典数据列表（无状态工具方法）
-
-        参数:
-        - data_list (list[dict]): 数据字典数据列表
-
-        返回:
-        - bytes: Excel文件字节流
-        """
-        mapping_dict = {
-            "id": "编号",
-            "dict_type": "字典类型",
-            "dict_label": "字典标签",
-            "dict_value": "字典键值",
-            "dict_sort": "字典排序",
-            "status": "状态",
-            "description": "备注",
-            "created_time": "创建时间",
-            "updated_time": "更新时间",
-            "created_id": "创建者ID",
-            "updated_id": "更新者ID",
-        }
-
-        # 复制数据并转换状态
-        data = data_list.copy()
-        for item in data:
-            item["status"] = "启用" if item.get("status") == 0 else "停用"
-            if item.get("is_default") is True:
-                item["is_default"] = "是"
-            else:
-                item["is_default"] = "否"
-
-        return ExcelUtil.export_list2excel(list_data=data, mapping_dict=mapping_dict)

@@ -6,7 +6,7 @@
       <div class="w-md mr-5 max-md:w-full max-md:mr-0">
         <div class="fa-card-sm relative p-9 pb-6 overflow-hidden text-center">
           <img
-            class="absolute top-0 left-0 w-full h-60 object-cover"
+            class="absolute top-0 left-0 w-full h-50 object-cover"
             src="@imgs/user/bg.webp"
             alt=""
           />
@@ -57,10 +57,6 @@
           </p>
 
           <div class="relative z-10 w-75 mx-auto mt-7.5 text-left">
-            <div class="mt-2.5 flex items-start">
-              <FaSvgIcon icon="ri:shield-user-line" class="text-g-700 shrink-0 mt-0.5" />
-              <span class="ml-2 text-sm">{{ infoFormState.tenant_by?.name || "—" }}</span>
-            </div>
             <div class="mt-2.5 flex items-start">
               <FaSvgIcon icon="ri:user-3-line" class="text-g-700 shrink-0 mt-0.5" />
               <span class="ml-2 text-sm">{{ infoFormState.username || "—" }}</span>
@@ -242,12 +238,43 @@
               </ElButton>
             </div>
           </ElForm>
+        </div>
 
-          <div class="px-5 pb-4">
-            <ElButton text size="small" @click="router.push('/module_system/log')">
-              <FaSvgIcon icon="ri:history-line" class="mr-1" />查看登录日志
-            </ElButton>
+        <div class="fa-card-sm my-5">
+          <h1 class="p-4 text-xl font-normal border-b border-g-300">登录会话</h1>
+
+          <div v-if="loadingSessions" class="flex justify-center py-6">
+            <ElIcon class="is-loading" :size="20">
+              <Loading />
+            </ElIcon>
           </div>
+
+          <div v-else-if="currentSessions.length === 0" class="p-5 text-sm text-g-400 text-center">
+            暂无活跃会话
+          </div>
+
+          <ElTable v-else :data="currentSessions" stripe class="p-4" size="small">
+            <ElTableColumn type="index" label="#" width="50" />
+            <ElTableColumn label="浏览器" min-width="110">
+              <template #default="{ row }">
+                <FaSvgIcon :icon="getBrowserIcon(row.browser)" class="mr-1" />{{
+                  row.browser || "—"
+                }}
+              </template>
+            </ElTableColumn>
+            <ElTableColumn label="操作系统" min-width="110">
+              <template #default="{ row }">
+                <FaSvgIcon :icon="getOsIcon(row.os)" class="mr-1" />{{ row.os || "—" }}
+              </template>
+            </ElTableColumn>
+            <ElTableColumn prop="ipaddr" label="IP 地址" min-width="130" />
+            <ElTableColumn prop="login_location" label="登录位置" min-width="120" />
+            <ElTableColumn label="登录时间" min-width="160">
+              <template #default="{ row }">
+                {{ row.login_time ? formatDate(row.login_time) : "—" }}
+              </template>
+            </ElTableColumn>
+          </ElTable>
         </div>
 
         <div class="fa-card-sm my-5">
@@ -310,17 +337,17 @@
 import type { FormInstance, UploadRequestOptions, UploadFile } from "element-plus";
 import type { ElUpload } from "element-plus";
 import UserAPI, { type InfoFormState, type PasswordFormState } from "@/api/module_system/user";
+import OnlineAPI from "@/api/module_monitor/online";
+import type { OnlineUserTable } from "@/api/module_monitor/online";
 import { useUserStore, useDictStore } from "@stores";
-import { Camera } from "@element-plus/icons-vue";
+import { Camera, Loading } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 import { useI18n } from "vue-i18n";
-import { useRouter } from "vue-router";
 import { redirectToLogin, dataURLToFile } from "@utils";
 
 defineOptions({ name: "UserProfile" });
 
 const { t } = useI18n();
-const router = useRouter();
 const userStore = useUserStore();
 const dictStore = useDictStore();
 const infoFormRef = ref<FormInstance>();
@@ -341,6 +368,45 @@ const roleTagList = computed(() =>
     .map((r) => r.name)
     .filter((n): n is string => !!n && n.trim().length > 0)
 );
+
+const currentSessions = ref<OnlineUserTable[]>([]);
+const loadingSessions = ref(false);
+
+function getBrowserIcon(browser?: string): string {
+  if (!browser) return "ri:question-line";
+  const lower = browser.toLowerCase();
+  if (lower.includes("chrome")) return "ri:chrome-fill";
+  if (lower.includes("firefox") || lower.includes("mozilla")) return "ri:firefox-fill";
+  if (lower.includes("safari")) return "ri:safari-fill";
+  if (lower.includes("edge")) return "ri:edge-fill";
+  if (lower.includes("opera")) return "ri:opera-fill";
+  return "ri:earth-line";
+}
+
+function getOsIcon(os?: string): string {
+  if (!os) return "ri:question-line";
+  const lower = os.toLowerCase();
+  if (lower.includes("windows")) return "ri:windows-fill";
+  if (lower.includes("mac") || lower.includes("darwin")) return "ri:apple-fill";
+  if (lower.includes("linux")) return "ri:linux-fill";
+  if (lower.includes("android")) return "ri:android-fill";
+  if (lower.includes("ios")) return "ri:apple-fill";
+  return "ri:computer-line";
+}
+
+async function fetchCurrentSessions() {
+  loadingSessions.value = true;
+  try {
+    const response = await OnlineAPI.listCurrentOnline();
+    if (response.data.code === 0) {
+      currentSessions.value = response.data.data ?? [];
+    }
+  } catch {
+    // ignore
+  } finally {
+    loadingSessions.value = false;
+  }
+}
 
 const hasThirdPartyBindings = computed(
   () =>
@@ -380,7 +446,6 @@ const infoFormState = reactive<InfoFormState>({
   updated_time: undefined,
   description: undefined,
   status: undefined,
-  tenant_by: undefined,
   github_login: undefined,
   gitee_login: undefined,
   wx_login: undefined,
@@ -398,6 +463,7 @@ const uploadRef = ref<InstanceType<typeof ElUpload>>();
 
 const avatarCropVisible = ref(false);
 const avatarCropSrc = ref("");
+const avatarCropName = ref("");
 
 function revokeAvatarCropSrc() {
   if (avatarCropSrc.value.startsWith("blob:")) {
@@ -416,7 +482,7 @@ function onAvatarCropImgError() {
 
 async function onAvatarCropConfirm(dataURL: string) {
   try {
-    const file = dataURLToFile(dataURL, "avatar.jpg");
+    const file = dataURLToFile(dataURL, avatarCropName.value);
     const formData = new FormData();
     formData.append("file", file);
     const response = await UserAPI.uploadCurrentUserAvatar(formData);
@@ -599,8 +665,18 @@ const handleAvatarFileChange = (file: UploadFile) => {
     fileList.value = [];
     return;
   }
+
+  const raw = file.raw;
+  avatarCropName.value = raw.name;
+
+  // 非 canvas 兼容格式（如 svg），跳过裁剪直接上传原文件
+  if (raw.type !== "image/png" && raw.type !== "image/jpeg" && raw.type !== "image/webp") {
+    uploadRef.value?.submit();
+    return;
+  }
+
   revokeAvatarCropSrc();
-  avatarCropSrc.value = URL.createObjectURL(file.raw);
+  avatarCropSrc.value = URL.createObjectURL(raw);
   avatarCropVisible.value = true;
   uploadRef.value?.clearFiles();
   fileList.value = [];
@@ -685,6 +761,7 @@ onMounted(async () => {
   refreshGreeting();
   await getOptions();
   initInfoForm();
+  await fetchCurrentSessions();
 });
 </script>
 

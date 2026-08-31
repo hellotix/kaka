@@ -7,7 +7,7 @@
     dialog-class="create-table-dialog"
     @opened="onDialogOpened"
   >
-    <ElAlert type="info" :closable="false" show-icon class="mb-3 items-start!">
+    <ElAlert type="info" :closable="false" show-icon class="mb-3">
       <template #title>
         <span class="text-sm leading-relaxed"
           >自带示例一键插入；会写 DDL 的可直接粘贴，支持多条语句。</span
@@ -15,7 +15,7 @@
       </template>
     </ElAlert>
 
-    <div class="sql-pane">
+    <div class="sql-pane mt-3">
       <div class="mb-2 flex flex-wrap items-center gap-2">
         <ElDropdown trigger="click" @command="onSqlPresetCommand">
           <ElButton type="primary" size="small">
@@ -77,6 +77,7 @@ import {
   getExampleFromPresetMasterSub,
   getExampleFromPresetSingle,
 } from "../utils/createTableSqlExamples";
+import FaDialog from "@/components/modal/fa-dialog/index.vue";
 
 defineOptions({ name: "CreateTableDialog" });
 
@@ -167,9 +168,3 @@ function handleCancel() {
   visible.value = false;
 }
 </script>
-
-<style scoped lang="scss">
-.sql-pane {
-  position: relative;
-}
-</style>

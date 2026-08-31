@@ -14,6 +14,7 @@
       :disabled-search="false"
       :default-expanded="false"
       include-audit
+      :audit-item-options="{ showCreatedBy: false, showUpdatedBy: false }"
       @search="handleSearchBarSearch"
       @reset="onResetSearch"
     />
@@ -30,10 +31,10 @@
         @refresh="refreshJobList"
       >
         <template #left>
-          <div class="scheduler-inline">
-            <div class="scheduler-metrics">
-              <div class="scheduler-metric">
-                <span class="scheduler-metric__label">调度器</span>
+          <div class="flex flex-wrap gap-1 items-center">
+            <div class="flex gap-1 items-center">
+              <div class="flex items-center gap-1 whitespace-nowrap">
+                <span class="text-xs text-(--el-text-color-secondary)">调度器</span>
                 <ElTag
                   :type="getSchedulerStatusType(schedulerStatus.status)"
                   size="small"
@@ -43,8 +44,8 @@
                 </ElTag>
               </div>
               <ElDivider direction="vertical" />
-              <div class="scheduler-metric">
-                <span class="scheduler-metric__label">运行中</span>
+              <div class="flex items-center gap-1 whitespace-nowrap">
+                <span class="text-xs text-(--el-text-color-secondary)">运行中</span>
                 <ElTag
                   :type="schedulerStatus.is_running ? 'success' : 'info'"
                   size="small"
@@ -54,17 +55,19 @@
                 </ElTag>
               </div>
               <ElDivider direction="vertical" />
-              <div class="scheduler-metric">
-                <span class="scheduler-metric__label">任务</span>
-                <span class="scheduler-metric__count">{{ schedulerStatus.job_count }}</span>
+              <div class="flex items-center gap-1 whitespace-nowrap">
+                <span class="text-xs text-(--el-text-color-secondary)">任务</span>
+                <span class="text-sm font-bold text-(--el-color-warning)">{{
+                  schedulerStatus.job_count
+                }}</span>
               </div>
             </div>
             <ElDivider direction="vertical" />
-            <div class="scheduler-actions">
+            <div class="flex flex-wrap gap-1 items-center">
               <ElButton
                 v-hasPerm="['module_task:cronjob:job:scheduler']"
                 type="success"
-                icon="VideoPlay"
+                :icon="VideoPlay"
                 :disabled="schedulerStatus.status !== '停止'"
                 size="small"
                 @click="handleStartScheduler"
@@ -74,7 +77,7 @@
               <ElButton
                 v-hasPerm="['module_task:cronjob:job:scheduler']"
                 type="warning"
-                icon="VideoPause"
+                :icon="VideoPause"
                 :disabled="schedulerStatus.status !== '运行中'"
                 size="small"
                 @click="handlePauseScheduler"
@@ -84,7 +87,7 @@
               <ElButton
                 v-hasPerm="['module_task:cronjob:job:scheduler']"
                 type="primary"
-                icon="RefreshRight"
+                :icon="RefreshRight"
                 :disabled="schedulerStatus.status !== '暂停'"
                 size="small"
                 @click="handleResumeScheduler"
@@ -94,7 +97,7 @@
               <ElButton
                 v-hasPerm="['module_task:cronjob:job:scheduler']"
                 type="danger"
-                icon="SwitchButton"
+                :icon="SwitchButton"
                 :disabled="schedulerStatus.status === '停止'"
                 size="small"
                 @click="handleShutdownScheduler"
@@ -105,7 +108,7 @@
               <ElButton
                 v-hasPerm="['module_task:cronjob:job:task']"
                 type="danger"
-                icon="Delete"
+                :icon="Delete"
                 :disabled="schedulerStatus.job_count === 0"
                 size="small"
                 plain
@@ -116,21 +119,11 @@
               <ElButton
                 v-hasPerm="['module_task:cronjob:job:query']"
                 type="info"
-                icon="Monitor"
+                :icon="Monitor"
                 size="small"
                 @click="handleOpenConsole"
               >
                 控制台
-              </ElButton>
-              <ElButton
-                v-hasPerm="['module_task:cronjob:job:scheduler']"
-                type="primary"
-                icon="Refresh"
-                size="small"
-                plain
-                @click="handleSyncJobs"
-              >
-                同步
               </ElButton>
             </div>
           </div>
@@ -138,14 +131,10 @@
       </FaTableHeader>
 
       <!-- 卡片骨架：初始加载时显示 -->
-      <ElSkeleton
-        v-if="jobLoading && (!jobList || jobList.length === 0)"
-        animated
-        class="job-skeleton"
-      >
+      <ElSkeleton v-if="jobLoading && (!jobList || jobList.length === 0)" animated class="mt-3">
         <template #template>
-          <div class="job-skeleton-grid">
-            <div v-for="i in 12" :key="i" class="job-skeleton-card">
+          <div class="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4">
+            <div v-for="i in 12" :key="i" class="h-50">
               <ElSkeletonItem
                 variant="rect"
                 style="width: 100%; height: 100%; border-radius: var(--custom-radius)"
@@ -169,23 +158,25 @@
             :sm="12"
             :md="6"
             :lg="4"
-            class="job-card-col"
+            class="mb-4"
           >
-            <ElCard shadow="hover" :class="`job-card job-card--${getJobStatusClass(job.status)}`">
+            <ElCard shadow="hover" :class="`fa-card job-card job-card--${getJobStatusClass(job.status)}`">
               <template #header>
                 <div class="job-card-title">
                   <span
                     class="job-card-dot"
                     :class="`job-card-dot--${getJobStatusClass(job.status)}`"
                   />
-                  <span class="job-card-name" :title="job.name">{{ job.name }}</span>
+                  <ElTooltip :content="job.name" placement="top">
+                    <span class="job-card-name">{{ job.name }}</span>
+                  </ElTooltip>
                   <ElTag :type="getJobStatusType(job.status)" size="small" effect="dark">
                     {{ getJobStatusLabel(job.status) }}
                   </ElTag>
                 </div>
               </template>
 
-              <div class="job-card-body">
+              <div class="job-card-body cursor-pointer" @click="handleOpenExecutionLogDrawer(job)">
                 <div class="job-card-body-row">
                   <FaSvgIcon :icon="getTriggerIcon(job.trigger)" class="job-card-meta-icon" />
                   <span class="job-card-meta-text">{{ formatTrigger(job.trigger) }}</span>
@@ -205,7 +196,7 @@
                       size="small"
                       plain
                       class="w-full"
-                      :icon="job.status === 1 ? 'VideoPlay' : 'VideoPause'"
+                      :icon="job.status === 1 ? VideoPlay : VideoPause"
                       :disabled="job.status !== 1 && job.status !== 0"
                       @click="job.status === 1 ? handleResumeJob(job.id) : handlePauseJob(job.id)"
                     >
@@ -219,7 +210,7 @@
                       size="small"
                       plain
                       class="w-full"
-                      icon="CaretRight"
+                      :icon="CaretRight"
                       :disabled="job.status === 2 || job.status === 3"
                       @click="handleRunJobNow(job.id)"
                     >
@@ -228,15 +219,16 @@
                   </ElCol>
                   <ElCol :span="6">
                     <ElButton
-                      v-hasPerm="['module_task:cronjob:job:query']"
-                      type="info"
+                      v-hasPerm="['module_task:cronjob:job:task']"
+                      type="primary"
                       size="small"
                       plain
                       class="w-full"
-                      icon="List"
-                      @click="handleOpenExecutionLogDrawer(job)"
+                      :icon="Edit"
+                      :disabled="job.status === 3"
+                      @click="handleOpenModifyDialog(job)"
                     >
-                      记录
+                      编辑
                     </ElButton>
                   </ElCol>
                   <ElCol :span="6">
@@ -246,9 +238,9 @@
                       size="small"
                       plain
                       class="w-full"
-                      icon="Close"
+                      :icon="Close"
                       :disabled="job.status === 3"
-                      @click="handleRemoveJob(job.id)"
+                      @click="handleRemoveJob(job.id, job.name)"
                     >
                       移除
                     </ElButton>
@@ -273,7 +265,7 @@
     </FaDialog>
 
     <FaDrawer v-model="executionLogDrawerVisible" title="执行记录" direction="rtl" size="80%">
-      <div class="execution-log-drawer flex flex-col min-h-0">
+      <div class="flex flex-col min-h-0 h-full">
         <FaSearchBar
           ref="logSearchBarRef"
           v-model="logSearchForm"
@@ -288,7 +280,7 @@
           @search="handleLogSearchBarSearch"
           @reset="onLogResetSearch"
         />
-        <ElCard class="fa-table-card log-table-card mt-3 flex flex-1 min-h-0 flex-col">
+        <ElCard class="fa-table-card mt-3 flex flex-1 min-h-0 flex-col">
           <FaTableHeader
             v-model:columns="logColumnChecks"
             layout="search,refresh"
@@ -326,6 +318,53 @@
         <ElButton type="primary" @click="jobStateVisible = false">关闭</ElButton>
       </template>
     </FaDialog>
+
+    <!-- 修改任务弹窗 -->
+    <FaDialog
+      v-model="modifyDialog.visible"
+      :title="`修改任务 - ${modifyDialog.jobName}`"
+      width="480px"
+      :confirm-loading="modifyDialog.loading"
+      @confirm="handleModifyJob"
+      @close="modifyDialog.visible = false"
+    >
+      <ElForm :model="modifyForm" label-width="100px" label-suffix=":">
+        <ElFormItem label="任务名称">
+          <ElInput v-model="modifyForm.name" placeholder="请输入任务名称" />
+        </ElFormItem>
+        <ElFormItem label="合并运行">
+          <ElRadioGroup v-model="modifyForm.coalesce">
+            <ElRadio :value="true">是</ElRadio>
+            <ElRadio :value="false">否</ElRadio>
+          </ElRadioGroup>
+        </ElFormItem>
+        <ElFormItem label="最大实例数">
+          <ElInputNumber
+            v-model="modifyForm.max_instances"
+            :min="1"
+            :max="10"
+            controls-position="right"
+            style="width: 100%"
+          />
+        </ElFormItem>
+      </ElForm>
+    </FaDialog>
+
+    <!-- 执行记录详情弹窗 -->
+    <FaDialog
+      v-model="logDetailDialog.visible"
+      title="执行记录详情"
+      width="720px"
+      form-mode="detail"
+      @close="logDetailDialog.visible = false"
+    >
+      <FaDescriptions
+        :column="4"
+        :data="logDetailFormData"
+        :items="logDetailItems"
+        max-height="70vh"
+      />
+    </FaDialog>
   </div>
 </template>
 
@@ -338,15 +377,27 @@ defineOptions({
 import JobAPI, { SchedulerStatus, SchedulerJob, JobLogTable } from "@/api/module_task/cronjob/job";
 import type { SearchFormItem } from "@/components/forms/fa-search-bar/index.vue";
 import type FaSearchBar from "@/components/forms/fa-search-bar/index.vue";
-import { useTable } from "@/hooks/core/useTable";
-import type { ColumnOption } from "@/types/component";
-import { ElButton, ElDivider, ElMessageBox } from "element-plus";
-import { useAuth } from "@/hooks/core/useAuth";
-import { renderTableOperationCell, type TableOperationAction } from "@/utils/table";
+import FaTableHeader from "@/components/tables/fa-table-header/index.vue";
+import FaTable from "@/components/tables/fa-table/index.vue";
+import FaDialog from "@/components/modal/fa-dialog/index.vue";
+import FaDrawer from "@/components/modal/fa-drawer/index.vue";
+import { ElMessageBox } from "element-plus";
+import {
+  VideoPlay,
+  VideoPause,
+  RefreshRight,
+  SwitchButton,
+  Delete,
+  Monitor,
+  CaretRight,
+  Edit,
+  Close,
+} from "@element-plus/icons-vue";
+import type { TableOperationAction } from "@/utils/table";
+import { renderTableOperationCell } from "@utils";
 import { computed, h, nextTick, onMounted, ref } from "vue";
 import { Terminal, TerminalApi } from "vue-web-terminal";
-
-const { hasAuth } = useAuth();
+import type { ColumnOption } from "@/types/component";
 
 const schedulerStatus = ref<SchedulerStatus>({
   status: "未知",
@@ -399,7 +450,7 @@ async function loadSchedulerStatus() {
     const statusRes = await JobAPI.getSchedulerStatus();
     schedulerStatus.value = statusRes.data.data;
   } catch (error: unknown) {
-    console.error(error);
+    if (import.meta.env.DEV) console.error(error);
   }
 }
 
@@ -436,7 +487,7 @@ async function fetchSchedulerJobs() {
     });
     await loadSchedulerStatus();
   } catch (error: unknown) {
-    console.error(error);
+    if (import.meta.env.DEV) console.error(error);
     jobList.value = [];
   } finally {
     jobLoading.value = false;
@@ -465,18 +516,26 @@ onMounted(() => {
 type LogSearchForm = {
   status?: number;
   trigger_type?: string;
+  created_time?: string[];
+  updated_time?: string[];
 };
 
 function buildLogReplaceParams(u: LogSearchForm): Record<string, unknown> {
   return {
     status: u.status,
     trigger_type: u.trigger_type,
+    created_time:
+      Array.isArray(u.created_time) && u.created_time.length === 2 ? u.created_time : undefined,
+    updated_time:
+      Array.isArray(u.updated_time) && u.updated_time.length === 2 ? u.updated_time : undefined,
   };
 }
 
 const logSearchForm = ref<LogSearchForm>({
   status: undefined,
   trigger_type: undefined,
+  created_time: undefined,
+  updated_time: undefined,
 });
 
 const logSearchBarRef = ref<InstanceType<typeof FaSearchBar> | null>(null);
@@ -523,14 +582,21 @@ const currentLogJobId = ref<string | undefined>(undefined);
 function buildLogRowActions(row: JobLogTable): TableOperationAction[] {
   const all: TableOperationAction[] = [
     {
+      key: "detail",
+      label: "详情",
+      artType: "view",
+      perm: "module_task:cronjob:job:detail",
+      run: () => handleOpenLogDetail(row),
+    },
+    {
       key: "delete",
       label: "删除",
       artType: "delete",
       perm: "module_task:cronjob:job:delete",
-      run: () => deleteLogRow(row.id),
+      run: () => deleteLogRow(row.id, String(row?.job_name ?? row?.id ?? "")),
     },
   ];
-  return all.filter((a) => a.perm != null && hasAuth(a.perm));
+  return all;
 }
 
 function formatLogOperationCell(row: JobLogTable) {
@@ -646,12 +712,14 @@ const {
         prop: "created_time",
         label: "创建时间",
         minWidth: 160,
+        sortable: true,
         showOverflowTooltip: true,
       },
       {
         prop: "updated_time",
         label: "更新时间",
         minWidth: 160,
+        sortable: true,
         showOverflowTooltip: true,
       },
       {
@@ -666,14 +734,10 @@ const {
   },
 });
 
-async function deleteLogRow(id: number | undefined) {
+async function deleteLogRow(id: number | undefined, name: string | number) {
   if (id == null) return;
   try {
-    await ElMessageBox.confirm("确认删除该执行记录？", "警告", {
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-      type: "warning",
-    });
+    await confirmDelete(`确定删除执行记录「${name}」吗？`);
     await JobAPI.deleteJobLog([id]);
     logfaTableRef.value?.elTableRef?.clearSelection();
     await refreshLogRemove();
@@ -686,11 +750,10 @@ async function handleLogBatchDelete() {
   const ids = logSelectedIds.value;
   if (ids.length === 0) return;
   try {
-    await ElMessageBox.confirm("确认删除选中的执行记录？", "批量删除", {
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-      type: "warning",
-    });
+    await confirmBatchDelete(
+      ids.length,
+      logSelectedRows.value.map((r) => String(r?.job_name ?? r?.id ?? ""))
+    );
     logBatchDeleting.value = true;
     await JobAPI.deleteJobLog(ids);
     logSelectedRows.value = [];
@@ -724,18 +787,20 @@ async function handleLogSearchBarSearch(params: LogSearchForm) {
     ...buildLogReplaceParams(params),
     job_id: currentLogJobId.value,
   });
-  getLogData();
+  await getLogData();
 }
 
 async function onLogResetSearch() {
   logSearchForm.value = {
     status: undefined,
     trigger_type: undefined,
+    created_time: undefined,
+    updated_time: undefined,
   };
   await resetLogSearchParams();
   if (currentLogJobId.value) {
     replaceLogSearchParams({ job_id: currentLogJobId.value });
-    getLogData();
+    await getLogData();
   }
 }
 
@@ -744,6 +809,70 @@ const consoleVisible = ref(false);
 const executionLogDrawerVisible = ref(false);
 const jobStateVisible = ref(false);
 const jobStateData = ref<any>(null);
+
+// ─── 修改任务弹窗 ───
+const modifyDialog = reactive({
+  visible: false,
+  loading: false,
+  jobId: "",
+  jobName: "",
+});
+const modifyForm = reactive({
+  name: "",
+  coalesce: true,
+  max_instances: 5,
+});
+
+function handleOpenModifyDialog(job: SchedulerJob) {
+  modifyDialog.jobId = job.id;
+  modifyDialog.jobName = job.name;
+  modifyForm.name = job.name;
+  modifyForm.coalesce = true;
+  modifyForm.max_instances = 5;
+  modifyDialog.visible = true;
+}
+
+async function handleModifyJob() {
+  modifyDialog.loading = true;
+  try {
+    await JobAPI.modifyJob(modifyDialog.jobId, { ...modifyForm });
+    modifyDialog.visible = false;
+    await refreshJobList();
+  } catch {
+    /* 已由全局拦截器提示 */
+  } finally {
+    modifyDialog.loading = false;
+  }
+}
+
+// ─── 执行记录详情弹窗 ───
+const logDetailDialog = reactive({
+  visible: false,
+});
+const logDetailFormData = ref<JobLogTable>({} as JobLogTable);
+
+const logDetailItems: import("@/components/display/fa-descriptions/index.vue").DescriptionsItem[] = [
+  { label: "任务ID", prop: "job_id" },
+  { label: "任务名称", prop: "job_name" },
+  { label: "触发方式", prop: "trigger_type" },
+  { label: "执行状态", prop: "status" },
+  { label: "下次执行时间", prop: "next_run_time" },
+  { label: "执行结果", prop: "result", span: 4 },
+  { label: "错误信息", prop: "error", span: 4 },
+  { label: "创建时间", prop: "created_time" },
+  { label: "更新时间", prop: "updated_time" },
+];
+
+async function handleOpenLogDetail(row: JobLogTable) {
+  if (row.id == null) return;
+  try {
+    const res = await JobAPI.getJobLogDetail(row.id);
+    Object.assign(logDetailFormData.value, res.data.data ?? {});
+    logDetailDialog.visible = true;
+  } catch {
+    /* 已由全局拦截器提示 */
+  }
+}
 
 function getSchedulerStatusType(status: string) {
   switch (status) {
@@ -839,21 +968,12 @@ function formatTrigger(trigger: string) {
   return trigger;
 }
 
-async function handleSyncJobs() {
-  try {
-    await JobAPI.syncJobsToDb();
-    await refreshJobList();
-  } catch (error: any) {
-    console.error(error);
-  }
-}
-
 async function handleStartScheduler() {
   try {
     await JobAPI.startScheduler();
     await refreshJobList();
-  } catch (error: any) {
-    console.error(error);
+  } catch (error: unknown) {
+    if (import.meta.env.DEV) console.error(error);
   }
 }
 
@@ -861,8 +981,8 @@ async function handlePauseScheduler() {
   try {
     await JobAPI.pauseScheduler();
     await refreshJobList();
-  } catch (error: any) {
-    console.error(error);
+  } catch (error: unknown) {
+    if (import.meta.env.DEV) console.error(error);
   }
 }
 
@@ -870,8 +990,8 @@ async function handleResumeScheduler() {
   try {
     await JobAPI.resumeScheduler();
     await refreshJobList();
-  } catch (error: any) {
-    console.error(error);
+  } catch (error: unknown) {
+    if (import.meta.env.DEV) console.error(error);
   }
 }
 
@@ -884,9 +1004,9 @@ async function handleShutdownScheduler() {
     });
     await JobAPI.shutdownScheduler();
     await refreshJobList();
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error !== "cancel") {
-      console.error(error);
+      if (import.meta.env.DEV) console.error(error);
     }
   }
 }
@@ -907,9 +1027,9 @@ async function handleClearAllJobs() {
     );
     await JobAPI.clearAllJobs();
     await refreshJobList();
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error !== "cancel") {
-      console.error(error);
+      if (import.meta.env.DEV) console.error(error);
     }
   }
 }
@@ -927,8 +1047,8 @@ async function handleRefreshConsole() {
       type: "normal",
       content: data,
     });
-  } catch (error: any) {
-    console.error(error);
+  } catch (error: unknown) {
+    if (import.meta.env.DEV) console.error(error);
     TerminalApi.pushMessage("scheduler-console", {
       type: "normal",
       class: "error",
@@ -945,8 +1065,8 @@ async function handlePauseJob(jobId: string) {
   try {
     await JobAPI.pauseJob(jobId);
     await refreshJobList();
-  } catch (error: any) {
-    console.error(error);
+  } catch (error: unknown) {
+    if (import.meta.env.DEV) console.error(error);
   }
 }
 
@@ -954,8 +1074,8 @@ async function handleResumeJob(jobId: string) {
   try {
     await JobAPI.resumeJob(jobId);
     await refreshJobList();
-  } catch (error: any) {
-    console.error(error);
+  } catch (error: unknown) {
+    if (import.meta.env.DEV) console.error(error);
   }
 }
 
@@ -963,22 +1083,18 @@ async function handleRunJobNow(jobId: string) {
   try {
     await JobAPI.runJobNow(jobId);
     await refreshJobList();
-  } catch (error: any) {
-    console.error(error);
+  } catch (error: unknown) {
+    if (import.meta.env.DEV) console.error(error);
   }
 }
 
-async function handleRemoveJob(jobId: string) {
+async function handleRemoveJob(jobId: string, name: string) {
   try {
-    await ElMessageBox.confirm("确认移除该任务?", "警告", {
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-      type: "warning",
-    });
+    await confirmDelete(`确定移除任务「${name}」吗？`);
     await JobAPI.removeJob(jobId);
     await refreshJobList();
   } catch {
-    ElMessageBox.close();
+    // 用户取消
   }
 }
 
@@ -1041,54 +1157,6 @@ function handleViewJobState(row: JobLogTable) {
   height: 500px;
 }
 
-.scheduler-inline {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: center;
-
-  .el-divider--vertical {
-    height: 18px;
-    margin: 0 2px;
-  }
-}
-
-.scheduler-metrics {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-}
-
-.scheduler-metric {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-  white-space: nowrap;
-
-  &__label {
-    font-size: 12px;
-    color: var(--el-text-color-secondary);
-  }
-
-  &__count {
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--el-color-warning);
-  }
-}
-
-.scheduler-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: center;
-
-  .el-divider--vertical {
-    height: 18px;
-    margin: 0 2px;
-  }
-}
-
 .job-page-card {
   :deep(.el-card__body) {
     display: flex;
@@ -1099,27 +1167,17 @@ function handleViewJobState(row: JobLogTable) {
   }
 }
 
-.job-card-col {
-  margin-bottom: 16px;
-}
-
 .job-card {
-  transition: box-shadow 0.25s;
-
-  &:hover {
-    box-shadow: 0 4px 12px rgb(0 0 0 / 6%);
-  }
-
   :deep(.el-card__header) {
-    padding: 8px 14px;
+    padding: 8px 16px;
   }
 
   :deep(.el-card__body) {
-    padding: 8px 14px;
+    padding: 8px 16px;
   }
 
   :deep(.el-card__footer) {
-    padding: 8px 14px;
+    padding: 8px 16px;
   }
 }
 
@@ -1156,7 +1214,7 @@ function handleViewJobState(row: JobLogTable) {
 .job-card-body {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
   min-width: 0;
   overflow: hidden;
 
@@ -1191,31 +1249,8 @@ function handleViewJobState(row: JobLogTable) {
   white-space: nowrap;
 }
 
-.execution-log-drawer {
-  height: 100%;
-}
-
-.log-table-card {
-  flex: 1;
-  min-height: 0;
-}
-
 .execution-log-drawer :deep(.el-card.data-table) {
   flex: 1;
   min-height: 0;
-}
-/* ── 卡片骨架 ── */
-.job-skeleton {
-  margin-top: 12px;
-}
-
-.job-skeleton-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 16px;
-}
-
-.job-skeleton-card {
-  height: 200px;
 }
 </style>

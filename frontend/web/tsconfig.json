@@ -36,7 +36,6 @@
   "include": [
     "src/**/*.ts",
     "src/**/*.d.ts",
-    "src/types/import/*.d.ts",
     "src/**/*.tsx",
     "src/**/*.vue",
     "build/vitePluginStart.ts"

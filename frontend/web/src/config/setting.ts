@@ -14,15 +14,21 @@
  * ## 注意事项
  *
  * 1. 修改此文件的配置项时，需要同步更新以下文件：
- *    - src/components/layouts/fa-settings-panel/widgets/SettingActions.vue（复制配置和重置配置逻辑）
+ *    - src/layouts/fa-settings-panel/widgets/SettingActions.vue（复制配置和重置配置逻辑）
  *    - src/store/modules/setting.ts（Store 状态定义）
  * 2. 可以通过设置面板的"复制配置"按钮快速生成配置代码
  * 3. 枚举类型的值需要与 src/enums/appEnum.ts 中的定义保持一致
  */
 
 import AppConfig from "@/config";
-import { SystemThemeEnum, MenuThemeEnum, MenuTypeEnum, ContainerWidthEnum } from "@/enums/appEnum";
-import { LayoutMode, ComponentSize, SidebarColor, ThemeMode, LanguageEnum } from "@/enums";
+import { LayoutMode, ComponentSize, SidebarColor, ThemeMode } from "@/enums";
+import {
+  SystemThemeEnum,
+  MenuTypeEnum,
+  MenuThemeEnum,
+  LanguageEnum,
+  ContainerWidthEnum,
+} from "@/enums/appEnum";
 
 const env = import.meta.env;
 const { pkg } = __APP_INFO__;
@@ -63,7 +69,7 @@ export const SETTING_DEFAULT_CONFIG = {
   /** 组件大小 */
   size: ComponentSize.DEFAULT,
   /** 语言 */
-  language: LanguageEnum.ZH_CN,
+  language: LanguageEnum.ZH,
   /** 主题颜色 */
   themeColor: "#4080FF",
   /** 是否显示水印 */

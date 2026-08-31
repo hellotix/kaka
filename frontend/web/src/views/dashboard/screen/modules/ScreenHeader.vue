@@ -10,7 +10,8 @@
       <span class="deco-line" />
     </h1>
     <div class="header-right">
-      <button class="fullscreen-btn" :title="isFs ? '退出全屏' : '进入全屏'" @click="handleToggle">
+      <ElTooltip :content="isFs ? '退出全屏' : '进入全屏'" placement="bottom">
+        <button class="fullscreen-btn" @click="handleToggle">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="fs-icon">
           <path
             v-if="isFs"
@@ -22,6 +23,7 @@
           />
         </svg>
       </button>
+      </ElTooltip>
       <span class="header-time font-mono text-sm">{{ currentTime }}</span>
     </div>
   </header>

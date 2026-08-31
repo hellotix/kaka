@@ -1,6 +1,6 @@
 <div align="center">
      <p align="center">
-          <img src="./frontend/web/public/logo.svg" width="150" height="150" alt="logo" />
+          <img src="./frontend/web/public/logo.png" width="150" height="150" alt="logo" />
      </p>
      <h1>FastApiAdmin <sup style="background-color: #28a745; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.4em; vertical-align: super; margin-left: 5px;">v3.0.0</sup></h1>
      <h3>🚀 追求极致代码质量，五分钟搭建企业级中后台，开箱即用</h3>
@@ -36,7 +36,6 @@
 | 🎯 **开箱即用**的后台系统 | ✅ | ⚠️ 功能有限 | ❌ 只有 UI |
 | ⚡ **FastAPI 异步**高性能后端 | ✅ | ❌ 同步为主 | ❌ 无后端 |
 | 🔐 **RBAC** 菜单/按钮/数据三级权限 | ✅ | ❌ 基础 | ❌ |
-| 🏢 **多租户 SaaS** 数据隔离 + 配额 + 个性化 | ✅ | ❌ | ❌ |
 | 🤖 **代码生成器**（选表 → 出前后端代码） | ✅ | ❌ | ❌ |
 | 📱 **移动端**（H5 + 小程序）一体 | ✅ | ❌ | ❌ |
 | 🐳 **Docker 一键部署**（含 Nginx + SSL） | ✅ | ❌ | ❌ |
@@ -89,19 +88,43 @@ FastapiAdmin/            # Monorepo 全栈工程
 └─ LICENSE               # MIT 开源协议
 ```
 
-## 📌 内置功能（开箱即用）
+## 📌 内置功能
+
+### 核心模块（始终启用，不可裁剪）
 
 | 模块 | 包含能力 |
 |------|---------|
 | 📊 仪表盘 | 工作台、数据分析 |
-| ⚙️ 系统管理 | 用户 / 角色 / 菜单 / 部门 / 岗位 / 字典 / 配置 / 公告 |
-| 🏢 多租户 | 租户管理 / 数据隔离 / 配额控制 / 个性化配置 / 菜单权限 |
+| ⚙️ 系统管理 | 用户 / 角色 / 菜单 / 部门 / 岗位 / 字典 / 参数 / 公告 / 工单 / 版本 |
 | 👀 监控管理 | 在线用户 / 服务器监控 / 缓存监控 |
-| 📋 任务管理 | 定时任务调度 |
 | 📝 日志管理 | 操作日志审计 |
-| 🧰 开发工具 | 代码生成、表单构建、接口文档 |
-| 📁 文件管理 | 统一文件管理 |
-| 🤖 智能体 | 基于 Agno 的智能体框架 |
+| 🧰 开发工具 | 接口文档 |
+
+### 扩展模块（默认启用，可用 `ENABLED_MODULES` 裁剪）
+
+| 模块 | 包含能力 | 裁剪开关 |
+|------|---------|---------|
+| 🧩 任务管理 | 定时任务调度 + 可视化工作流编排（内置业务节点） | `task` |
+| 🔧 代码生成器 | 选表 → 生成前后端全量代码 | `generator` |
+| 📁 数据存储 | 统一文件 / 对象存储（SFTP / S3 / OSS / COS / OBS） | `storage` |
+| 🤖 AI 对话 | 基于 Agno 的智能体对话 | `ai` |
+| 💬 内部聊天 | 系统内用户**纯文字**私聊 / 群聊（WebSocket 实时推送 + 未读角标） | `chat` |
+
+## 🔧 模块裁剪
+
+扩展模块可通过 `backend/app/config/setting.py` 中的 `ENABLED_MODULES` 按需启用 / 停用——**移除列表项即可，无需删除任何代码或菜单**，对应的 REST 接口、WebSocket 端点与初始化逻辑将自动不加载：
+
+```python
+# 例如：停用内部聊天与 AI 对话，保留其余扩展模块
+ENABLED_MODULES = ["generator", "task", "storage"]
+```
+
+## 🚦 部署说明
+
+- **聊天边界**：内部聊天定位为**轻量内部沟通**，仅支持纯文字消息，**不含文件传输、撤回、已读回执、多端同步等 IM 能力**；如有强 IM 需求，请对接企业微信 / 钉钉 / 飞书等成熟产品。随时可在 `ENABLED_MODULES` 中移除 `chat` 停用。
+- **单实例部署**：实时功能（内部聊天 WebSocket、定时任务调度器）基于单实例内存连接与本地调度实现，请以**单实例方式**部署。如需水平扩展，请自行引入 Redis Pub/Sub 或消息队列。
+- **密钥安全**：所有第三方密钥（AI、云存储等）请配置在 `backend/env/.env.*` 环境变量中，**切勿提交到仓库或写入数据库**。
+- **数据库迁移**：正式环境请使用 Alembic 迁移（`uv run alembic upgrade head`）管理表结构变更，`create_all` 仅用于首次初始化的兜底。
 
 ## 🔧 截图展示
 
@@ -120,21 +143,21 @@ FastapiAdmin/            # Monorepo 全栈工程
 
 ## 👥 社区与支持
 
-| 微信群 | 赞赏支持 |
-| ------ | -------- |
-| ![群组二维码](frontend/web/public/group.jpg) | ![微信支付](frontend/web/public/wechatPay.jpg) |
-
-> 如果你觉得项目有用，请给一个 ⭐️ Star 支持！
-
-[![Stargazers over time](https://starchart.cc/fastapiadmin/FastapiAdmin.svg?variant=adaptive)](https://starchart.cc/fastapiadmin/FastapiAdmin)
+<p>
+<img src="frontend/web/public/group.png" width="200" height="260" style="margin-right:30px"/>
+<img src="frontend/web/public/wechatPay.jpg" width="200" height="260" />
+</p>
 
 ## 👥 贡献者
+> 感谢以下所有给 FastapiAdmin 贡献过代码的 开发者。
 
 <a href="https://github.com/fastapiadmin/FastapiAdmin/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=fastapiadmin/FastapiAdmin"/>
 </a>
 
 ## 🙏 鸣谢
+
+> 如果你觉得项目有用，请给一个 ⭐️ Star 支持！
 
 - 后端：[FastAPI](https://fastapi.tiangolo.com/) · [Pydantic](https://docs.pydantic.dev/) · [SQLAlchemy](https://www.sqlalchemy.org/) · [APScheduler](https://github.com/agronholm/apscheduler)
 - 前端：[Vue3](https://cn.vuejs.org/) · [TypeScript](https://www.typescriptlang.org/) · [Vite](https://vitejs.dev/) · [Element Plus](https://element-plus.org/)

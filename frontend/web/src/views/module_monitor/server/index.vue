@@ -25,7 +25,7 @@
               >
                 <span class="text-sm">{{ (server.cpu?.used || 0).toFixed(1) }}%</span>
               </ElProgress>
-              <FaDescriptions :column="2" size="small" :scrollbar="false">
+              <ElDescriptions :column="2" size="small" border>
                 <ElDescriptionsItem label="核心数">
                   {{ server.cpu?.cpu_num || 0 }}
                 </ElDescriptionsItem>
@@ -38,7 +38,7 @@
                 <ElDescriptionsItem label="系统使用率">
                   {{ (server.cpu?.sys || 0).toFixed(1) }}%
                 </ElDescriptionsItem>
-              </FaDescriptions>
+              </ElDescriptions>
             </div>
           </div>
         </ElCard>
@@ -68,7 +68,7 @@
               >
                 <span class="text-sm">{{ (server.mem?.usage || 0).toFixed(1) }}%</span>
               </ElProgress>
-              <FaDescriptions :column="2" size="small" :scrollbar="false">
+              <ElDescriptions :column="2" size="small" border>
                 <ElDescriptionsItem label="总内存">
                   {{ server.mem?.total }}
                 </ElDescriptionsItem>
@@ -81,7 +81,7 @@
                 <ElDescriptionsItem label="Python内存">
                   {{ server.py?.memory_usage ? server.py.memory_usage.toFixed(1) + "%" : "-" }}
                 </ElDescriptionsItem>
-              </FaDescriptions>
+              </ElDescriptions>
             </div>
           </div>
         </ElCard>
@@ -98,7 +98,7 @@
               <span class="font-medium">服务器基本信息</span>
             </div>
           </template>
-          <FaDescriptions :column="1" size="small" :scrollbar="false">
+          <ElDescriptions :column="1" size="small" border>
             <ElDescriptionsItem label="服务器名称">
               {{ server.sys?.computer_name || "-" }}
             </ElDescriptionsItem>
@@ -111,7 +111,7 @@
             <ElDescriptionsItem label="系统架构">
               {{ server.sys?.os_arch || "-" }}
             </ElDescriptionsItem>
-          </FaDescriptions>
+          </ElDescriptions>
         </ElCard>
       </ElCol>
 
@@ -124,7 +124,7 @@
               <span class="font-medium">Python运行环境</span>
             </div>
           </template>
-          <FaDescriptions :column="2" size="small" :scrollbar="false">
+          <ElDescriptions :column="2" size="small" border>
             <ElDescriptionsItem label="Python名称">
               {{ server.py?.name || "-" }}
             </ElDescriptionsItem>
@@ -143,7 +143,7 @@
             <ElDescriptionsItem label="项目路径" :span="2">
               {{ server.sys?.user_dir || "-" }}
             </ElDescriptionsItem>
-          </FaDescriptions>
+          </ElDescriptions>
         </ElCard>
       </ElCol>
     </ElRow>
@@ -186,8 +186,8 @@
 </template>
 
 <script lang="ts" setup>
+import { ref, onMounted } from "vue";
 import ServerAPI, { type ServerInfo } from "@/api/module_monitor/server";
-import { Auth } from "@utils";
 
 defineOptions({ name: "ServerMonitor" });
 
@@ -209,45 +209,16 @@ const server = ref<ServerInfo>({
   disks: [],
 });
 
-let eventSource: EventSource | null = null;
-
-function connectSSE() {
-  const token = Auth.getAccessToken();
-  const baseURL = import.meta.env.VITE_APP_BASE_API || "";
-  const url = `${baseURL}/monitor/server/stream?token=${encodeURIComponent(token)}`;
-
-  const es = new EventSource(url);
-  es.addEventListener("server_status", (event: MessageEvent) => {
-    try {
-      const data = JSON.parse(event.data);
-      server.value = data;
-    } catch {
-      /* 静默忽略解析错误 */
+async function fetchServerInfo() {
+  try {
+    const res = await ServerAPI.getServer();
+    if (res.data?.data) {
+      server.value = res.data.data;
     }
-  });
-  es.onerror = () => {
-    es.close();
-  };
-  eventSource = es;
+  } catch {
+    // 静默忽略错误
+  }
 }
 
-onMounted(() => {
-  // 先获取一次静态数据，再开启 SSE
-  ServerAPI.getServer().then((res) => {
-    server.value = res.data.data;
-  });
-  connectSSE();
-});
-
-onUnmounted(() => {
-  eventSource?.close();
-});
+onMounted(fetchServerInfo);
 </script>
-
-<style scoped lang="scss">
-:deep(.el-card) {
-  --el-card-border-radius: calc(var(--custom-radius) + 2px);
-
-  border: 1px solid var(--fa-card-border);
-}
-</style>

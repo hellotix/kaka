@@ -63,15 +63,15 @@ class PositionService:
         if position:
             raise CustomException(msg="创建失败，该数据已存在")
         new_position = await PositionCRUD(self.auth, self.db).create(data=data)
-        return PositionOutSchema.model_validate(new_position)
+        return await self.detail(id=new_position.id)
 
     async def update(self, id: int, data: PositionUpdateSchema) -> PositionOutSchema:
         _ = await PositionCRUD(self.auth, self.db).get_or_404(id=id, msg="更新失败，该数据不存在")
         exist_position = await PositionCRUD(self.auth, self.db).get(name=data.name)
         if exist_position and exist_position.id != id:
             raise CustomException(msg="更新失败，名称已存在")
-        updated_position = await PositionCRUD(self.auth, self.db).update(id=id, data=data)
-        return PositionOutSchema.model_validate(updated_position)
+        await PositionCRUD(self.auth, self.db).update(id=id, data=data)
+        return await self.detail(id=id)
 
     async def delete(self, ids: list[int]) -> None:
         if not ids:

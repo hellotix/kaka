@@ -3,8 +3,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.common.enums import QueueEnum
-from app.core.base_schema import BaseQueryParam, BaseSchema, TenantByQueryParam, TenantBySchema, UserByQueryParam, UserBySchema
+from app.core.base_schema import BaseQueryParam, BaseSchema, UserByQueryParam, UserBySchema
 from app.core.validator import DateTimeStr
 
 
@@ -52,7 +51,7 @@ class WorkflowUpdateSchema(WorkflowCreateSchema):
         return v
 
 
-class WorkflowOutSchema(BaseSchema, UserBySchema, TenantBySchema):
+class WorkflowOutSchema(BaseSchema, UserBySchema):
     """工作流输出（status 表示流程状态 draft/published/archived，与 ModelMixin.status 区分）"""
 
     model_config = ConfigDict(from_attributes=True)
@@ -91,19 +90,11 @@ class WorkflowOutSchema(BaseSchema, UserBySchema, TenantBySchema):
         return data
 
 
-class WorkflowQueryParam(BaseQueryParam, UserByQueryParam, TenantByQueryParam):
+class WorkflowQueryParam(BaseQueryParam, UserByQueryParam):
     """工作流查询"""
 
-    name: str | tuple[str, str] | None = Field(None, description="流程名称")
-    code: str | tuple[str, str] | None = Field(None, description="流程编码")
-
-    @model_validator(mode="after")
-    def validate_query_params(self) -> "WorkflowQueryParam":
-        if isinstance(self.name, str):
-            self.name = (QueueEnum.like.value, self.name)
-        if isinstance(self.code, str):
-            self.code = (QueueEnum.like.value, self.code)
-        return self
+    name: str | None = Field(None, description="流程名称", json_schema_extra={"q": "like"})
+    code: str | None = Field(None, description="流程编码", json_schema_extra={"q": "eq"})
 
 
 class WorkflowExecuteSchema(BaseModel):

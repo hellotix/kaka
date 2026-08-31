@@ -10,13 +10,13 @@ from agno.team.team import Team
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.module_platform.tenant.service import TenantService
 from app.common.enums import RedisInitKeyConfig
 from app.common.request import PaginationService
 from app.core.base_schema import AuthSchema, PageResultSchema
 from app.core.exceptions import CustomException
 from app.core.logger import logger
 from app.core.redis_crud import RedisCURD
+from app.utils.ai_factory import AgnoFactory
 
 from .crud import ChatSessionCRUD
 from .schema import (
@@ -26,7 +26,6 @@ from .schema import (
     ChatSessionQueryParam,
     ChatSessionUpdateSchema,
 )
-from .utils import AgnoFactory
 
 
 async def _format_session_data(session: TeamSession, auth: AuthSchema | None = None, db: AsyncSession | None = None) -> dict[str, Any]:
@@ -73,9 +72,7 @@ async def _format_session_data(session: TeamSession, auth: AuthSchema | None = N
         try:
             team_id_str = session_dict.get("team_id")
             if team_id_str:
-                team_id = int(team_id_str)
-                tenant = await TenantService(auth, db).detail(id=team_id)
-            result["team_name"] = tenant.name
+                result["team_name"] = None
         except Exception:
             result["team_name"] = None
     else:
@@ -155,7 +152,7 @@ class ChatService:
                 session_id = session.session_id
 
             agno_factory = AgnoFactory()
-            team_id = str(self.auth.user.tenant_id or "default")
+            team_id = "default"
             agent = agno_factory.create_agent(
                 user_id=self.auth.user.username or "user",
                 team_id=team_id,
@@ -216,7 +213,7 @@ class ChatService:
                 session_id = session.session_id
 
             agno_factory = AgnoFactory()
-            team_id = str(self.auth.user.tenant_id or "default")
+            team_id = "default"
             agent: Team = agno_factory.create_agent(
                 user_id=self.auth.user.username or "user",
                 team_id=team_id,

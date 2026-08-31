@@ -13,7 +13,7 @@ def test_check_readiness(test_client: TestClient) -> None:
 
 
 def test_check_health(test_client: TestClient) -> None:
-    response = test_client.get("/common/health/")
+    response = test_client.get("/common/health/check/")
     assert response.status_code == 200
     body = response.json()
     assert body["success"] is True

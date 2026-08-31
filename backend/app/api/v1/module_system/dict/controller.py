@@ -1,17 +1,14 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, Path, Query, Security, status
-from fastapi.responses import JSONResponse, StreamingResponse
-from fastapi_cache import FastAPICache
-from fastapi_cache.decorator import cache
+from fastapi.responses import JSONResponse
 from redis.asyncio.client import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.common.response import ResponseSchema, StreamResponse, SuccessResponse
+from app.common.response import ResponseSchema, SuccessResponse
 from app.core.base_schema import AuthSchema, BatchSetAvailable, PageResultSchema, PaginationQueryParam
 from app.core.dependencies import AuthPermission, db_getter, redis_getter
 from app.core.router_class import OperationLogRoute
-from app.utils.common_util import bytes2file_response
 
 from .schema import (
     DictDataCreateSchema,
@@ -27,8 +24,6 @@ from .service import DictDataService, DictTypeService
 
 DictRouter = APIRouter(route_class=OperationLogRoute, prefix="/dict", tags=["字典管理"])
 
-_DICT_TYPE_NS = "dict_type"
-
 
 @DictRouter.get("/type/detail/{id}", summary="获取字典类型详情", response_model=ResponseSchema[DictTypeOutSchema])
 async def get_type_detail_controller(
@@ -43,8 +38,8 @@ async def get_type_detail_controller(
 @DictRouter.get("/type/list", summary="查询字典类型", response_model=ResponseSchema[PageResultSchema[DictTypeOutSchema]])
 async def get_type_list_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:dict_type:query"]))],
-    page: Annotated[PaginationQueryParam, Query(description="分页查询参数")],
-    search: Annotated[DictTypeQueryParam, Query(description="字典类型查询参数")],
+    page: Annotated[PaginationQueryParam, Depends()],
+    search: Annotated[DictTypeQueryParam, Query()],
     db: Annotated[AsyncSession, Depends(db_getter)],
 ) -> JSONResponse:
     result_dict = await DictTypeService(auth, db).page(
@@ -57,7 +52,6 @@ async def get_type_list_controller(
 
 
 @DictRouter.get("/type/optionselect", summary="获取全部字典类型", response_model=ResponseSchema[list[DictTypeOutSchema]])
-@cache(expire=300, namespace=_DICT_TYPE_NS)
 async def get_type_optionselect_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:dict_type:query"]))],
     db: Annotated[AsyncSession, Depends(db_getter)],
@@ -74,7 +68,6 @@ async def create_type_controller(
     data: Annotated[DictTypeCreateSchema, Body(description="字典类型创建参数")],
 ) -> JSONResponse:
     result_dict = await DictTypeService(auth, db).create(redis=redis, data=data)
-    await FastAPICache.clear(namespace=_DICT_TYPE_NS)
     return SuccessResponse(data=result_dict, msg="创建字典类型成功")
 
 
@@ -87,7 +80,6 @@ async def update_type_controller(
     data: Annotated[DictTypeUpdateSchema, Body(description="字典类型修改参数")],
 ) -> JSONResponse:
     result_dict = await DictTypeService(auth, db).update(redis=redis, id=id, data=data)
-    await FastAPICache.clear(namespace=_DICT_TYPE_NS)
     return SuccessResponse(data=result_dict, msg="修改字典类型成功")
 
 
@@ -99,7 +91,6 @@ async def delete_type_controller(
     ids: Annotated[list[int], Body(description="字典类型ID列表")],
 ) -> JSONResponse:
     await DictTypeService(auth, db).delete(redis=redis, ids=ids)
-    await FastAPICache.clear(namespace=_DICT_TYPE_NS)
     return SuccessResponse(msg="删除字典类型成功")
 
 
@@ -110,26 +101,7 @@ async def batch_set_available_dict_type_controller(
     db: Annotated[AsyncSession, Depends(db_getter)],
 ) -> JSONResponse:
     await DictTypeService(auth, db).set_available(data=data)
-    await FastAPICache.clear(namespace=_DICT_TYPE_NS)
     return SuccessResponse(msg="批量修改字典类型状态成功")
-
-
-@DictRouter.post("/type/export", summary="导出字典类型")
-async def export_type_list_controller(
-    auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:dict_type:export"]))],
-    search: Annotated[DictTypeQueryParam, Query(description="字典类型查询参数")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
-) -> StreamingResponse:
-    # 获取全量数据并转为dict列表
-    result_dict_list = await DictTypeService(auth, db).get_list(search=search)
-    export_data = [item.model_dump() for item in result_dict_list]
-    export_result = DictTypeService.export(data_list=export_data)
-
-    return StreamResponse(
-        data=bytes2file_response(export_result),
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=dict_type.xlsx"},
-    )
 
 
 @DictRouter.get("/data/detail/{id}", summary="获取字典数据详情", response_model=ResponseSchema[DictDataOutSchema])
@@ -145,8 +117,8 @@ async def get_data_detail_controller(
 @DictRouter.get("/data/list", summary="查询字典数据", response_model=ResponseSchema[PageResultSchema[DictDataOutSchema]])
 async def get_data_list_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:dict_data:query"]))],
-    page: Annotated[PaginationQueryParam, Query(description="分页参数")],
-    search: Annotated[DictDataQueryParam, Query(description="字典数据查询参数")],
+    page: Annotated[PaginationQueryParam, Depends()],
+    search: Annotated[DictDataQueryParam, Query()],
     db: Annotated[AsyncSession, Depends(db_getter)],
 ) -> JSONResponse:
     order_by = [{"order": "asc"}]
@@ -205,29 +177,11 @@ async def batch_set_available_dict_data_controller(
     return SuccessResponse(msg="批量修改字典数据状态成功")
 
 
-@DictRouter.post("/data/export", summary="导出字典数据")
-async def export_data_list_controller(
-    auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:dict_data:export"]))],
-    page: Annotated[PaginationQueryParam, Query(description="分页参数")],
-    search: Annotated[DictDataQueryParam, Query(description="字典数据查询参数")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
-) -> StreamingResponse:
-    result_dict_list = await DictDataService(auth, db).get_list(search=search, order_by=page.order_by)
-    export_data = [item.model_dump() for item in result_dict_list]
-    export_result = DictDataService.export(data_list=export_data)
-
-    return StreamResponse(
-        data=bytes2file_response(export_result),
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=dice_data.xlsx"},
-    )
-
-
 @DictRouter.get("/data/info/{dict_type}", summary="根据字典类型获取数据", response_model=ResponseSchema[list[DictDataOutSchema]])
 async def get_init_dict_data_controller(
     redis: Annotated[Redis, Depends(redis_getter)],
     dict_type: Annotated[str, Path(description="字典类型")],
 ) -> JSONResponse:
-    dict_data_query_result = await DictDataService.get_init_cache(redis=redis, dict_type=dict_type, tenant_id=1)
+    dict_data_query_result = await DictDataService.get_init_cache(redis=redis, dict_type=dict_type)
 
     return SuccessResponse(data=dict_data_query_result, msg="获取初始化字典数据成功")

@@ -70,21 +70,21 @@ import WorkflowDefinitionAPI, { type WorkflowTable } from "@/api/module_task/wor
 import type { SearchFormItem } from "@/components/forms/fa-search-bar/index.vue";
 import type FaSearchBar from "@/components/forms/fa-search-bar/index.vue";
 import FaWorkflowDesignDrawer from "./components/FaWorkflowDesignDrawer.vue";
-import { useTable } from "@/hooks/core/useTable";
-import type { ColumnOption } from "@/types/component";
-import { useAuth } from "@/hooks/core/useAuth";
-import { renderTableOperationCell, type TableOperationAction } from "@/utils/table";
+import type { TableOperationAction } from "@/utils/table";
+import { renderTableOperationCell } from "@utils";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { computed, ref } from "vue";
-
-const { hasAuth } = useAuth();
-
-const BATCH_DELETE_MSG = "确认删除选中的工作流吗？";
+import type { ColumnOption } from "@/types/component";
+import FaTableHeader from "@/components/tables/fa-table-header/index.vue";
 
 type WorkflowSearchForm = {
   name?: string;
   code?: string;
   status?: number;
+  created_id?: number;
+  updated_id?: number;
+  created_time?: string[];
+  updated_time?: string[];
 };
 
 function buildWorkflowReplaceParams(u: WorkflowSearchForm): Record<string, unknown> {
@@ -92,6 +92,12 @@ function buildWorkflowReplaceParams(u: WorkflowSearchForm): Record<string, unkno
     name: u.name,
     code: u.code,
     status: u.status,
+    created_id: u.created_id,
+    updated_id: u.updated_id,
+    created_time:
+      Array.isArray(u.created_time) && u.created_time.length === 2 ? u.created_time : undefined,
+    updated_time:
+      Array.isArray(u.updated_time) && u.updated_time.length === 2 ? u.updated_time : undefined,
   };
 }
 
@@ -99,6 +105,10 @@ const searchForm = ref<WorkflowSearchForm>({
   name: undefined,
   code: undefined,
   status: undefined,
+  created_id: undefined,
+  updated_id: undefined,
+  created_time: undefined,
+  updated_time: undefined,
 });
 
 const showSearchBar = ref(true);
@@ -151,14 +161,10 @@ function onTableSelectionChange(rows: WorkflowTable[]) {
   selectedRows.value = rows;
 }
 
-async function deleteWorkflowRow(id: number | undefined) {
+async function deleteWorkflowRow(id: number | undefined, name: string | number) {
   if (id == null) return;
   try {
-    await ElMessageBox.confirm("确认删除该工作流吗？", "警告", {
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-      type: "warning",
-    });
+    await confirmDelete(`确定删除工作流「${name}」吗？`);
     await WorkflowDefinitionAPI.deleteWorkflow([id]);
     faTableRef.value?.elTableRef?.clearSelection();
     await refreshRemove();
@@ -171,11 +177,10 @@ async function handleBatchDelete() {
   const ids = selectedIds.value;
   if (ids.length === 0) return;
   try {
-    await ElMessageBox.confirm(BATCH_DELETE_MSG, "批量删除", {
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-      type: "warning",
-    });
+    await confirmBatchDelete(
+      ids.length,
+      selectedRows.value.map((r) => String(r?.name ?? r?.id ?? ""))
+    );
     batchDeleting.value = true;
     await WorkflowDefinitionAPI.deleteWorkflow(ids);
     selectedRows.value = [];
@@ -220,10 +225,10 @@ function buildWorkflowRowActions(row: WorkflowTable): TableOperationAction[] {
       label: "删除",
       artType: "delete",
       perm: "module_task:workflow:flow:delete",
-      run: () => deleteWorkflowRow(row.id),
+      run: () => deleteWorkflowRow(row.id, String(row?.name ?? row?.id ?? "")),
     }
   );
-  return all.filter((a) => a.perm != null && hasAuth(a.perm));
+  return all;
 }
 
 function formatWorkflowOperationCell(row: WorkflowTable) {
@@ -293,6 +298,7 @@ const {
         prop: "created_time",
         label: "创建时间",
         minWidth: 180,
+        sortable: true,
         showOverflowTooltip: true,
       },
       {
@@ -310,7 +316,7 @@ const {
 async function handleSearchBarSearch(params: WorkflowSearchForm) {
   await searchBarRef.value?.validate?.();
   replaceSearchParams(buildWorkflowReplaceParams(params));
-  getData();
+  await getData();
 }
 
 async function onResetSearch() {
@@ -318,6 +324,10 @@ async function onResetSearch() {
     name: undefined,
     code: undefined,
     status: undefined,
+    created_id: undefined,
+    updated_id: undefined,
+    created_time: undefined,
+    updated_time: undefined,
   };
   await resetSearchParams();
 }
@@ -344,8 +354,8 @@ function handleEdit(record: WorkflowTable) {
   createVisible.value = true;
 }
 
-function onDrawerRefresh() {
-  void refreshUpdate();
+async function onDrawerRefresh() {
+  await refreshUpdate();
 }
 
 async function handlePublish(record: WorkflowTable) {
@@ -378,19 +388,13 @@ async function handleExecute(action: string, record: WorkflowTable) {
       ElMessage.error("工作流ID不存在");
       return;
     }
-    const res = await WorkflowDefinitionAPI.executeWorkflow({
+    await WorkflowDefinitionAPI.executeWorkflow({
       workflow_id: record.id,
       variables: {},
     });
-    if (res.data?.data) {
-      const result = res.data.data;
-      ElMessage.success(`工作流执行${result.status === 0 ? "成功" : "失败"}`);
-    }
     await refreshUpdate();
   } catch {
-    ElMessage.error("执行失败");
+    /* 已由全局拦截器提示 */
   }
 }
 </script>
-
-<style scoped lang="scss"></style>

@@ -1,8 +1,0 @@
-# 见 docs/PLUGIN_ARCHITECTURE.md
-
-name = "platform"
-title = "平台"
-version = "1.0.0"
-description = "平台功能；路由由 module_platform/**/controller 动态注册。"
-optional = true
-tags = ["platform"]

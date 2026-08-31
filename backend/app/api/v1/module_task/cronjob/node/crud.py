@@ -7,10 +7,7 @@ from app.core.base_crud import CRUDBase
 from app.core.base_schema import AuthSchema
 
 from .model import NodeModel
-from .schema import (
-    NodeCreateSchema,
-    NodeUpdateSchema,
-)
+from .schema import NodeCreateSchema, NodeUpdateSchema
 
 
 class NodeCRUD(CRUDBase[NodeModel, NodeCreateSchema, NodeUpdateSchema]):

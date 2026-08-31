@@ -77,12 +77,16 @@
               class="crud-dialog-art-form node-splitter-art-form"
             >
               <template #args>
-                <div class="dynamic-params">
-                  <div v-for="(_item, index) in argsList" :key="index" class="param-item">
+                <div class="flex flex-col gap-2">
+                  <div
+                    v-for="(_item, index) in argsList"
+                    :key="index"
+                    class="flex gap-2 items-center [&_.el-input]:flex-1"
+                  >
                     <ElInput v-model="argsList[index]" placeholder="参数值" />
                     <ElButton
                       type="danger"
-                      icon="Delete"
+                      :icon="Delete"
                       circle
                       @click="argsList.splice(index, 1)"
                     />
@@ -93,20 +97,24 @@
                 </div>
               </template>
               <template #kwargs>
-                <div class="dynamic-params">
-                  <div v-for="(item, index) in kwargsList" :key="index" class="param-item">
+                <div class="flex flex-col gap-2">
+                  <div
+                    v-for="(item, index) in kwargsList"
+                    :key="item.key || index"
+                    class="flex gap-2 items-center [&_.el-input]:flex-1"
+                  >
                     <ElInput v-model="item.key" placeholder="键" />
                     <ElInput v-model="item.value" placeholder="值" />
                     <ElButton
                       type="danger"
-                      icon="Delete"
+                      :icon="Delete"
                       circle
                       @click="kwargsList.splice(index, 1)"
                     />
                   </div>
                   <ElButton
                     type="primary"
-                    icon="Plus"
+                    :icon="Plus"
                     @click="kwargsList.push({ key: '', value: '' })"
                   >
                     添加关键词参数
@@ -118,10 +126,14 @@
         </ElSplitterPanel>
 
         <ElSplitterPanel>
-          <div class="code-editor-container">
-            <div class="code-editor-header">
-              <span class="code-editor-title">handler 代码</span>
-              <span class="code-editor-tip">须定义 handler(*args, **kwargs) 函数</span>
+          <div class="flex flex-col h-full">
+            <div
+              class="flex shrink-0 items-center justify-between px-3 py-2 bg-(--el-fill-color-light) border-b border-(--el-border-color-lighter)"
+            >
+              <span class="text-sm font-semibold">handler 代码</span>
+              <span class="text-xs text-(--el-text-color-secondary)"
+                >须定义 handler(*args, **kwargs) 函数</span
+              >
             </div>
             <Codemirror
               ref="codeEditorRef"
@@ -158,13 +170,12 @@ import WorkflowNodeTypeAPI, {
 import type { SearchFormItem } from "@/components/forms/fa-search-bar/index.vue";
 import type FaSearchBar from "@/components/forms/fa-search-bar/index.vue";
 import type { FormItem } from "@/components/forms/fa-form/index.vue";
-import type FaForm from "@/components/forms/fa-form/index.vue";
-import { useAuth } from "@/hooks/core/useAuth";
-import { useTableSelection } from "@/hooks/core/useTableSelection";
-import { confirmDelete, confirmBatchDelete } from "@/hooks/core/useConfirm";
-import { renderTableOperationCell, type TableOperationAction } from "@utils";
-import { useTable } from "@/hooks/core/useTable";
-import type { ColumnOption } from "@/types/component";
+import FaTableHeader from "@/components/tables/fa-table-header/index.vue";
+import FaTable from "@/components/tables/fa-table/index.vue";
+import FaDialog from "@/components/modal/fa-dialog/index.vue";
+import FaForm from "@/components/forms/fa-form/index.vue";
+import type { TableOperationAction } from "@utils";
+import { renderTableOperationCell } from "@utils";
 import { ElMessage } from "element-plus";
 import type { FormRules } from "element-plus";
 import { computed, nextTick, ref } from "vue";
@@ -172,13 +183,17 @@ import Codemirror, { CmComponentRef } from "codemirror-editor-vue3";
 import type { EditorConfiguration } from "codemirror";
 import "codemirror/mode/python/python.js";
 import "codemirror/theme/dracula.css";
-
-const { hasAuth } = useAuth();
+import type { ColumnOption } from "@/types/component";
+import { Delete, Plus } from "@element-plus/icons-vue";
 
 type NodeTypeSearchForm = {
   name?: string;
   code?: string;
   category?: string;
+  created_id?: number;
+  updated_id?: number;
+  created_time?: string[];
+  updated_time?: string[];
 };
 
 function buildNodeTypeReplaceParams(u: NodeTypeSearchForm): Record<string, unknown> {
@@ -186,6 +201,12 @@ function buildNodeTypeReplaceParams(u: NodeTypeSearchForm): Record<string, unkno
     name: u.name,
     code: u.code,
     category: u.category,
+    created_id: u.created_id,
+    updated_id: u.updated_id,
+    created_time:
+      Array.isArray(u.created_time) && u.created_time.length === 2 ? u.created_time : undefined,
+    updated_time:
+      Array.isArray(u.updated_time) && u.updated_time.length === 2 ? u.updated_time : undefined,
   };
 }
 
@@ -193,6 +214,10 @@ const searchForm = ref<NodeTypeSearchForm>({
   name: undefined,
   code: undefined,
   category: undefined,
+  created_id: undefined,
+  updated_id: undefined,
+  created_time: undefined,
+  updated_time: undefined,
 });
 
 const showSearchBar = ref(true);
@@ -294,7 +319,12 @@ async function handleBatchDelete() {
   const ids = selectedIds.value;
   if (ids.length === 0) return;
   try {
-    await confirmBatchDelete(ids.length);
+    await confirmBatchDelete(
+      ids.length,
+      (data.value as WorkflowNodeTypeTable[])
+        .filter((r) => r.id != null && selectedIds.value.includes(r.id))
+        .map((r) => String(r?.name ?? r?.id ?? ""))
+    );
     batchDeleting.value = true;
     await WorkflowNodeTypeAPI.deleteWorkflowNodeType(ids);
     faTableRef.value?.elTableRef?.clearSelection();
@@ -325,7 +355,7 @@ function buildNodeTypeRowActions(row: WorkflowNodeTypeTable): TableOperationActi
       run: () => void deleteNodeTypeRow(row),
     },
   ];
-  return all.filter((a) => a.perm != null && hasAuth(a.perm));
+  return all;
 }
 
 function formatNodeTypeOperationCell(row: WorkflowNodeTypeTable) {
@@ -403,6 +433,7 @@ const {
         prop: "created_time",
         label: "创建时间",
         minWidth: 170,
+        sortable: true,
         showOverflowTooltip: true,
       },
       {
@@ -420,7 +451,7 @@ const {
 async function handleSearchBarSearch(params: NodeTypeSearchForm) {
   await searchBarRef.value?.validate?.();
   replaceSearchParams(buildNodeTypeReplaceParams(params));
-  getData();
+  await getData();
 }
 
 async function onResetSearch() {
@@ -428,6 +459,10 @@ async function onResetSearch() {
     name: undefined,
     code: undefined,
     category: undefined,
+    created_id: undefined,
+    updated_id: undefined,
+    created_time: undefined,
+    updated_time: undefined,
   };
   await resetSearchParams();
 }
@@ -599,7 +634,7 @@ async function openDialog(id?: number) {
           : [];
       }
     } catch {
-      ElMessage.error("加载详情失败");
+      /* 已由全局拦截器提示 */
       return;
     }
   }
@@ -646,47 +681,3 @@ async function submitForm() {
   }
 }
 </script>
-
-<style scoped lang="scss">
-.code-editor-container {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-.code-editor-header {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  background: var(--el-fill-color-light);
-  border-bottom: 1px solid var(--el-border-color-lighter);
-}
-
-.code-editor-title {
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.code-editor-tip {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-.dynamic-params {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.param-item {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-
-  .el-input {
-    flex: 1;
-  }
-}
-</style>

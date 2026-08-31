@@ -13,39 +13,35 @@
       <ElStep title="预览代码" />
     </ElSteps>
 
-    <div class="gencode-drawer-step-wrap mt-4">
-      <div v-show="activeStep === 0">
-        <GenBasicStep
-          v-model:info="info"
-          :rules="rules"
-          :menu-options="menuOptions"
-          @clear-master-sub="emit('clear-master-sub')"
-          @master-sub-blur="emit('master-sub-blur')"
-        />
-      </div>
+    <GenBasicStep
+      v-show="activeStep === 0"
+      v-model:info="info"
+      :rules="rules"
+      :menu-options="menuOptions"
+      @clear-master-sub="emit('clear-master-sub')"
+      @master-sub-blur="emit('master-sub-blur')"
+    />
 
-      <div v-show="activeStep === 1">
-        <GenColumnsStep
-          v-model:info="info"
-          :dict-options="dictOptions"
-          :loading="loading"
-          :bulk-set="bulkSet"
-        />
-      </div>
+    <GenColumnsStep
+      v-show="activeStep === 1"
+      v-model:info="info"
+      :dict-options="dictOptions"
+      :loading="loading"
+      :bulk-set="bulkSet"
+    />
 
-      <GenPreviewStep
-        v-show="activeStep === 2"
-        v-model:preview-scope="previewScope"
-        v-model:preview-types="previewTypes"
-        v-model:code="code"
-        :preview-loading="previewLoading"
-        :preview-type-options="previewTypeOptions"
-        :filtered-tree-data="filteredTreeData"
-        :cm-options="cmOptions"
-        @file-click="emit('file-click', $event)"
-        @copy-code="emit('copy-code')"
-      />
-    </div>
+    <GenPreviewStep
+      v-show="activeStep === 2"
+      v-model:preview-scope="previewScope"
+      v-model:preview-types="previewTypes"
+      v-model:code="code"
+      :preview-loading="previewLoading"
+      :preview-type-options="previewTypeOptions"
+      :filtered-tree-data="filteredTreeData"
+      :cm-options="cmOptions"
+      @file-click="emit('file-click', $event)"
+      @copy-code="emit('copy-code')"
+    />
 
     <template #footer>
       <ElButton type="danger" :icon="Close" @click="emit('close')">关闭</ElButton>
@@ -94,6 +90,7 @@ import type { TreeNode } from "../types";
 import GenBasicStep from "./FaGenBasicStep.vue";
 import GenColumnsStep from "./FaGenColumnsStep.vue";
 import GenPreviewStep from "./FaGenPreviewStep.vue";
+import FaDrawer from "@/components/modal/fa-drawer/index.vue";
 
 defineOptions({ name: "GenCodeDrawer" });
 
@@ -139,12 +136,3 @@ interface Emits {
 
 const emit = defineEmits<Emits>();
 </script>
-
-<style scoped lang="scss">
-/* 新版 ElDrawer 内部用 Splitter，size 需为百分比或纯数字(px)，勿用 min()，否则面板宽度可能异常 */
-.gencode-drawer-step-wrap {
-  max-height: calc(100vh - 220px);
-  padding-right: 6px;
-  overflow: hidden auto;
-}
-</style>

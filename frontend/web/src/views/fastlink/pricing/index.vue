@@ -4,13 +4,13 @@
   >
     <!-- Decorative background -->
     <div
-      class="absolute top-0 left-1/2 -translate-x-1/2 pointer-events-none overflow-hidden w-[800px] h-[500px] -z-1"
+      class="absolute top-0 left-1/2 -translate-x-1/2 pointer-events-none overflow-hidden w-200 h-125 -z-1"
     >
       <div
-        class="absolute top-[-120px] left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full bg-gradient-to-b from-primary/8 to-transparent opacity-60"
+        class="absolute -top-30 left-1/2 -translate-x-1/2 w-150 h-150 rounded-full bg-linear-to-b from-primary/8 to-transparent opacity-60"
       />
       <div
-        class="absolute top-[-60px] left-1/2 -translate-x-1/2 w-[400px] h-[400px] rounded-full bg-gradient-to-b from-primary/5 to-transparent opacity-40"
+        class="absolute -top-15 left-1/2 -translate-x-1/2 w-100 h-100 rounded-full bg-linear-to-b from-primary/5 to-transparent opacity-40"
       />
     </div>
 
@@ -68,7 +68,7 @@
 
             <!-- Price -->
             <div
-              class="mt-7.5 px-4 py-4 -mx-1 rounded-xl bg-gradient-to-r from-primary/6 to-transparent"
+              class="mt-7.5 px-4 py-4 -mx-1 rounded-xl bg-linear-to-r from-primary/6 to-transparent"
             >
               <div class="flex flex-wrap items-baseline gap-x-1">
                 <span class="text-4xl font-bold tracking-tight">¥{{ plan.price }}</span>
@@ -122,17 +122,27 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
-import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { Check } from "@element-plus/icons-vue";
-import TenantAPI, { type AvailablePackage } from "@/api/module_platform/tenant";
 
 defineOptions({ name: "DashboardPricing" });
 
-const router = useRouter();
-const packages = ref<AvailablePackage[]>([]);
-const loading = ref(true);
-const buyingId = ref<number | null>(null);
+// ─── Mock Types ───
+
+interface MockPackage {
+  id: number;
+  name: string;
+  price: number;
+  period: "year" | "month";
+  description: string;
+  trial_days: number;
+  max_users: number;
+  max_roles: number;
+  max_depts: number;
+  max_storage_mb: number;
+  is_current: boolean;
+  available_actions: string[];
+}
 
 interface FeatureItem {
   text: string;
@@ -153,6 +163,71 @@ interface PlanDisplay {
   availableActions: string[];
 }
 
+// ─── Mock Data ───
+
+const mockPackages: MockPackage[] = [
+  {
+    id: 1,
+    name: "免费版",
+    price: 0,
+    period: "month",
+    description: "适合个人开发者体验基础功能",
+    trial_days: 0,
+    max_users: 5,
+    max_roles: 2,
+    max_depts: 1,
+    max_storage_mb: 100,
+    is_current: true,
+    available_actions: ["upgrade"],
+  },
+  {
+    id: 2,
+    name: "专业版",
+    price: 9900, // ¥99/月
+    period: "month",
+    description: "适合小型团队日常协作",
+    trial_days: 0,
+    max_users: 20,
+    max_roles: 10,
+    max_depts: 5,
+    max_storage_mb: 1024,
+    is_current: false,
+    available_actions: ["buy"],
+  },
+  {
+    id: 3,
+    name: "企业版",
+    price: 29900, // ¥299/月
+    period: "month",
+    description: "适合中型企业全面管理",
+    trial_days: 0,
+    max_users: 100,
+    max_roles: 50,
+    max_depts: 20,
+    max_storage_mb: 10240,
+    is_current: false,
+    available_actions: ["buy"],
+  },
+  {
+    id: 4,
+    name: "企业版 · 年付",
+    price: 299000, // ¥2990/年 (≈¥249/月)
+    period: "year",
+    description: "年付享超值优惠，适合长期使用",
+    trial_days: 0,
+    max_users: 100,
+    max_roles: 50,
+    max_depts: 20,
+    max_storage_mb: 10240,
+    is_current: false,
+    available_actions: ["buy"],
+  },
+];
+
+const packages = ref<MockPackage[]>([]);
+const loading = ref(true);
+const buyingId = ref<number | null>(null);
+
 const plans = computed<PlanDisplay[]>(() => {
   const raw = packages.value;
   if (!raw.length) return [];
@@ -164,7 +239,7 @@ const plans = computed<PlanDisplay[]>(() => {
   return raw.map((p) => enrichPlan(p, p.id === recommendedId));
 });
 
-function enrichPlan(p: AvailablePackage, isRecommended: boolean): PlanDisplay {
+function enrichPlan(p: MockPackage, isRecommended: boolean): PlanDisplay {
   const [action = "buy"] = p.available_actions;
   const periodLabel = p.period === "year" ? "年" : "月";
   const priceYuan = p.price / 100;
@@ -231,36 +306,21 @@ function enrichPlan(p: AvailablePackage, isRecommended: boolean): PlanDisplay {
 
 async function loadPackages() {
   loading.value = true;
-  try {
-    const res = await TenantAPI.getAvailablePackages();
-    const data = res.data?.data;
-    packages.value = data?.packages || [];
-  } catch {
-    ElMessage.error("加载套餐信息失败");
-  } finally {
-    loading.value = false;
-  }
+  // Simulate network delay
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  packages.value = [...mockPackages];
+  loading.value = false;
 }
 
 async function buyPackage(plan: PlanDisplay) {
   buyingId.value = plan.id;
   const [action = "buy"] = plan.availableActions;
-  try {
-    const res = await TenantAPI.createOrder({
-      package_id: plan.id,
-      order_type: action as "buy" | "renew" | "upgrade" | "downgrade",
-    });
-    const data = res.data?.data;
-    if (data?.amount > 0) {
-      router.push(`/payment/${data.order_id}`);
-    } else {
-      router.push("/self-service?tab=orders");
-    }
-  } catch (e: any) {
-    ElMessage.error(e?.msg || "下单失败");
-  } finally {
-    buyingId.value = null;
-  }
+  // Simulate order creation
+  await new Promise((resolve) => setTimeout(resolve, 800));
+  ElMessage.success(
+    action === "upgrade" ? "已为您跳转至套餐升级页面" : `下单成功！正在为您处理${plan.name}购买`
+  );
+  buyingId.value = null;
 }
 
 onMounted(() => {

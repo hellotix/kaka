@@ -1,85 +1,86 @@
 <!-- 用户管理：左部门树 + 右 Art 表格 -->
 <template>
   <div class="fa-full-height user-manage-page">
-    <div
-      class="user-manage-body box-border flex gap-4 h-full max-md:block max-md:gap-0 max-md:h-auto"
-    >
-      <div class="user-dept-panel shrink-0 w-58 h-full max-md:w-full max-md:h-auto max-md:mb-5">
-        <ElCard class="tree-card fa-card-xs flex flex-col h-full mt-0" shadow="hover">
-          <template #header>
-            <b>部门</b>
-          </template>
-          <ElScrollbar class="dept-tree-scroll min-h-0 flex-1">
-            <FaDeptTree
-              v-model="deptFilterId"
-              class="dept-tree-inner"
-              @node-click="handleDeptNodeClick"
-            />
-          </ElScrollbar>
-        </ElCard>
-      </div>
-
-      <div class="user-main-panel flex flex-col grow min-w-0 min-h-0">
-        <FaSearchBar
-          v-show="showSearchBar"
-          ref="searchBarRef"
-          v-model="searchForm"
-          :items="userSearchItems"
-          :rules="searchBarRules"
-          :is-expand="false"
-          :show-expand="true"
-          :show-reset="true"
-          :show-search="true"
-          :disabled-search="false"
-          :default-expanded="false"
-          include-audit
-          :audit-item-options="{ showTenantId: true }"
-          @search="handleSearchBarSearch"
-          @reset="onResetSearch"
-        />
-
-        <ElCard class="fa-table-card" :style="{ 'margin-top': showSearchBar ? '12px' : '0' }">
-          <FaTableHeader
-            v-model:columns="columnChecks"
-            v-model:showSearchBar="showSearchBar"
-            :loading="loading"
-            @refresh="refreshData"
-          >
-            <template #left>
-              <FaTableHeaderLeft
-                :remove-ids="selectedIds"
-                :perm-create="['module_system:user:create']"
-                :perm-import="['module_system:user:import']"
-                :perm-export="['module_system:user:export']"
-                :perm-delete="['module_system:user:delete']"
-                :perm-patch="['module_system:user:patch']"
-                :import-loading="uploadLoading"
-                :delete-loading="batchDeleting"
-                :create-loading="createLoading"
-                :more-loading="moreLoading"
-                @add="handleAdd"
-                @import="openImport"
-                @export="openExport"
-                @delete="handleBatchDelete"
-                @more="handleMoreClick"
-              />
+    <ElSplitter :style="'height: 100%'">
+      <ElSplitterPanel size="260px" :min="200" :max="400">
+        <div class="user-dept-panel h-full pr-2">
+          <ElCard class="tree-card fa-card-xs flex flex-col h-full mt-0" shadow="hover">
+            <template #header>
+              <b>部门</b>
             </template>
-          </FaTableHeader>
+            <ElScrollbar class="dept-tree-scroll min-h-0 flex-1">
+              <FaDeptTree
+                v-model="deptFilterId"
+                class="dept-tree-inner"
+                @node-click="handleDeptNodeClick"
+              />
+            </ElScrollbar>
+          </ElCard>
+        </div>
+      </ElSplitterPanel>
 
-          <FaTable
-            ref="faTableRef"
-            row-key="id"
-            :loading="loading"
-            :data="data"
-            :columns="columns"
-            :pagination="pagination"
-            @selection-change="onTableSelectionChange"
-            @pagination:size-change="handleSizeChange"
-            @pagination:current-change="handleCurrentChange"
+      <ElSplitterPanel :min="400">
+        <div class="user-main-panel flex flex-col h-full min-w-0 min-h-0 pl-2">
+          <FaSearchBar
+            v-show="showSearchBar"
+            ref="searchBarRef"
+            v-model="searchForm"
+            :items="userSearchItems"
+            :rules="searchBarRules"
+            :is-expand="false"
+            :show-expand="true"
+            :show-reset="true"
+            :show-search="true"
+            :disabled-search="false"
+            :default-expanded="false"
+            include-audit
+            @search="handleSearchBarSearch"
+            @reset="onResetSearch"
           />
-        </ElCard>
-      </div>
-    </div>
+
+          <ElCard class="fa-table-card" :style="{ 'margin-top': showSearchBar ? '12px' : '0' }">
+            <FaTableHeader
+              v-model:columns="columnChecks"
+              v-model:showSearchBar="showSearchBar"
+              :loading="loading"
+              @refresh="refreshData"
+            >
+              <template #left>
+                <FaTableHeaderLeft
+                  :remove-ids="selectedIds"
+                  :perm-create="['module_system:user:create']"
+                  :perm-import="['module_system:user:import']"
+                  :perm-export="['module_system:user:export']"
+                  :perm-delete="['module_system:user:delete']"
+                  :perm-patch="['module_system:user:patch']"
+                  :import-loading="uploadLoading"
+                  :delete-loading="batchDeleting"
+                  :create-loading="createLoading"
+                  :more-loading="moreLoading"
+                  @add="handleAdd"
+                  @import="openImport"
+                  @export="openExport"
+                  @delete="handleBatchDelete"
+                  @more="handleMoreClick"
+                />
+              </template>
+            </FaTableHeader>
+
+            <FaTable
+              ref="faTableRef"
+              row-key="id"
+              :loading="loading"
+              :data="data"
+              :columns="columns"
+              :pagination="pagination"
+              @selection-change="onTableSelectionChange"
+              @pagination:size-change="handleSizeChange"
+              @pagination:current-change="handleCurrentChange"
+            />
+          </ElCard>
+        </div>
+      </ElSplitterPanel>
+    </ElSplitter>
 
     <FaDrawer
       v-model="dialogVisible.visible"
@@ -89,11 +90,12 @@
       :form-mode="dialogVisible.type"
       :confirm-loading="submitLoading"
       @cancel="handleCloseDialog"
-      @confirm="dialogVisible.type === 'detail' ? handleCloseDialog() : handleSubmit()"
+      @close="handleCloseDialog"
+      @confirm="handleSubmit()"
     >
       <template v-if="dialogVisible.type === 'detail'">
         <FaDescriptions
-          :column="2"
+          :column="4"
           :data="detailFormData"
           :items="userDetailItems"
           :scrollbar="false"
@@ -109,21 +111,13 @@
             <FaStatusTag v-else-if="row?.gender === '1'" type="warning" label="女" />
             <FaStatusTag v-else type="info" label="未知" />
           </template>
-          <!-- 角色 → 数组 join 渲染 -->
+          <!-- 角色 → 根据 IDs 从选项解析名称 -->
           <template #roles="{ row }">
-            {{
-              (row as unknown as UserInfo)?.roles
-                ? (row as unknown as UserInfo).roles!.map((item) => item.name).join("、")
-                : ""
-            }}
+            {{ resolveLabels((row as UserInfo).role_ids, roleOptions) }}
           </template>
-          <!-- 岗位 → 数组 join 渲染 -->
+          <!-- 岗位 → 根据 IDs 从选项解析名称 -->
           <template #positions="{ row }">
-            {{
-              (row as unknown as UserInfo)?.positions
-                ? (row as unknown as UserInfo).positions!.map((item) => item.name).join("、")
-                : ""
-            }}
+            {{ resolveLabels((row as UserInfo).position_ids, positionOptions) }}
           </template>
         </FaDescriptions>
       </template>
@@ -206,16 +200,11 @@ defineOptions({
 
 import { h } from "vue";
 import { UserFilled } from "@element-plus/icons-vue";
-import { ElAvatar } from "element-plus";
-import { ResultEnum } from "@/enums/api/result.enum";
+
 import { useAppStore } from "@stores";
 import { DeviceEnum } from "@/enums/settings/device.enum";
-import { useTable } from "@/hooks/core/useTable";
-import { useImportExport } from "@/hooks/core/useImportExport";
-import { useTableSelection } from "@/hooks/core/useTableSelection";
-import { useCrudDialog } from "@/hooks/core/useCrudDialog";
-import { confirmDelete, confirmBatchDelete, confirmToggleStatus } from "@/hooks/core/useConfirm";
-import { cleanEmptyArrayParams, stripPaginationParams } from "@/utils/query";
+import { confirmToggleStatus } from "@/hooks/core/useConfirm";
+
 import UserAPI, {
   type UserForm,
   type UserInfo,
@@ -224,25 +213,29 @@ import UserAPI, {
 import {
   formatTree,
   renderTableOperationCell,
-  type TableOperationAction,
   resolveStatusColumns,
+  stripPaginationParams,
+  cleanEmptyArrayParams,
+  toCrudCols,
+  type TableOperationAction,
 } from "@utils";
 import PositionAPI from "@/api/module_system/position";
 import DeptAPI from "@/api/module_system/dept";
 import RoleAPI from "@/api/module_system/role";
 import { useUserStore } from "@stores";
-import { useAuth } from "@/hooks/core/useAuth";
-import type { ColumnOption } from "@/types/component";
-import type { DescriptionsItem } from "@/components/others/fa-descriptions/index.vue";
+import type { DescriptionsItem } from "@/components/display/fa-descriptions/index.vue";
 import type { SearchFormItem } from "@/components/forms/fa-search-bar/index.vue";
-import type FaSearchBar from "@/components/forms/fa-search-bar/index.vue";
+import FaSearchBar from "@/components/forms/fa-search-bar/index.vue";
 import type { FormItem } from "@/components/forms/fa-form/index.vue";
-import type FaForm from "@/components/forms/fa-form/index.vue";
+import FaForm from "@/components/forms/fa-form/index.vue";
+import FaTableHeader from "@/components/tables/fa-table-header/index.vue";
+import FaTable from "@/components/tables/fa-table/index.vue";
+import FaDrawer from "@/components/modal/fa-drawer/index.vue";
+import FaDescriptions from "@/components/display/fa-descriptions/index.vue";
 import type { IContentConfig, IObject } from "@/components/modal/types";
 import FaDeptTree from "./components/FaDeptTree.vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 
-const { hasAuth } = useAuth();
 const userStore = useUserStore();
 
 type UserSearchForm = {
@@ -250,7 +243,9 @@ type UserSearchForm = {
   name?: string;
   status?: number;
   created_id?: number;
+  updated_id?: number;
   created_time?: string[];
+  updated_time?: string[];
 };
 
 function buildUserReplaceParams(u: UserSearchForm): Record<string, unknown> {
@@ -259,8 +254,11 @@ function buildUserReplaceParams(u: UserSearchForm): Record<string, unknown> {
     name: u.name,
     status: u.status,
     created_id: u.created_id,
+    updated_id: u.updated_id,
     created_time:
       Array.isArray(u.created_time) && u.created_time.length === 2 ? u.created_time : undefined,
+    updated_time:
+      Array.isArray(u.updated_time) && u.updated_time.length === 2 ? u.updated_time : undefined,
   };
 }
 
@@ -282,7 +280,7 @@ function buildUserRowActions(
     onResetPwd: (row: UserInfo) => void;
     onDetail: (id: number) => void;
     onEdit: (id: number) => void;
-    onDelete: (id: number) => void;
+    onDelete: (id: number, name: string) => void;
   }
 ): TableOperationAction[] {
   const sys = row.is_superuser === true;
@@ -325,11 +323,11 @@ function buildUserRowActions(
       disabled: sys,
       run: () => {
         if (sys) return;
-        ctx.onDelete(row.id!);
+        ctx.onDelete(row.id!, row.name ?? row.username ?? "");
       },
     },
   ];
-  return all.filter((a) => a.perm != null && hasAuth(a.perm));
+  return all;
 }
 
 function formatUserOperationCell(row: UserInfo, ctx: Parameters<typeof buildUserRowActions>[1]) {
@@ -355,6 +353,23 @@ const positionOptions = ref<Array<{ value: number; label: string; disabled?: boo
 const { importVisible, exportVisible, openImport, openExport } = useImportExport();
 const detailFormData = ref<UserInfo>({});
 
+interface OptionItem {
+  value: number;
+  label: string;
+  disabled?: boolean;
+}
+
+function resolveLabels(
+  ids: (number | undefined)[] | undefined,
+  options: OptionItem[] | undefined
+): string {
+  if (!ids || !Array.isArray(ids) || !options) return "";
+  return ids
+    .filter((id): id is number => id !== undefined && id !== null)
+    .map((id) => options.find((o) => o.value === id)?.label ?? String(id))
+    .join("、");
+}
+
 // 用户详情描述项配置 —— 数据驱动 + 关键字段用具名插槽覆盖
 const userDetailItems: DescriptionsItem[] = [
   { label: "编号", prop: "id" },
@@ -362,7 +377,7 @@ const userDetailItems: DescriptionsItem[] = [
   { label: "账号", prop: "username" },
   { label: "用户名", prop: "name" },
   { label: "性别", prop: "gender", slot: "gender" }, // 三种状态 Tag
-  { label: "部门", prop: "dept.name" }, // 嵌套属性 a.b.c
+  { label: "部门", prop: "dept_name" },
   { label: "角色", prop: "roles", slot: "roles" }, // 数组 join 渲染
   { label: "岗位", prop: "positions", slot: "positions" }, // 数组 join 渲染
   { label: "邮箱", prop: "email" },
@@ -386,7 +401,6 @@ const userDetailItems: DescriptionsItem[] = [
   { label: "更新人", prop: "updated_by.name" },
   { label: "创建时间", prop: "created_time" },
   { label: "更新时间", prop: "updated_time" },
-  { label: "所属租户", prop: "tenant_by.name" },
   { label: "描述", prop: "description", span: 4 },
 ];
 
@@ -465,17 +479,19 @@ const searchForm = ref<UserSearchForm>({
   name: undefined,
   status: undefined,
   created_id: undefined,
+  updated_id: undefined,
   created_time: undefined,
+  updated_time: undefined,
 });
 
 const showSearchBar = ref(true);
 const searchBarRef = ref<InstanceType<typeof FaSearchBar> | null>(null);
 const searchBarRules: Record<string, unknown> = {};
 
-const statusOptions = ref([
+const STATUS_OPTIONS = [
   { label: "启用", value: 0 },
   { label: "停用", value: 1 },
-]);
+] as const;
 
 const userSearchItems = computed<SearchFormItem[]>(() => [
   {
@@ -500,7 +516,7 @@ const userSearchItems = computed<SearchFormItem[]>(() => [
     type: "select",
     props: {
       placeholder: "请选择状态",
-      options: statusOptions.value,
+      options: STATUS_OPTIONS,
       clearable: true,
     },
     span: 6,
@@ -516,7 +532,13 @@ async function handleResetPassword(row: UserInfo) {
     const { value } = await ElMessageBox.prompt(
       `请输入用户【${row.username ?? ""}】的新密码`,
       "重置密码",
-      { confirmButtonText: "确定", cancelButtonText: "取消" }
+      {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        inputType: "password",
+        inputErrorMessage: "请输入密码",
+        draggable: true,
+      }
     );
     if (!value || value.length < 6) {
       ElMessage.warning("密码至少需要6位字符，请重新输入");
@@ -528,9 +550,9 @@ async function handleResetPassword(row: UserInfo) {
   }
 }
 
-async function deleteUserRow(id: number) {
+async function deleteUserRow(id: number, name: string) {
   try {
-    await confirmDelete();
+    await confirmDelete(`确定删除「${name}」吗？`);
     await UserAPI.deleteUser([id]);
     const idSet = [id];
     if (userStore.basicInfo.id && idSet.includes(userStore.basicInfo.id)) {
@@ -607,7 +629,7 @@ const {
         prop: "dept",
         label: "部门",
         minWidth: 100,
-        formatter: (row: UserInfo) => row.dept?.name ?? "—",
+        formatter: (row: UserInfo) => row.dept_name ?? "—",
       },
       {
         prop: "gender",
@@ -618,8 +640,20 @@ const {
           "1": { type: "warning", text: "女" },
         },
       },
-      { prop: "created_time", label: "创建时间", width: 168, showOverflowTooltip: true },
-      { prop: "updated_time", label: "更新时间", width: 168, showOverflowTooltip: true },
+      {
+        prop: "created_time",
+        label: "创建时间",
+        width: 168,
+        sortable: true,
+        showOverflowTooltip: true,
+      },
+      {
+        prop: "updated_time",
+        label: "更新时间",
+        width: 168,
+        sortable: true,
+        showOverflowTooltip: true,
+      },
       {
         prop: "operation",
         label: "操作",
@@ -632,17 +666,7 @@ const {
   },
 });
 
-const userCrudCols = computed(() =>
-  columns.value.map((c: ColumnOption<UserInfo>) => {
-    const t = (c as { type?: string }).type;
-    return {
-      prop: c.prop,
-      label: c.label,
-      type: t === "selection" ? ("selection" as const) : ("default" as const),
-      show: true,
-    };
-  })
-);
+const userCrudCols = toCrudCols(columns);
 
 const exportQueryParams = computed(() => {
   const sp = stripPaginationParams(searchParams);
@@ -771,16 +795,18 @@ async function handleSearchBarSearch(params: UserSearchForm) {
   await getData();
 }
 
-function onResetSearch() {
+async function onResetSearch() {
   searchForm.value = {
     username: undefined,
     name: undefined,
     status: undefined,
     created_id: undefined,
+    updated_id: undefined,
     created_time: undefined,
+    updated_time: undefined,
   };
   deptFilterId.value = undefined;
-  void resetSearchParams();
+  await resetSearchParams();
 }
 
 async function handleDeptNodeClick() {
@@ -790,15 +816,12 @@ async function handleDeptNodeClick() {
 async function handleImportUpload(formDataUpload: FormData) {
   uploadLoading.value = true;
   try {
-    const response = await UserAPI.importUser(formDataUpload);
-    if (response.data.code === ResultEnum.SUCCESS) {
-      ElMessage.success(`${response.data.msg}，${response.data.data}`);
-      importVisible.value = false;
-      await refreshData();
-    }
+    await UserAPI.importUser(formDataUpload);
+    importVisible.value = false;
+    await refreshData();
     // 失败分支提示由 axios 拦截器统一处理
   } catch (error: unknown) {
-    console.error(error);
+    if (import.meta.env.DEV) console.error(error);
     // 接口错误已由拦截器提示
   } finally {
     uploadLoading.value = false;
@@ -837,10 +860,8 @@ async function handleOpenDialog(type: "create" | "update" | "detail", id?: numbe
     } else if (type === "update") {
       dialogVisible.title = "修改用户";
       Object.assign(formData.value, response.data.data);
-      formData.value.role_ids = (response.data.data.roles || []).map((item) => item.id as number);
-      formData.value.position_ids = (response.data.data.positions || []).map(
-        (item) => item.id as number
-      );
+      formData.value.role_ids = (response.data.data.role_ids ?? []) as number[];
+      formData.value.position_ids = (response.data.data.position_ids ?? []) as number[];
     }
   } else {
     dialogVisible.title = "新增用户";
@@ -866,36 +887,40 @@ async function handleOpenDialog(type: "create" | "update" | "detail", id?: numbe
 }
 
 async function handleSubmit() {
-  dataFormRef.value?.validate(async (valid: boolean) => {
-    if (!valid) return;
-    submitLoading.value = true;
-    const id = formData.value.id;
-    try {
-      if (id) {
-        await UserAPI.updateUser(id, formData.value);
-        await refreshUpdate();
-      } else {
-        await UserAPI.createUser(formData.value);
-        await refreshCreate();
-      }
-      dialogVisible.visible = false;
-      await resetForm();
-      if (id === userStore.basicInfo.id) {
-        await userStore.getUserInfo();
-      }
-    } catch (error: unknown) {
-      console.error(error);
-    } finally {
-      submitLoading.value = false;
+  const form = dataFormRef.value;
+  if (!form) return;
+  const valid = await (form.validate as () => Promise<boolean>)().catch(() => false);
+  if (!valid) return;
+  submitLoading.value = true;
+  const id = formData.value.id;
+  try {
+    if (id) {
+      await UserAPI.updateUser(id, formData.value);
+      await refreshUpdate();
+    } else {
+      await UserAPI.createUser(formData.value);
+      await refreshCreate();
     }
-  });
+    dialogVisible.visible = false;
+    await resetForm();
+    if (id === userStore.basicInfo.id) {
+      await userStore.getUserInfo();
+    }
+  } catch (error: unknown) {
+    if (import.meta.env.DEV) console.error(error);
+  } finally {
+    submitLoading.value = false;
+  }
 }
 
 async function handleBatchDelete() {
   const ids = selectedIds.value;
   if (ids.length === 0) return;
   try {
-    await confirmBatchDelete(ids.length);
+    await confirmBatchDelete(
+      ids.length,
+      selectedRows.value.map((r) => String(r.name ?? r.username ?? r.id))
+    );
     batchDeleting.value = true;
     await UserAPI.deleteUser(ids);
     if (userStore.basicInfo.id && ids.includes(userStore.basicInfo.id)) {
@@ -912,15 +937,16 @@ async function handleBatchDelete() {
   }
 }
 
-async function handleMoreClick(status: number) {
+async function handleMoreClick(value: "enable" | "disable") {
   const ids = selectedIds.value;
   if (!ids.length) {
     ElMessage.warning("请先选择要操作的数据");
     return;
   }
   try {
-    await confirmToggleStatus(status);
+    await confirmToggleStatus(value);
     moreLoading.value = true;
+    const status = value === "enable" ? 0 : 1;
     await UserAPI.batchUser({ ids, status });
     await refreshData();
   } catch {
