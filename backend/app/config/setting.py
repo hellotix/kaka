@@ -91,16 +91,16 @@ class Settings(BaseSettings):
 
     # MySQL/PostgreSQL数据库连接
     DATABASE_TYPE: Literal["mysql", "postgres", "sqlite"] = "mysql"
-    DATABASE_HOST: str = "localhost"
+    DATABASE_HOST: str = "127.0.0.1"
     DATABASE_PORT: int = 3306
     DATABASE_USER: str = "root"
-    DATABASE_PASSWORD: str = ""
-    DATABASE_NAME: str = "fastapiadmin"
+    DATABASE_PASSWORD: str = "123456"
+    DATABASE_NAME: str = "mysql"
 
     # ================================================= #
     # ******************** Redis配置 ******************* #
     # ================================================= #
-    REDIS_HOST: str = "localhost"
+    REDIS_HOST: str = "127.0.0.1"
     REDIS_PORT: int = 6379
     REDIS_DB_NAME: int = 1
     REDIS_USER: str = ""
