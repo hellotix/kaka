@@ -1,15 +1,8 @@
 import re
 
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    Field,
-    field_validator,
-    model_validator,
-)
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.common.enums import QueueEnum
-from app.core.base_schema import BaseQueryParam, BaseSchema, TenantByQueryParam, TenantBySchema, UserByQueryParam, UserBySchema
+from app.core.base_schema import BaseQueryParam, BaseSchema, UserByQueryParam, UserBySchema
 from app.core.validator import datetime_validator
 
 
@@ -60,7 +53,7 @@ class NodeUpdateSchema(NodeCreateSchema):
     """节点更新模型"""
 
 
-class NodeOutSchema(NodeCreateSchema, BaseSchema, UserBySchema, TenantBySchema):
+class NodeOutSchema(NodeCreateSchema, BaseSchema, UserBySchema):
     """节点响应模型"""
 
     trigger: str | None = Field(default=None, description="触发器")
@@ -69,19 +62,11 @@ class NodeOutSchema(NodeCreateSchema, BaseSchema, UserBySchema, TenantBySchema):
     model_config = ConfigDict(from_attributes=True)
 
 
-class NodeQueryParam(BaseQueryParam, UserByQueryParam, TenantByQueryParam):
+class NodeQueryParam(BaseQueryParam, UserByQueryParam):
     """节点查询参数"""
 
-    name: str | tuple[str, str] | None = Field(None, description="节点名称")
-    status: int | tuple[str, int] | None = Field(None, ge=0, le=1, description="状态(0:启动 1:停用)")
-
-    @model_validator(mode="after")
-    def validate_query_params(self) -> "NodeQueryParam":
-        if isinstance(self.name, str):
-            self.name = (QueueEnum.like.value, self.name)
-        if isinstance(self.status, int):
-            self.status = (QueueEnum.eq.value, self.status)
-        return self
+    name: str | None = Field(None, description="节点名称", json_schema_extra={"q": "like"})
+    status: int | None = Field(None, ge=0, le=1, description="状态(0:启动 1:停用)", json_schema_extra={"q": "eq"})
 
 
 class NodeExecuteSchema(BaseModel):

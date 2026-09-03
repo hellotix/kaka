@@ -1,0 +1,87 @@
+/* ============================================================================
+ * Components — 组件相关样式
+ * 文档内图片、代码块、Medium-Zoom 覆盖层
+ * ============================================================================ */
+
+/* 文档内图片(可点击放大,排除徽章/logo) */
+.vp-doc img:not(.logo):not([alt*="badge"]):not([alt*="Badge"]):not([alt*="Stars"]):not([alt*="License"]):not([alt*="Python"]):not([alt*="NodeJS"]):not([alt*="MySQL"]):not([alt*="Redis"]) {
+  cursor: zoom-in;
+  transition: opacity 0.3s ease;
+  border-radius: var(--vp-radius-md);
+}
+
+.vp-doc img:not(.logo):not([alt*="badge"]):not([alt*="Badge"]):not([alt*="Stars"]):not([alt*="License"]):not([alt*="Python"]):not([alt*="NodeJS"]):not([alt*="MySQL"]):not([alt*="Redis"]):hover {
+  opacity: 0.9;
+}
+
+/* Medium-Zoom 覆盖层 */
+.dark .medium-zoom-overlay {
+  z-index: 999;
+  background: rgba(0, 0, 0, 0.88) !important;
+  backdrop-filter: blur(10px);
+}
+
+.medium-zoom-image {
+  z-index: 1000;
+  border-radius: var(--vp-radius-sm);
+}
+
+/* 代码块增强 */
+.dark :deep(.vp-doc div[class*='language-']) {
+  border-radius: var(--vp-radius-md);
+  border: 1px solid rgba(99, 102, 241, 0.1);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.dark :deep(.vp-doc div[class*='language-']:hover) {
+  border-color: rgba(99, 102, 241, 0.2);
+  box-shadow: 0 4px 40px rgba(99, 102, 241, 0.08);
+}
+
+/* ============================================================================
+ * Hero 区域品牌色加强
+ * 克制的径向渐变光晕,让品牌色(紫/靛)聚焦在 hero 中心,无任何动画
+ * ============================================================================ */
+.VPHomeHero {
+  position: relative;
+  isolation: isolate;
+  /* ✅ R6 修复:截断 ::before 渐变光晕溢出(inset: -15% 在水平方向延伸出 VPHero 容器 → 触发页面水平滚动条) */
+  overflow: hidden;
+}
+
+.VPHomeHero::before {
+  content: '';
+  position: absolute;
+  inset: -20% -15% auto -15%;
+  height: 90%;
+  background:
+    radial-gradient(ellipse 60% 55% at 50% 30%, rgba(99, 102, 241, 0.14), transparent 70%),
+    radial-gradient(ellipse 50% 45% at 30% 60%, rgba(139, 92, 246, 0.08), transparent 75%),
+    radial-gradient(ellipse 50% 45% at 70% 60%, rgba(236, 72, 153, 0.06), transparent 75%);
+  z-index: -1;
+  pointer-events: none;
+}
+
+.VPHomeHero::after {
+  content: '';
+  position: absolute;
+  top: 60%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60%;
+  max-width: 480px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--vp-brand-gradient), transparent);
+  opacity: 0.5;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* 暗色模式加强 — 紫粉渐变更显眼 */
+.dark .VPHomeHero::before {
+  background:
+    radial-gradient(ellipse 60% 55% at 50% 30%, rgba(91, 108, 247, 0.20), transparent 70%),
+    radial-gradient(ellipse 50% 45% at 30% 60%, rgba(139, 92, 246, 0.12), transparent 75%),
+    radial-gradient(ellipse 50% 45% at 70% 60%, rgba(236, 72, 153, 0.10), transparent 75%);
+}

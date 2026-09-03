@@ -23,7 +23,7 @@ class ChatSessionCRUD:
         """初始化CRUD数据层"""
         self.auth = auth
         self.user_id = auth.user.username or "user"
-        self.team_id = str(auth.user.tenant_id) if auth.user.tenant_id else None
+        self.team_id = "default"
         self.db = self._get_db()
 
     def _get_db(self) -> Any:

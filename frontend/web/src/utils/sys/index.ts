@@ -5,7 +5,7 @@ import mitt, { type Emitter } from "mitt";
 import VersionAPI from "@/api/module_system/version";
 import { ElNotification } from "element-plus";
 import { useUserStore } from "@stores";
-import { StorageConfig } from "@utils";
+import { Auth, StorageConfig } from "@utils";
 import { BANNER } from "../../../build/banner";
 
 // -----------------------------
@@ -388,6 +388,7 @@ let _versionManager: VersionManager | null = null;
 
 /** 启动版本轮询（检测已打开页面是否收到新部署） */
 export function startVersionPolling(): void {
+  if (!Auth.isLoggedIn()) return;
   if (!_versionManager) {
     _versionManager = new VersionManager();
   }

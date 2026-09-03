@@ -91,20 +91,23 @@ class JobService:
     async def clear_job_log(self) -> None:
         await JobCRUD(self.auth, self.db).clear_obj_crud()
 
+    # APScheduler 状态常量: 0=停止, 1=运行中, 2=暂停
+    _SCHEDULER_STATE_MAP: dict[int, str] = {0: "停止", 1: "运行中", 2: "暂停"}
+
     @staticmethod
     def get_scheduler_status() -> dict:
-        status = SchedulerUtil.get_scheduler_state()
+        state = SchedulerUtil.get_scheduler_state()
         is_running = SchedulerUtil.is_running()
-        jobs = SchedulerUtil.get_all_jobs()
+        jobs = SchedulerUtil.get_jobs()
         return {
-            "status": status,
+            "status": JobService._SCHEDULER_STATE_MAP.get(state, "未知"),
             "is_running": is_running,
             "job_count": len(jobs),
         }
 
     @staticmethod
     def get_scheduler_jobs() -> list[dict]:
-        jobs = SchedulerUtil.get_all_jobs()
+        jobs = SchedulerUtil.get_jobs()
         return [
             {
                 "id": job.id,

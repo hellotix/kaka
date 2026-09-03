@@ -2,7 +2,6 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.module_platform.tenant.service import TenantService
 from app.core.base_schema import AuthSchema, BatchSetAvailable, PageResultSchema
 from app.core.exceptions import CustomException
 from app.utils.common_util import search_to_dict
@@ -16,6 +15,8 @@ from .schema import (
     RoleQueryParam,
     RoleUpdateSchema,
 )
+
+_ROLE_PRELOAD = ["menus", "depts"]
 
 
 class RoleService:
@@ -37,7 +38,7 @@ class RoleService:
         返回:
         - RoleOutSchema: 角色详情响应模型
         """
-        obj = await RoleCRUD(self.auth, self.db).get_or_404(id=id)
+        obj = await RoleCRUD(self.auth, self.db).get_or_404(id=id, preload=_ROLE_PRELOAD)
         return RoleOutSchema.model_validate(obj)
 
     async def get_options(self) -> list[dict[str, Any]]:
@@ -58,7 +59,7 @@ class RoleService:
         返回:
         - list[RoleOutSchema]: 角色响应模型列表
         """
-        role_list = await RoleCRUD(self.auth, self.db).get_list(search=search_to_dict(search), order_by=order_by)
+        role_list = await RoleCRUD(self.auth, self.db).get_list(search=search_to_dict(search), order_by=order_by, preload=_ROLE_PRELOAD)
         return [RoleOutSchema.model_validate(role) for role in role_list]
 
     async def page(
@@ -86,6 +87,7 @@ class RoleService:
             order_by=order_by or [{"id": "asc"}],
             search=search_to_dict(search),
             out_schema=RoleOutSchema,
+            preload=_ROLE_PRELOAD,
         )
 
     async def create(self, data: RoleCreateSchema) -> RoleOutSchema:
@@ -105,11 +107,8 @@ class RoleService:
         if obj:
             raise CustomException(msg="创建失败，编码已存在")
 
-        # 检查租户配额
-        await TenantService(self.auth, self.db).check_quota(self.auth.user.tenant_id, "role")
-
         new_role = await RoleCRUD(self.auth, self.db).create(data=data)
-        return RoleOutSchema.model_validate(new_role)
+        return await self.detail(id=new_role.id)
 
     async def update(self, id: int, data: RoleUpdateSchema) -> RoleOutSchema:
         """更新角色
@@ -128,8 +127,8 @@ class RoleService:
         exist_code = await RoleCRUD(self.auth, self.db).get(code=data.code)
         if exist_code and exist_code.id != id:
             raise CustomException(msg="更新失败，角色编码已存在")
-        updated_role = await RoleCRUD(self.auth, self.db).update(id=id, data=data)
-        return RoleOutSchema.model_validate(updated_role)
+        await RoleCRUD(self.auth, self.db).update(id=id, data=data)
+        return await self.detail(id=id)
 
     async def delete(self, ids: list[int]) -> None:
         """删除角色
@@ -162,14 +161,9 @@ class RoleService:
         # 设置角色菜单权限
         await RoleCRUD(self.auth, self.db).set_role_menus_crud(role_ids=data.role_ids, menu_ids=data.menu_ids)
 
-        # 设置数据权限范围
+        # 设置数据权限范围（自定义部门关联已废弃，直接清空）
         await RoleCRUD(self.auth, self.db).set(ids=data.role_ids, data_scope=data.data_scope)
-
-        # 设置自定义数据权限部门
-        if data.data_scope == 5 and data.dept_ids:
-            await RoleCRUD(self.auth, self.db).set_role_depts_crud(role_ids=data.role_ids, dept_ids=data.dept_ids)
-        else:
-            await RoleCRUD(self.auth, self.db).set_role_depts_crud(role_ids=data.role_ids, dept_ids=[])
+        await RoleCRUD(self.auth, self.db).set_role_depts_crud(role_ids=data.role_ids, dept_ids=[])
 
     async def set_available(self, data: BatchSetAvailable) -> None:
         """设置角色可用状态
@@ -214,10 +208,8 @@ class RoleService:
         # 数据权限映射
         data_scope_map = {
             1: "仅本人数据权限",
-            2: "本部门数据权限",
-            3: "本部门及以下数据权限",
-            4: "全部数据权限",
-            5: "自定义数据权限",
+            2: "本部门及以下数据权限",
+            3: "全部数据权限",
         }
 
         # 处理数据

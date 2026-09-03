@@ -3,13 +3,12 @@ from typing import Annotated
 
 import typer
 import uvicorn
+from alembic import command
 from alembic.config import Config
 from fastapi import FastAPI
 
-from alembic import command
 from app.common.enums import EnvironmentEnum
 from app.config.setting import settings
-from app.core.logger import logger
 from app.utils.banner import worship
 
 fastapiadmin_cli = typer.Typer()
@@ -61,10 +60,9 @@ def run(
     os.environ["ENVIRONMENT"] = env.value
 
     typer.secho(
-        message="FastapiAdmin 服务启动",
+        message=f"{worship()}",
         fg=typer.colors.GREEN,
     )
-    logger.info(worship(env.value))
 
     # 启动uvicorn服务
     uvicorn.run(
@@ -74,6 +72,7 @@ def run(
         reload=env.value == EnvironmentEnum.DEV.value,
         factory=True,
         log_config=None,
+        timeout_graceful_shutdown=5,
     )
 
 

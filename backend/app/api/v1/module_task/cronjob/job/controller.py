@@ -48,7 +48,7 @@ async def resume_scheduler_controller() -> JSONResponse:
 
 @JobRouter.post("/scheduler/shutdown", summary="关闭调度器", response_model=ResponseSchema[None], dependencies=[Security(AuthPermission(["module_task:cronjob:job:scheduler"]))])
 async def shutdown_scheduler_controller() -> JSONResponse:
-    await SchedulerUtil.shutdown()
+    SchedulerUtil.shutdown()
     return SuccessResponse(msg="调度器已关闭")
 
 
@@ -88,6 +88,15 @@ async def run_job_controller(
     return SuccessResponse(msg="立即执行任务成功")
 
 
+@JobRouter.put("/task/modify/{job_id}", summary="修改任务", response_model=ResponseSchema[None], dependencies=[Security(AuthPermission(["module_task:cronjob:job:task"]))])
+async def modify_job_controller(
+    job_id: Annotated[str, Path(description="调度器任务ID")],
+    changes: Annotated[dict, Body(description="要修改的任务属性，如 name、coalesce、max_instances 等")],
+) -> JSONResponse:
+    SchedulerUtil.modify_job(job_id=job_id, **changes)
+    return SuccessResponse(msg="修改任务成功")
+
+
 @JobRouter.delete("/task/remove/{job_id}", summary="移除任务", response_model=ResponseSchema[None], dependencies=[Security(AuthPermission(["module_task:cronjob:job:delete"]))])
 async def remove_job_controller(
     job_id: Annotated[str, Path(description="调度器任务ID")],
@@ -99,18 +108,15 @@ async def remove_job_controller(
 @JobRouter.get("/log/list", summary="查询执行日志列表", response_model=ResponseSchema[PageResultSchema[JobOutSchema]])
 async def get_job_log_list_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_task:cronjob:job:query"]))],
-    page: Annotated[PaginationQueryParam, Query(description="分页参数")],
-    search: Annotated[JobQueryParam, Query(description="查询参数")],
+    page: Annotated[PaginationQueryParam, Depends()],
+    search: Annotated[JobQueryParam, Query()],
     db: Annotated[AsyncSession, Depends(db_getter)],
 ) -> JSONResponse:
-    order_by = [{"created_time": "desc"}]
-    if page.order_by:
-        order_by = page.order_by
     result_dict = await JobService(auth, db).get_job_log_page(
         page_no=page.page_no,
         page_size=page.page_size,
         search=search,
-        order_by=order_by,
+        order_by=page.order_by,
     )
     return SuccessResponse(data=result_dict, msg="查询执行日志列表成功")
 

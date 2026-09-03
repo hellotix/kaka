@@ -1,50 +1,54 @@
 <template>
   <div class="fa-full-height">
-    <ElContainer class="main-chat">
-      <ElAside class="sidebar-container" :class="{ collapsed: isSidebarCollapsed }">
-        <FaSidebar
-          ref="sidebarRef"
-          :current-session-id="currentSessionId"
-          :is-collapsed="isSidebarCollapsed"
-          @select-session="handleSelectSession"
-          @new-session="handleNewSession"
-          @open-config="configDrawerVisible = true"
-        />
-      </ElAside>
-      <ElContainer class="chat-container">
-        <ElHeader class="chat-header">
-          <FaChatNavbar
-            :connection-status="connectionStatus"
-            :is-connected="isConnected"
-            :message-count="messages.length"
-            :is-sidebar-collapsed="isSidebarCollapsed"
-            @clear-chat="handleClearChat"
-            @toggle-connection="toggleConnection"
-            @toggle-sidebar="toggleSidebar"
+    <ElSplitter :style="'height: 100%'">
+      <ElSplitterPanel :size="isSidebarCollapsed ? 64 : 200" :min="64" :max="400">
+        <div class="sidebar-container h-full" :class="{ collapsed: isSidebarCollapsed }">
+          <FaSidebar
+            ref="sidebarRef"
+            :current-session-id="currentSessionId"
+            :is-collapsed="isSidebarCollapsed"
+            @select-session="handleSelectSession"
+            @new-session="handleNewSession"
+            @open-config="configDrawerVisible = true"
           />
-        </ElHeader>
-        <ElMain class="chat-main">
-          <FaChatMessages
-            ref="chatMessagesRef"
-            :messages="messages"
-            :error="error"
-            @prompt-click="handleSendMessage"
-            @error-close="error = ''"
-          />
-        </ElMain>
-        <ElFooter class="chat-footer">
-          <FaChatInput
-            :disabled="!isConnected"
-            :sending="sending"
-            :is-connected="isConnected"
-            @send="handleSendMessage"
-            @stop="handleStopMessage"
-          />
-        </ElFooter>
-      </ElContainer>
-    </ElContainer>
+        </div>
+      </ElSplitterPanel>
+      <ElSplitterPanel :min="300">
+        <div class="chat-container flex flex-col h-full overflow-hidden">
+          <div class="chat-header">
+            <FaChatNavbar
+              :connection-status="connectionStatus"
+              :is-connected="isConnected"
+              :message-count="messages.length"
+              :is-sidebar-collapsed="isSidebarCollapsed"
+              @clear-chat="handleClearChat"
+              @toggle-connection="toggleConnection"
+              @toggle-sidebar="toggleSidebar"
+            />
+          </div>
+          <div class="chat-main flex-1 overflow-hidden">
+            <FaChatMessages
+              ref="chatMessagesRef"
+              :messages="messages"
+              :error="error"
+              @prompt-click="handleSendMessage"
+              @error-close="error = ''"
+            />
+          </div>
+          <div class="chat-footer">
+            <FaChatInput
+              :disabled="!isConnected"
+              :sending="sending"
+              :is-connected="isConnected"
+              @send="handleSendMessage"
+              @stop="handleStopMessage"
+            />
+          </div>
+        </div>
+      </ElSplitterPanel>
+    </ElSplitter>
 
-    <FaConfigInfoDrawer v-model="configDrawerVisible" />
+    <FaAiModelConfigPanel v-model="configDrawerVisible" />
   </div>
 </template>
 
@@ -63,7 +67,7 @@ import FaSidebar from "./components/FaSidebar.vue";
 import FaChatNavbar from "./components/FaChatNavbar.vue";
 import FaChatMessages from "./components/FaChatMessages.vue";
 import FaChatInput from "./components/FaChatInput.vue";
-import FaConfigInfoDrawer from "@/components/layouts/fa-header-bar/widgets/FaConfigInfoDrawer.vue";
+import FaAiModelConfigPanel from "./components/FaAiModelConfigPanel.vue";
 
 // 状态
 const messages = ref<ChatMessage[]>([]);
@@ -335,47 +339,37 @@ onUnmounted(disconnectWebSocket);
 </script>
 
 <style lang="scss" scoped>
-.main-chat {
-  height: 100%;
-  overflow: hidden;
+/* 拆分条容器样式 */
+:deep(.el-splitter) {
   border: 1px solid var(--el-border-color-light);
   border-radius: 8px;
   box-shadow: var(--el-box-shadow-light);
+}
 
-  /* 与右侧同一表面色；与内容区的分界交给 Sidebar 的竖线即可 */
-  .sidebar-container {
-    width: 200px;
-    background: transparent;
-    transition: width 0.3s ease;
+:deep(.el-splitter-panel) {
+  overflow: hidden;
+}
 
-    &.collapsed {
-      width: 64px;
-    }
-  }
+.sidebar-container {
+  background: transparent;
+  transition: width 0.3s ease;
+}
 
-  .chat-container {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    overflow: hidden;
-  }
+.chat-header {
+  height: auto;
+  padding: 0;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
 
-  .chat-header {
-    height: auto;
-    padding: 0;
-    border-bottom: 1px solid var(--el-border-color-lighter);
-  }
+.chat-main {
+  flex: 1;
+  overflow: hidden;
+}
 
-  .chat-main {
-    flex: 1;
-    overflow: hidden;
-  }
-
-  .chat-footer {
-    height: auto;
-    min-height: 80px;
-    padding: 0;
-    border-top: 1px solid var(--el-border-color-lighter);
-  }
+.chat-footer {
+  height: auto;
+  min-height: 80px;
+  padding: 0;
+  border-top: 1px solid var(--el-border-color-lighter);
 }
 </style>

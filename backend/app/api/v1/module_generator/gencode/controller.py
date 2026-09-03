@@ -20,8 +20,8 @@ GenRouter = APIRouter(route_class=OperationLogRoute, prefix="/gencode", tags=["�
 @GenRouter.get("/list", summary="查询代码生成业务表列表", response_model=ResponseSchema[list[GenTableOutSchema]])
 async def gen_table_list_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_generator:gencode:query"]))],
-    page: Annotated[PaginationQueryParam, Query(description="分页参数")],
-    search: Annotated[GenTableQueryParam, Query(description="查询参数")],
+    page: Annotated[PaginationQueryParam, Depends()],
+    search: Annotated[GenTableQueryParam, Query()],
     db: Annotated[AsyncSession, Depends(db_getter)],
 ) -> JSONResponse:
     order_by = [{"created_time": "desc"}]
@@ -39,8 +39,8 @@ async def gen_table_list_controller(
 @GenRouter.get("/db/list", summary="查询数据库表列表", response_model=ResponseSchema[PageResultSchema[GenDBTableSchema]])
 async def get_gen_db_table_list_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_generator:dblist:query"]))],
-    page: Annotated[PaginationQueryParam, Query(description="分页参数")],
-    search: Annotated[GenTableQueryParam, Query(description="查询参数")],
+    page: Annotated[PaginationQueryParam, Depends()],
+    search: Annotated[GenTableQueryParam, Query()],
     db: Annotated[AsyncSession, Depends(db_getter)],
 ) -> JSONResponse:
     result_dict = await GenTableService(auth, db).get_gen_db_table_page(

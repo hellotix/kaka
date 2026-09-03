@@ -31,8 +31,8 @@ async def get_obj_detail_controller(
 @DemoRouter.get("/list", summary="分页查询示例", response_model=ResponseSchema[PageResultSchema[DemoOutSchema]])
 async def get_obj_list_controller(
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_example:demo:query"]))],
-    page: Annotated[PaginationQueryParam, Query(description="分页参数")],
-    search: Annotated[DemoQueryParam, Query(description="查询参数")],
+    page: Annotated[PaginationQueryParam, Depends()],
+    search: Annotated[DemoQueryParam, Query()],
     db: Annotated[AsyncSession, Depends(db_getter)],
 ) -> JSONResponse:
     service = DemoService(auth, db)
@@ -93,7 +93,7 @@ async def batch_set_available_obj_controller(
 @DemoRouter.post("/export", summary="导出示例")
 async def export_obj_list_controller(
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_example:demo:export"]))],
-    search: Annotated[DemoQueryParam, Query(description="查询参数")],
+    search: Annotated[DemoQueryParam, Query()],
     db: Annotated[AsyncSession, Depends(db_getter)],
 ) -> StreamingResponse:
     service = DemoService(auth, db)

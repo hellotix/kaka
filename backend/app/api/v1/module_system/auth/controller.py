@@ -1,14 +1,34 @@
+"""
+认证控制器 — TODO: 限流粒度细化
+---------------------------------
+当前登录（/login）和 OAuth 端点（/oauth/*）共享应用的通用限流配置，
+缺少独立的、更严格的限流策略。建议为以下端点配置独立的 RateLimiter：
+
+1. /auth/login — 密码登录
+   - 建议: 按 IP + 用户名组合限流，如 5次/分钟/IP + 10次/15分钟/用户
+   - 原因: 暴力破解防护
+
+2. /auth/oauth/* — 第三方 OAuth 登录/回调
+   - 建议: 按 IP 限流，如 10次/分钟/IP
+   - 原因: OAuth 流程可能触发多次重定向，频率稍高于登录
+
+3. /auth/captcha/* — 验证码获取/校验
+   - 建议: 按 IP 限流，如 3次/分钟/IP
+   - 原因: 防止验证码遍历
+"""
+
 import json
 import secrets
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Body, Depends, Path, Query, Request, status
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, Path, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse
-from fastapi_cache import FastAPICache
-from fastapi_cache.decorator import cache
 from redis.asyncio.client import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.module_system.user.crud import UserCRUD
+from app.api.v1.module_system.user.schema import UserCreateSchema
+from app.api.v1.module_system.user.service import UserService
 from app.common.response import ErrorResponse, RedirectContentResponse, ResponseSchema, SuccessResponse
 from app.config.setting import settings
 from app.core.base_schema import AuthSchema, JWTOutSchema
@@ -31,78 +51,36 @@ from .oauth_service import (
 )
 from .schema import (
     CaptchaOutSchema,
-    EnterPlatformOutSchema,
-    ImpersonateOutSchema,
-    ImpersonateSchema,
-    LoginWithTenantsSchema,
-    SelectTenantOutSchema,
-    SelectTenantSchema,
+    LoginOutSchema,
     SliderCompleteOutSchema,
     SliderCompleteSchema,
-    TenantLookupOutSchema,
-    TenantOptionSchema,
-    TenantRegisterOutSchema,
-    TenantRegisterSchema,
+    WxLoginSchema,
+    WxPhoneLoginSchema,
+    WxQrCodeOutSchema,
+    WxQrCodeSchema,
 )
 from .service import (
     CaptchaService,
     LoginService,
-    TenantLookupService,
-    TenantRegisterService,
+)
+from .wx_mini_service import (
+    code2session,
+    ensure_wx_user,
+    get_phone_number,
+    get_qrcode,
 )
 
 AuthRouter = APIRouter(route_class=OperationLogRoute, prefix="/auth", tags=["认证授权"])
 
-_AUTH_TENANTS_NS = "auth_tenants"
 
-
-@AuthRouter.get("/tenant/{code}", summary="通过编码查询租户", response_model=ResponseSchema[TenantLookupOutSchema])
-async def lookup_tenant_controller(
-    db: Annotated[AsyncSession, Depends(db_getter)],
-    code: Annotated[str, Path(description="租户编码")],
-) -> JSONResponse:
-    """根据租户编码查询租户信息（用于登录页自动加载租户品牌配置）"""
-    data = await TenantLookupService.lookup_by_code(db=db, code=code)
-    return SuccessResponse(data=data, msg="查询成功")
-
-
-@AuthRouter.get("/tenant-by-domain", summary="通过域名查询租户", response_model=ResponseSchema[TenantLookupOutSchema])
-async def lookup_tenant_by_domain_controller(
-    db: Annotated[AsyncSession, Depends(db_getter)],
-    domain: Annotated[str, Query(description="域名（如 tenant.example.com）")],
-) -> JSONResponse:
-    """根据域名查询租户信息（用于登录页通过访问域名自动识别租户品牌）"""
-    data = await TenantLookupService.lookup_by_domain(db=db, domain=domain)
-    return SuccessResponse(data=data, msg="查询成功")
-
-
-@AuthRouter.get("/tenant-options", summary="获取所有租户选项（登录页下拉选择）", response_model=ResponseSchema[list[TenantOptionSchema]])
-async def get_tenant_options_controller(
-    db: Annotated[AsyncSession, Depends(db_getter)],
-) -> JSONResponse:
-    """获取所有活跃租户下拉选项"""
-    data = await TenantLookupService.list_options(db=db)
-    return SuccessResponse(data=data, msg="查询成功")
-
-
-@AuthRouter.get("/tenant-search", summary="搜索租户（按编码/名称模糊匹配）", response_model=ResponseSchema[list[TenantOptionSchema]])
-async def search_tenant_controller(
-    db: Annotated[AsyncSession, Depends(db_getter)],
-    q: Annotated[str, Query(description="搜索关键字")],
-) -> JSONResponse:
-    """模糊搜索租户"""
-    data = await TenantLookupService.search(db=db, q=q)
-    return SuccessResponse(data=data, msg="查询成功")
-
-
-@AuthRouter.post("/login", summary="登录", response_model=LoginWithTenantsSchema)
+@AuthRouter.post("/login", summary="登录", response_model=LoginOutSchema)
 async def login_for_access_token_controller(
     request: Request,
     background_tasks: BackgroundTasks,
     redis: Annotated[Redis, Depends(redis_getter)],
     db: Annotated[AsyncSession, Depends(db_getter)],
     login_form: Annotated[CustomOAuth2PasswordRequestForm, Depends()],
-) -> JSONResponse | LoginWithTenantsSchema:
+) -> JSONResponse | LoginOutSchema:
     login_result = await LoginService.authenticate_user(request=request, redis=redis, login_form=login_form, db=db, background_tasks=background_tasks)
 
     logger.info(f"用户{login_form.username}登录成功")
@@ -150,55 +128,6 @@ async def logout_controller(
     return ErrorResponse(msg="退出失败")
 
 
-@AuthRouter.post("/select-tenant", summary="选择租户", response_model=ResponseSchema[SelectTenantOutSchema], dependencies=[Depends(get_current_user)])
-async def select_tenant_controller(
-    request: Request,
-    auth: Annotated[AuthSchema, Depends(get_current_user)],
-    redis: Annotated[Redis, Depends(redis_getter)],
-    db: Annotated[AsyncSession, Depends(db_getter)],
-    data: Annotated[SelectTenantSchema, Body(description="租户选择参数")],
-) -> JSONResponse:
-    result = await LoginService(auth, db).select_tenant(request=request, redis=redis, tenant_id=data.tenant_id)
-    await FastAPICache.clear(namespace=_AUTH_TENANTS_NS)
-    return SuccessResponse(data=result, msg="租户切换成功")
-
-
-@AuthRouter.post("/enter-platform", summary="进入平台管理模式", response_model=ResponseSchema[EnterPlatformOutSchema], dependencies=[Depends(get_current_user)])
-async def enter_platform_controller(
-    request: Request,
-    auth: Annotated[AuthSchema, Depends(get_current_user)],
-    redis: Annotated[Redis, Depends(redis_getter)],
-    db: Annotated[AsyncSession, Depends(db_getter)],
-) -> JSONResponse:
-    result = await LoginService(auth, db).enter_platform(request=request, redis=redis)
-    await FastAPICache.clear(namespace=_AUTH_TENANTS_NS)
-    return SuccessResponse(data=result, msg="已返回平台管理模式")
-
-
-@AuthRouter.get("/tenants", summary="获取可选租户列表", response_model=ResponseSchema[list[TenantOptionSchema]], dependencies=[Depends(get_current_user)])
-@cache(expire=120, namespace=_AUTH_TENANTS_NS)
-async def get_user_tenants_controller(
-    auth: Annotated[AuthSchema, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(db_getter)],
-) -> JSONResponse:
-    service = LoginService(auth, db)
-    tenants = await service.get_user_tenants()
-    return SuccessResponse(data=tenants, msg="获取租户列表成功")
-
-
-@AuthRouter.post("/impersonate", summary="平台管理员代签入", response_model=ResponseSchema[ImpersonateOutSchema], dependencies=[Depends(get_current_user)])
-async def impersonate_controller(
-    request: Request,
-    auth: Annotated[AuthSchema, Depends(get_current_user)],
-    redis: Annotated[Redis, Depends(redis_getter)],
-    db: Annotated[AsyncSession, Depends(db_getter)],
-    data: Annotated[ImpersonateSchema, Body(description="代签入参数")],
-) -> JSONResponse:
-    result = await LoginService(auth, db).impersonate(request=request, redis=redis, tenant_id=data.tenant_id)
-    await FastAPICache.clear(namespace=_AUTH_TENANTS_NS)
-    return SuccessResponse(data=result, msg="代签入成功")
-
-
 @AuthRouter.get("/oauth/{provider}/login", summary="第三方OAuth跳转")
 async def oauth_login_redirect_controller(
     request: Request,
@@ -239,6 +168,7 @@ async def oauth_login_redirect_controller(
 @AuthRouter.get("/oauth/{provider}/callback", summary="第三方OAuth回调", include_in_schema=False)
 async def oauth_callback_controller(
     request: Request,
+    background_tasks: BackgroundTasks,
     redis: Annotated[Redis, Depends(redis_getter)],
     db: Annotated[AsyncSession, Depends(db_getter)],
     provider: Annotated[OAuthProvider, Path(description="wechat | qq | github | gitee")],
@@ -275,6 +205,7 @@ async def oauth_callback_controller(
             provider=provider,
             code=code,
             state=state,
+            background_tasks=background_tasks,
         )
         success_url = oauth_service_frontend_redirect_from_token(fe, token)
         return RedirectContentResponse(url=success_url, status_code=302)
@@ -283,17 +214,181 @@ async def oauth_callback_controller(
         return RedirectContentResponse(url=oauth_service_error_redirect(fe, e.msg), status_code=302)
 
 
-@AuthRouter.post("/tenant/register", status_code=status.HTTP_201_CREATED, summary="租户自助注册", response_model=ResponseSchema[TenantRegisterOutSchema])
-async def tenant_register_controller(
+# =================================================== #
+# *************** 微信小程序登录端点 ***************** #
+# =================================================== #
+
+
+@AuthRouter.post("/wx-login", summary="微信小程序登录", response_model=ResponseSchema[LoginOutSchema])
+async def wx_mini_login_controller(
+    request: Request,
+    redis: Annotated[Redis, Depends(redis_getter)],
     db: Annotated[AsyncSession, Depends(db_getter)],
-    data: Annotated[TenantRegisterSchema, Body(description="租户注册参数")],
+    body: WxLoginSchema,
+    background_tasks: BackgroundTasks,
 ) -> JSONResponse:
-    result = await TenantRegisterService.register(
+    """微信小程序登录（code2Session）。
+
+    前端通过 uni.login 获取 code，后端调用微信 code2Session 接口换取 openid，
+    然后查找或自动注册用户，最终返回 JWT。
+    """
+    session_data = await code2session(code=body.code)
+    openid = session_data["openid"]
+
+    user = await ensure_wx_user(
         db=db,
-        username=data.username,
-        password=data.password,
-        email=data.email,
-        tenant_name=data.tenant_name,
+        openid=openid,
+        nickname=body.nickname,
+        avatar=body.avatar,
     )
-    logger.info(f"新租户注册: username={data.username} tenant={result.tenant_name}")
-    return SuccessResponse(data=result, msg=result.message)
+
+    if user.status == 1:
+        raise CustomException(msg="用户已被停用")
+
+    user = await UserCRUD(AuthSchema(), db).update_last_login(id=user.id)
+    if not user:
+        raise CustomException(msg="用户不存在")
+
+    token = await LoginService.create_token(
+        request=request,
+        redis=redis,
+        user=user,
+        login_type="wx_mini",
+        background_tasks=background_tasks,
+    )
+
+    user_info = {
+        "id": user.id,
+        "username": user.username,
+        "name": user.name,
+        "avatar": user.avatar,
+        "is_superuser": user.is_superuser,
+    }
+
+    logger.info(f"微信小程序用户登录成功: {user.username}")
+
+    return SuccessResponse(
+        data=LoginOutSchema(
+            access_token=token.access_token,
+            refresh_token=token.refresh_token,
+            expires_in=token.expires_in,
+            token_type=token.token_type,
+            user_info=user_info,
+        ),
+        msg="登录成功",
+    )
+
+
+@AuthRouter.post("/wx-phone-login", summary="微信小程序手机号登录", response_model=ResponseSchema[LoginOutSchema])
+async def wx_mini_phone_login_controller(
+    request: Request,
+    redis: Annotated[Redis, Depends(redis_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter)],
+    body: WxPhoneLoginSchema,
+    background_tasks: BackgroundTasks,
+) -> JSONResponse:
+    """微信小程序手机号快速登录。
+
+    前端 <button open-type="getPhoneNumber"> 回调 e.detail.code，
+    后端调用微信 getuserphonenumber 接口获取手机号，
+    然后通过手机号查找用户；如果不存在则自动注册。
+
+    注意：此接口需要先调用 uni.login 获取 session，
+    前端在 getPhoneNumber 回调中会同时获得 code（用于换取手机号）。
+    """
+    phone = await get_phone_number(redis=redis, code=body.code)
+
+    # 通过手机号查找已有用户
+    auth = AuthSchema()
+    user = await UserCRUD(auth, db).get(mobile=phone)
+
+    if not user:
+        # 未找到用户 → 自动注册（用手机号生成用户名）
+        username = f"wxphone_{phone[-4:]}_{secrets.token_hex(4)}"
+        # 确保用户名以字母开头
+        if not username[0].isalpha():
+            username = "w" + username
+        username = username[:32]
+
+        reg = UserCreateSchema(
+            username=username,
+            password=secrets.token_urlsafe(24),
+            name=f"用户{phone[-4:]}",
+            mobile=phone,
+            role_ids=list(settings.OAUTH_DEFAULT_ROLE_IDS),
+        )
+        try:
+            await UserService(auth, db).create(data=reg)
+        except Exception:
+            raise CustomException(msg="手机号用户注册失败")
+
+        user = await UserCRUD(auth, db).get(mobile=phone)
+        if not user:
+            raise CustomException(msg="手机号用户注册失败")
+        logger.info(f"微信手机号自动注册用户: {username}")
+
+    if user.status == 1:
+        raise CustomException(msg="用户已被停用")
+
+    user = await UserCRUD(auth, db).update_last_login(id=user.id)
+    if not user:
+        raise CustomException(msg="用户不存在")
+
+    token = await LoginService.create_token(
+        request=request,
+        redis=redis,
+        user=user,
+        login_type="wx_mini_phone",
+        background_tasks=background_tasks,
+    )
+
+    user_info = {
+        "id": user.id,
+        "username": user.username,
+        "name": user.name,
+        "avatar": user.avatar,
+        "is_superuser": user.is_superuser,
+        "mobile": user.mobile,
+    }
+
+    logger.info(f"微信手机号用户登录成功: {user.username}")
+
+    return SuccessResponse(
+        data=LoginOutSchema(
+            access_token=token.access_token,
+            refresh_token=token.refresh_token,
+            expires_in=token.expires_in,
+            token_type=token.token_type,
+            user_info=user_info,
+        ),
+        msg="登录成功",
+    )
+
+
+@AuthRouter.post("/wx-qrcode/generate", summary="生成小程序码", response_model=ResponseSchema[WxQrCodeOutSchema])
+async def wx_qrcode_generate_controller(
+    redis: Annotated[Redis, Depends(redis_getter)],
+    body: WxQrCodeSchema,
+) -> JSONResponse:
+    """生成无限制小程序码。
+
+    调用微信 getwxacodeunlimit 接口生成小程序码图片，
+    返回 base64 编码的图片数据，前端可直接用于 Canvas 绘制或显示。
+    """
+    import base64
+
+    image_bytes = await get_qrcode(
+        redis=redis,
+        scene=body.scene,
+        page=body.page,
+        width=body.width,
+    )
+
+    # 转 base64 data URI，前端可直接作为图片 src 使用
+    b64 = base64.b64encode(image_bytes).decode("utf-8")
+    data_uri = f"data:image/png;base64,{b64}"
+
+    return SuccessResponse(
+        data=WxQrCodeOutSchema(url=data_uri),
+        msg="生成成功",
+    )

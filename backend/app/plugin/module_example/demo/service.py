@@ -146,9 +146,12 @@ class DemoService:
 
             for i, row in enumerate(mapped_rows, start=1):
                 try:
-                    try:
-                        status = 0 if str(row["status"]).strip() == "正常" else 1
-                    except ValueError:
+                    status_str = str(row["status"]).strip()
+                    if status_str == "正常":
+                        status = 0
+                    elif status_str == "停用":
+                        status = 1
+                    else:
                         error_msgs.append(f"第{i}行: 状态必须是'正常'或'停用'")
                         continue
 

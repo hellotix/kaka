@@ -12,7 +12,7 @@ const NoticeAPI = {
   },
 
   listNoticeAvailable() {
-    return request<ApiResponse<PageResult<NoticeTable>>>({
+    return request<ApiResponse<NoticeTable[]>>({
       url: `${API_PATH}/available`,
       method: "get",
     });

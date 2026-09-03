@@ -10,10 +10,6 @@ __pycache__
 *.log
 *.local
 
-.env
-.env.test
-!.env.example
-
 *.egg
 *.egg-info
 dist
@@ -41,9 +37,6 @@ cython_debug
 
 venv
 .venv
-ENV
-env.bak
-venv.bak
 
 node_modules
 .npm
@@ -53,31 +46,31 @@ node_modules
 backend/logs
 backend/*.db
 backend/alembic/versions/*
+backend/env/.env.dev
+backend/env/.env.prod
+backend/env/.env.test
 !backend/alembic/versions/.gitkeep
 
+docker/.env
 docker/nginx/app/dist
 docker/nginx/docs/dist
 docker/nginx/web/dist
 docker/nginx/ssl/*
 !docker/nginx/ssl/.gitkeep
-docker/.env
-docker/docker-compose.yaml
 
-frontend/node_modules
-frontend/dist
-frontend/src/types/auto-imports.d.ts
-frontend/src/types/components.d.ts
-frontend/.env.development
-frontend/.env.production
 frontend/web/.env
+frontend/web/.env.development
+frontend/web/.env.production
 
-frontend/docs/*
+# frontend/docs/*
 !frontend/docs/.gitkeep
 
-frontend/app/*
+# frontend/app/*
 !frontend/app/.gitkeep
 
 .plan
 CLAUDE.md
 AGENTS.md
 .codebuddy
+.agent
+.workbuddy

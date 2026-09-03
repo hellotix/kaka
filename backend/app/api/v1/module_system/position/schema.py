@@ -1,7 +1,6 @@
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.common.enums import QueueEnum
-from app.core.base_schema import BaseQueryParam, BaseSchema, TenantByQueryParam, TenantBySchema, UserByQueryParam, UserBySchema
+from app.core.base_schema import BaseQueryParam, BaseSchema, UserByQueryParam, UserBySchema
 
 
 class PositionCreateSchema(BaseModel):
@@ -41,22 +40,14 @@ class PositionUpdateSchema(PositionCreateSchema):
     """岗位更新模型"""
 
 
-class PositionOutSchema(PositionCreateSchema, BaseSchema, UserBySchema, TenantBySchema):
+class PositionOutSchema(PositionCreateSchema, BaseSchema, UserBySchema):
     """岗位信息响应模型"""
 
     model_config = ConfigDict(from_attributes=True)
 
 
-class PositionQueryParam(BaseQueryParam, UserByQueryParam, TenantByQueryParam):
+class PositionQueryParam(BaseQueryParam, UserByQueryParam):
     """岗位管理查询参数"""
 
-    name: str | tuple[str, str] | None = Field(None, description="岗位名称")
-    status: int | tuple[str, int] | None = Field(None, ge=0, le=1, description="状态(0:启动 1:停用)")
-
-    @model_validator(mode="after")
-    def validate_query_params(self) -> "PositionQueryParam":
-        if isinstance(self.name, str):
-            self.name = (QueueEnum.like.value, self.name)
-        if isinstance(self.status, int):
-            self.status = (QueueEnum.eq.value, self.status)
-        return self
+    name: str | None = Field(None, description="岗位名称", json_schema_extra={"q": "like"})
+    status: int | None = Field(None, ge=0, le=1, description="状态(0:启动 1:停用)", json_schema_extra={"q": "eq"})

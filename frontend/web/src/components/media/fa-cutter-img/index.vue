@@ -387,7 +387,7 @@ function triggerCrop() {
 <style lang="scss" scoped>
 .cutter-container {
   display: flex;
-  flex-flow: row wrap;
+  flex-flow: row nowrap;
 
   .title {
     padding-bottom: 10px;
@@ -400,6 +400,8 @@ function triggerCrop() {
   }
 
   .preview-container {
+    flex-shrink: 0;
+
     .preview-box {
       background-color: var(--art-active-color) !important;
 

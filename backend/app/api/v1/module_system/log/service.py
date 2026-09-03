@@ -10,8 +10,10 @@ from app.core.database import async_db_session
 from app.core.exceptions import CustomException
 from app.core.logger import logger
 from app.utils.common_util import search_to_dict
+from app.utils.excel_util import ExcelUtil
 
 from .crud import LoginLogCRUD, OperationLogCRUD
+from .model import OperationLogModel
 from .schema import (
     LoginLogDetailOutSchema,
     LoginLogOutSchema,
@@ -70,7 +72,7 @@ class OperationLogService:
 
     @staticmethod
     async def cleanup_operation_log() -> bool:
-        from .model import LoginLogModel, OperationLogModel
+        from .model import LoginLogModel
 
         retention_days = settings.OPERATION_LOG_RETENTION_DAYS
 
@@ -117,3 +119,31 @@ class OperationLogService:
                 raise CustomException(msg="删除失败，该数据不存在")
         crud = OperationLogCRUD(self.auth, self.db)
         await crud.delete(ids=ids)
+
+    async def get_list(
+        self,
+        search: OperationLogQueryParam | None = None,
+        order_by: list[dict[str, str]] | None = None,
+    ) -> list[OperationLogOutSchema]:
+        crud = OperationLogCRUD(self.auth, self.db)
+        obj_list = await crud.get_list(
+            search=search_to_dict(search),
+            order_by=order_by or [{"id": "desc"}],
+        )
+        return [OperationLogOutSchema.model_validate(obj) for obj in obj_list]
+
+    @staticmethod
+    def export_list(operation_log_list: list[dict[str, Any]]) -> bytes:
+        """导出操作日志列表"""
+        mapping_dict = {
+            "id": "日志编号",
+            "request_path": "请求路径",
+            "request_method": "请求方法",
+            "request_ip": "请求IP",
+            "request_payload": "请求参数",
+            "response_code": "响应状态码",
+            "process_time": "耗时(ms)",
+            "created_time": "操作时间",
+            "created_id": "操作用户ID",
+        }
+        return ExcelUtil.export_list2excel(list_data=operation_log_list, mapping_dict=mapping_dict)

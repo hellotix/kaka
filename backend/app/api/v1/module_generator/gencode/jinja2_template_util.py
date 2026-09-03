@@ -441,11 +441,10 @@ class Jinja2TemplateUtil:
         has_date_import = False
         has_time_import = False
 
-        # 基类 ModelMixin/TenantMixin/UserMixin 已定义的列，无需导入 SQLAlchemy 类型
+        # 基类 ModelMixin/UserMixin 已定义的列，无需导入 SQLAlchemy 类型
         _BASE_MODEL_COLUMNS = {
             "id",
             "uuid",
-            "tenant_id",
             "created_time",
             "updated_time",
             "created_id",

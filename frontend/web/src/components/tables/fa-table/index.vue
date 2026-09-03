@@ -38,8 +38,19 @@
           :animation="150"
           :disabled="rowDragDisabled"
           @end="onRowDragEnd"
-        >
-          <ElTable ref="elTableRef" :key="tableKey" v-loading="!!loading" v-bind="mergedTableProps">
+          ><ElTable
+            ref="elTableRef"
+            :key="tableKey"
+            v-loading="!!loading"
+            :expand-row-keys="
+              props.rowKey && !hasExplicitTableProp('treeProps')
+                ? expandRowKeys.map(String)
+                : undefined
+            "
+            @expand-change="!hasExplicitTableProp('treeProps') ? onExpandChange : undefined"
+            @selection-change="(val: any[]) => emit('selection-change', val)"
+            v-bind="mergedTableProps"
+          >
             <template v-for="col in columns" :key="col.prop || col.type">
               <ElTableColumn v-if="col.type === 'globalIndex'" v-bind="{ ...col }">
                 <template #default="{ $index }">
@@ -57,6 +68,9 @@
                     v-if="col.useHeaderSlot && col.prop"
                     :is="() => renderColumnHeader(headerScope, col)"
                   />
+                </template>
+                <template #filter-icon="{ filterOpened }">
+                  <Filter class="fa-filter-icon" :class="{ 'is-opened': filterOpened }" />
                 </template>
                 <template #default="slotScope">
                   <component
@@ -88,10 +102,9 @@
       ref="paginationRef"
     >
       <FaPagination
-        v-if="pagination"
-        :page="pagination.current"
-        :limit="pagination.size"
-        :total="pagination.total"
+        :page="pagination!.current"
+        :limit="pagination!.size"
+        :total="pagination!.total"
         :page-sizes="mergedPaginationOptions.pageSizes"
         :layout="mergedPaginationOptions.layout"
         :background="mergedPaginationOptions.background ?? true"
@@ -110,7 +123,7 @@ import {
   ref,
   computed,
   nextTick,
-  watchEffect,
+  watch,
   getCurrentInstance,
   useAttrs,
   useSlots,
@@ -119,23 +132,31 @@ import {
   defineComponent,
   type PropType,
 } from "vue";
-import type { ElTable, TableProps } from "element-plus";
+import type { ElTable, TableInstance, TableProps } from "element-plus";
+import { useRoute } from "vue-router";
 import { storeToRefs } from "pinia";
-import { ColumnOption } from "@/types";
+
 import { useTableStore } from "@stores";
 import { useCommon } from "@/hooks/core/useCommon";
 import { useTableHeight } from "@/hooks/core/useTableHeight";
 import { useWindowSize } from "@vueuse/core";
 import { VueDraggable } from "vue-draggable-plus";
+import { Filter } from "@element-plus/icons-vue";
 import { MOBILE_BREAKPOINT } from "@utils/constants/definitions";
+import type { ColumnOption } from "@/types/component";
 
 defineOptions({ name: "FaTable" });
+
+defineSlots<{
+  default(props: object): any;
+  [slotName: string]: (props: Record<string, any>) => any;
+}>();
 
 const { width } = useWindowSize();
 const isMobile = computed(() => width.value < MOBILE_BREAKPOINT);
 // H5 ↔ 桌面切换时强制重建 ElTable，使列宽 / formatter 重新计算
 const tableKey = computed(() => (isMobile.value ? "mobile" : "desktop"));
-const elTableRef = ref<InstanceType<typeof ElTable> | null>(null);
+const elTableRef = ref<TableInstance | null>(null);
 const paginationRef = ref<HTMLElement>();
 const tableHeaderRef = ref<HTMLElement>();
 const tableStore = useTableStore();
@@ -151,7 +172,7 @@ const {
 } = storeToRefs(tableStore);
 
 /** 分页配置接口 */
-interface PaginationConfig {
+interface FaPaginationConfig {
   /** 当前页码 */
   current: number;
   /** 每页显示条目个数 */
@@ -185,7 +206,7 @@ interface Props extends TableProps<Record<string, any>> {
   /** 列渲染配置 */
   columns?: ColumnOption[];
   /** 分页状态 */
-  pagination?: PaginationConfig;
+  pagination?: FaPaginationConfig;
   /** 分页配置 */
   paginationOptions?: PaginationOptions;
   /** 空数据表格高度 */
@@ -212,12 +233,61 @@ const props = withDefaults(defineProps<Props>(), {
 });
 const instance = getCurrentInstance();
 const attrs = useAttrs();
+const route = useRoute();
+
+// ── 树形表格展开状态记忆 ──
+/** localStorage 存储 key */
+const expandStorageKey = computed(() => `table-expand-${route.path}`);
+
+/** 当前展开的行 key 集合 */
+const expandRowKeys = ref<(string | number)[]>([]);
+
+/** 保存展开状态到 localStorage */
+function saveExpandState(keys: (string | number)[]) {
+  try {
+    localStorage.setItem(expandStorageKey.value, JSON.stringify(keys));
+  } catch {
+    // 静默忽略
+  }
+}
+
+/** 从 localStorage 恢复展开状态 */
+function restoreExpandState(): (string | number)[] {
+  try {
+    const raw = localStorage.getItem(expandStorageKey.value);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+// 数据刷新后尝试恢复展开状态
+watch(
+  () => props.data,
+  (newData) => {
+    if (!newData?.length) {
+      expandRowKeys.value = [];
+      return;
+    }
+    const savedKeys = restoreExpandState();
+    if (savedKeys.length > 0) {
+      expandRowKeys.value = savedKeys;
+    }
+  },
+  { immediate: true }
+);
 
 /** 仅当调用方显式传入对应 prop 时视为「固定」，否则交由表格 store */
 const hasExplicitTableProp = (propName: string): boolean => {
-  const rawProps = (instance?.vnode.props || {}) as Record<string, unknown>;
-  const kebabName = propName.replace(/[A-Z]/g, (match) => `-${match.toLowerCase()}`);
-  return propName in rawProps || kebabName in rawProps;
+  try {
+    const rawProps = (instance?.vnode.props || {}) as Record<string, unknown>;
+    const kebabName = propName.replace(/[A-Z]/g, (match) => `-${match.toLowerCase()}`);
+    return propName in rawProps || kebabName in rawProps;
+  } catch {
+    return false;
+  }
 };
 
 const LAYOUT = {
@@ -329,22 +399,27 @@ const headerCellStyle = computed(() => ({
   ...(props.headerCellStyle || {}), // 合并用户传入的样式
 }));
 
-const mergedTableProps = computed(() => ({
-  ...attrs,
-  ...props,
-  height: height.value,
-  stripe: stripe.value,
-  border: border.value,
-  size: hasExplicitTableProp("size") ? size.value : undefined,
-  headerCellStyle: headerCellStyle.value,
-  highlightCurrentRow: highlightCurrentRow.value,
-  // Element Plus 默认值为 true，未显式传入时不应被 FaTable 覆盖成 false。
-  selectOnIndeterminate: hasExplicitTableProp("selectOnIndeterminate")
-    ? props.selectOnIndeterminate
-    : undefined,
-}));
+const mergedTableProps = computed(() => {
+  const { expandRowKeys: _ignored, ...restProps } = props;
+  void _ignored;
+  return {
+    ...attrs,
+    ...restProps,
+    height: height.value,
+    stripe: stripe.value,
+    border: border.value,
+    size: hasExplicitTableProp("size") ? size.value : undefined,
+    headerCellStyle: headerCellStyle.value,
+    highlightCurrentRow: highlightCurrentRow.value,
+    // Element Plus 默认值为 true，未显式传入时不应被 FaTable 覆盖成 false。
+    selectOnIndeterminate: hasExplicitTableProp("selectOnIndeterminate")
+      ? props.selectOnIndeterminate
+      : undefined,
+  };
+});
 
 interface Emits {
+  (e: "selection-change", val: any[]): void;
   (e: "pagination:size-change", val: number): void;
   (e: "pagination:current-change", val: number): void;
   (e: "update:data", val: Record<string, unknown>[]): void;
@@ -376,6 +451,31 @@ const onRowDragEnd = () => {
   if (Array.isArray(d)) {
     emit("row-order-change", d as Record<string, unknown>[]);
   }
+};
+
+/** 树形表格行展开/收起变化时记录状态 */
+const onExpandChange = (row: Record<string, unknown>, expandedRows: Record<string, unknown>[]) => {
+  const rowKey = (row as Record<string, unknown>)[props.rowKey as string];
+  if (rowKey === undefined || rowKey === null) return;
+
+  const currentKeys = [...expandRowKeys.value];
+  const isExpanded = expandedRows.some(
+    (r) => (r as Record<string, unknown>)[props.rowKey as string] === rowKey
+  );
+
+  if (isExpanded) {
+    if (!currentKeys.includes(rowKey as string | number)) {
+      currentKeys.push(rowKey as string | number);
+    }
+  } else {
+    const idx = currentKeys.indexOf(rowKey as string | number);
+    if (idx > -1) {
+      currentKeys.splice(idx, 1);
+    }
+  }
+
+  expandRowKeys.value = currentKeys;
+  saveExpandState(currentKeys);
 };
 
 // 是否显示分页器
@@ -446,6 +546,57 @@ const cleanColumnProps = (col: ColumnOption) => {
   return columnProps;
 };
 
+/** 创建人 / 更新人列识别：通过 prop 或 label 匹配 */
+const PERSON_FILTER_RE = /(?:create|update)(?:d)?_(?:by|user|name|id)|creator|updater/i;
+const isPersonFilterColumn = (col: ColumnOption): boolean => {
+  // 已显式配置筛选则跳过自动逻辑
+  if (col.filters || col.filterMethod) return false;
+  const prop = col.prop || "";
+  const label = col.label || "";
+  return PERSON_FILTER_RE.test(prop) || /创建人|更新人|创建者|更新者/.test(label);
+};
+
+/** 将创建人/更新人列 prop 归一化为名称取值路径：
+ *  created_id → created_by.name；created_by / created_by.name 等保持不变 */
+const getPersonNamePath = (prop: string): string => prop.replace(/_id(?:\..*)?$/i, "_by.name");
+
+/** 解析嵌套路径取值（如 created_by.name），与 ElTable 单元格取值规则一致 */
+const getPathValue = (row: Record<string, any>, path: string): unknown => {
+  let value: unknown = row;
+  for (const key of path.split(".")) {
+    if (value == null) return undefined;
+    value = (value as Record<string, unknown>)[key];
+  }
+  return value;
+};
+
+/** 单元格值规范化为筛选文本：对象时优先取 name（created_by/updated_by 为对象） */
+const toFilterText = (v: unknown): string => {
+  if (v && typeof v === "object" && "name" in v) {
+    return String((v as { name: unknown }).name ?? "");
+  }
+  return String(v);
+};
+
+/** 从当前表格数据中提取某列的去重值作为筛选选项 */
+const getColumnFilterOptions = (col: ColumnOption): { text: string; value: string }[] => {
+  if (!col.prop) return [];
+  const seen = new Set<string>();
+  const options: { text: string; value: string }[] = [];
+  const path = getPersonNamePath(col.prop);
+  for (const row of props.data || []) {
+    const v = getPathValue(row as Record<string, any>, path);
+    if (v === null || v === undefined || v === "") continue;
+    const text = toFilterText(v);
+    if (!text) continue;
+    if (!seen.has(text)) {
+      seen.add(text);
+      options.push({ text, value: text });
+    }
+  }
+  return options;
+};
+
 /** 普通列：单元格已由插槽内 TableFormatterOutlet 渲染，勿再把 formatter 传给 ElTableColumn，避免与 EP 内置 renderCell 混用 */
 const cleanBodyColumnProps = (col: ColumnOption) => {
   const columnProps = cleanColumnProps(col);
@@ -454,6 +605,13 @@ const cleanBodyColumnProps = (col: ColumnOption) => {
   const isOpCol = col.prop === "operation" || col.label === "操作";
   if (isOpCol && isMobile.value) {
     columnProps.width = 80;
+  }
+  // 创建人 / 更新人列：自动生成表头筛选选项，无需调用方手写 filters
+  if (isPersonFilterColumn(col)) {
+    columnProps.filters = getColumnFilterOptions(col);
+    columnProps.filterMethod = (value: any, row: any) =>
+      toFilterText(getPathValue(row as Record<string, any>, getPersonNamePath(col.prop as string))) ===
+      String(value);
   }
   return columnProps;
 };
@@ -505,23 +663,18 @@ const findTableHeader = () => {
   }
 };
 
-watchEffect(
-  () => {
-    // 访问响应式数据以建立依赖追踪
-    void props.data?.length; // 追踪数据变化
-    const shouldShow = props.showTableHeader;
-
-    // 只有在需要显示表格头部时才查找
+watch(
+  () => props.showTableHeader,
+  (shouldShow) => {
     if (shouldShow) {
       nextTick(() => {
         findTableHeader();
       });
     } else {
-      // 不显示时清空引用
       tableHeaderRef.value = undefined;
     }
   },
-  { flush: "post" }
+  { immediate: true }
 );
 
 defineExpose({
@@ -618,12 +771,55 @@ defineExpose({
     opacity: 0;
   }
 
-  /* 空状态垂直居中 */
+  /* 空状态垂直居中 + 优化间距 */
   &.is-empty {
     :deep(.el-table__body-wrapper) {
       display: flex;
       align-items: center;
       justify-content: center;
+    }
+
+    :deep(.el-table__empty-block) {
+      min-height: 180px;
+    }
+
+    :deep(.el-empty) {
+      .el-empty__image {
+        width: 72px;
+      }
+
+      .el-empty__description {
+        margin-top: 8px;
+
+        p {
+          font-size: 13px;
+          color: var(--fa-gray-500);
+        }
+      }
+    }
+  }
+
+  /* 表格行悬停行高亮（强化） */
+  :deep(.el-table__body tr.el-table__row) {
+    transition: background-color 0.2s ease;
+
+    &:hover > td.el-table__cell {
+      background-color: var(--fa-hover-color) !important;
+    }
+
+    &.current-row > td.el-table__cell {
+      background-color: color-mix(in srgb, var(--el-color-primary) 8%, transparent) !important;
+    }
+  }
+
+  /* 斑马纹优化 */
+  :deep(.el-table--striped .el-table__body tr.el-table__row--striped) {
+    td.el-table__cell {
+      background-color: var(--fa-gray-100);
+    }
+
+    &:hover td.el-table__cell {
+      background-color: var(--fa-hover-color) !important;
     }
   }
 
@@ -645,6 +841,18 @@ defineExpose({
     &.right {
       justify-content: flex-end;
     }
+  }
+
+  /* 表头筛选图标：替换 EP 默认箭头为漏斗，悬停/展开/已筛选时高亮为主题色 */
+  :deep(.el-table__column-filter-trigger .fa-filter-icon) {
+    color: var(--el-text-color-placeholder);
+    transition: color 0.2s ease;
+  }
+
+  :deep(.el-table__column-filter-trigger:hover .fa-filter-icon),
+  :deep(.el-table__column-filter-trigger .fa-filter-icon.is-opened),
+  :deep(.cell.highlight .fa-filter-icon) {
+    color: var(--theme-color);
   }
 }
 </style>

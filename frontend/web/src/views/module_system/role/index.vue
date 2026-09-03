@@ -14,7 +14,6 @@
       :disabled-search="false"
       :default-expanded="false"
       include-audit
-      :audit-item-options="{ showTenantId: true }"
       @search="handleSearchBarSearch"
       @reset="onResetSearch"
     />
@@ -72,18 +71,16 @@
           :column="4"
           :data="detailFormData"
           :items="roleDetailItems"
-          max-height="75vh"
+          max-height="70vh"
         >
           <template #data_scope="{ row }">
             <FaStatusTag v-if="row?.data_scope === 1" type="primary" label="仅本人数据权限" />
-            <FaStatusTag v-else-if="row?.data_scope === 2" type="info" label="本部门数据权限" />
             <FaStatusTag
-              v-else-if="row?.data_scope === 3"
+              v-else-if="row?.data_scope === 2"
               type="warning"
               label="本部门及以下数据权限"
             />
-            <FaStatusTag v-else-if="row?.data_scope === 4" type="success" label="全部数据权限" />
-            <FaStatusTag v-else type="danger" label="自定义数据权限" />
+            <FaStatusTag v-else type="success" label="全部数据权限" />
           </template>
           <template #depts="{ row }">
             <template
@@ -109,7 +106,7 @@
         <FaForm
           :key="roleFormRenderKey"
           scrollbar
-          max-height="75vh"
+          max-height="70vh"
           ref="dataFormRef"
           v-model="formData"
           :items="roleDialogFormItems"
@@ -153,42 +150,46 @@
 
 <script setup lang="ts">
 import { h } from "vue";
-import { useTable } from "@/hooks/core/useTable";
-import { useImportExport } from "@/hooks/core/useImportExport";
-import { useCrudDialog } from "@/hooks/core/useCrudDialog";
-import { useTableSelection } from "@/hooks/core/useTableSelection";
 import { useCrudForm } from "@/hooks/core/useCrudForm";
-import { confirmDelete, confirmBatchDelete, confirmToggleStatus } from "@/hooks/core/useConfirm";
-import { cleanEmptyArrayParams, stripPaginationParams } from "@/utils/query";
-import { renderTableOperationCell, type TableOperationAction, resolveStatusColumns } from "@utils";
-import type { ColumnOption } from "@/types/component";
+import { confirmToggleStatus } from "@/hooks/core/useConfirm";
+
+import {
+  renderTableOperationCell,
+  resolveStatusColumns,
+  stripPaginationParams,
+  cleanEmptyArrayParams,
+  toCrudCols,
+  type TableOperationAction,
+} from "@utils";
 import RoleAPI, {
   type RoleForm,
   type RoleTable,
   type TablePageQuery,
 } from "@/api/module_system/role";
-import { useAuth } from "@/hooks/core/useAuth";
 import { useUserStore } from "@stores";
 import type { IObject } from "@/components/modal/types";
 import type { SearchFormItem } from "@/components/forms/fa-search-bar/index.vue";
 import type FaSearchBar from "@/components/forms/fa-search-bar/index.vue";
 import type { FormItem } from "@/components/forms/fa-form/index.vue";
-import type FaForm from "@/components/forms/fa-form/index.vue";
-import StatusTag from "@/components/others/fa-status-tag/index.vue";
+import FaForm from "@/components/forms/fa-form/index.vue";
+import StatusTag from "@/components/display/fa-status-tag/index.vue";
 import { ElMessage } from "element-plus";
 import FaPermissonDrawer from "./components/FaPermissonDrawer.vue";
+import FaTableHeader from "@/components/tables/fa-table-header/index.vue";
+import FaDescriptions from "@/components/display/fa-descriptions/index.vue";
 
 defineOptions({
   name: "Role",
   inheritAttrs: false,
 });
 
-const { hasAuth } = useAuth();
-
 type RoleSearchForm = {
   name?: string;
   status?: number;
+  created_id?: number;
+  updated_id?: number;
   created_time?: string[];
+  updated_time?: string[];
 };
 
 function normalizeRoleQuery(params: Record<string, unknown>): TablePageQuery {
@@ -200,8 +201,12 @@ function buildRoleReplaceParams(p: RoleSearchForm): Record<string, unknown> {
   return {
     name: p.name,
     status: p.status,
+    created_id: p.created_id,
+    updated_id: p.updated_id,
     created_time:
       Array.isArray(p.created_time) && p.created_time.length === 2 ? p.created_time : undefined,
+    updated_time:
+      Array.isArray(p.updated_time) && p.updated_time.length === 2 ? p.updated_time : undefined,
   };
 }
 
@@ -232,7 +237,7 @@ function buildRoleRowActions(
     onPerm: (id: number, name: string) => void;
     onDetail: (id: number) => void;
     onEdit: (id: number) => void;
-    onDelete: (id: number) => void;
+    onDelete: (id: number, name: string) => void;
   }
 ): TableOperationAction[] {
   const isSys = row.id === 1;
@@ -289,11 +294,11 @@ function buildRoleRowActions(
           warnSys();
           return;
         }
-        ctx.onDelete(row.id!);
+        ctx.onDelete(row.id!, row.name ?? "");
       },
     },
   ];
-  return all.filter((a) => a.perm != null && hasAuth(a.perm));
+  return all;
 }
 
 function formatRoleOperationCell(row: RoleTable, ctx: Parameters<typeof buildRoleRowActions>[1]) {
@@ -305,17 +310,20 @@ function formatRoleOperationCell(row: RoleTable, ctx: Parameters<typeof buildRol
 const searchForm = ref<RoleSearchForm>({
   name: undefined,
   status: undefined,
+  created_id: undefined,
+  updated_id: undefined,
   created_time: undefined,
+  updated_time: undefined,
 });
 
 const showSearchBar = ref(true);
 const searchBarRef = ref<InstanceType<typeof FaSearchBar> | null>(null);
 const searchBarRules: Record<string, unknown> = {};
 
-const statusOptions = ref([
-  { label: "启用", value: "true" },
-  { label: "停用", value: "false" },
-]);
+const STATUS_OPTIONS = [
+  { label: "启用", value: 0 },
+  { label: "停用", value: 1 },
+] as const;
 
 const roleSearchItems = computed<SearchFormItem[]>(() => [
   {
@@ -332,7 +340,7 @@ const roleSearchItems = computed<SearchFormItem[]>(() => [
     type: "select",
     props: {
       placeholder: "请选择状态",
-      options: statusOptions.value,
+      options: STATUS_OPTIONS,
       clearable: true,
     },
     span: 6,
@@ -356,12 +364,12 @@ function handleOpenAssignPermDialog(roleId: number, roleName: string) {
   drawerVisible.value = true;
 }
 
-async function deleteRoleRow(id: number) {
+async function deleteRoleRow(id: number, name: string) {
   try {
-    await confirmDelete();
+    await confirmDelete(`确定删除「${name}」吗？`);
     await RoleAPI.deleteRole([id]);
     const userStore = useUserStore();
-    await userStore.getUserInfo();
+    await userStore.refreshPermissions();
     faTableRef.value?.elTableRef?.clearSelection();
     await refreshRemove();
   } catch {
@@ -374,7 +382,7 @@ const { dialogVisible } = useCrudDialog();
 
 const detailFormData = ref<RoleTable>({} as RoleTable);
 
-const roleDetailItems: import("@/components/others/fa-descriptions/index.vue").DescriptionsItem[] =
+const roleDetailItems: import("@/components/display/fa-descriptions/index.vue").DescriptionsItem[] =
   [
     { label: "角色名称", prop: "name" },
     { label: "排序", prop: "order" },
@@ -385,14 +393,13 @@ const roleDetailItems: import("@/components/others/fa-descriptions/index.vue").D
       label: "状态",
       prop: "status",
       tag: {
-        map: { "0": { type: "success", text: "启用" }, "1": { type: "danger", text: "停用" } },
+        map: { 0: { type: "success", text: "启用" }, 1: { type: "danger", text: "停用" } },
       },
     },
     { label: "创建时间", prop: "created_time" },
     { label: "更新时间", prop: "updated_time" },
     { label: "创建人", prop: "created_by.name" },
     { label: "更新人", prop: "updated_by.name" },
-    { label: "所属租户", prop: "tenant_by.name" },
     { label: "描述", prop: "description", span: 4 },
   ];
 
@@ -453,7 +460,7 @@ const { submitLoading, handleCloseDialog, handleOpenDialog, handleSubmit } = use
   },
   onSubmitSuccess: async () => {
     const userStore = useUserStore();
-    await userStore.getUserInfo();
+    await userStore.refreshPermissions();
   },
 });
 
@@ -506,9 +513,8 @@ const roleDialogFormItems = computed<FormItem[]>(() => [
   {
     label: "状态",
     key: "status",
-    type: "input",
+    type: "radiogroup",
     span: 24,
-    placeholder: "",
   },
   {
     label: "描述",
@@ -551,18 +557,16 @@ const {
     columnsFactory: resolveStatusColumns<RoleTable>(() => [
       { type: "selection", width: 48, fixed: "left" },
       { type: "globalIndex", width: 56, label: "序号" },
-      { prop: "name", label: "角色名称", minWidth: 100, showOverflowTooltip: true },
-      { prop: "code", label: "角色编码", minWidth: 100, showOverflowTooltip: true },
+      { prop: "name", label: "角色名称", minWidth: 120, showOverflowTooltip: true },
+      { prop: "code", label: "角色编码", minWidth: 130, showOverflowTooltip: true },
       {
         prop: "data_scope",
         label: "数据权限",
-        minWidth: 200,
+        minWidth: 160,
         status: {
           1: { type: "primary", text: "仅本人数据权限" },
-          2: { type: "info", text: "本部门数据权限" },
-          3: { type: "warning", text: "本部门及以下数据权限" },
-          4: { type: "success", text: "全部数据权限" },
-          5: { type: "danger", text: "自定义数据权限" },
+          2: { type: "warning", text: "本部门及以下数据权限" },
+          3: { type: "success", text: "全部数据权限" },
         },
       },
       {
@@ -575,19 +579,31 @@ const {
       {
         prop: "status",
         label: "状态",
-        width: 88,
+        width: 80,
         status: {
           0: { type: "success", text: "启用" },
           1: { type: "danger", text: "停用" },
         },
       },
-      { prop: "description", label: "描述", minWidth: 100, showOverflowTooltip: true },
-      { prop: "created_time", label: "创建时间", width: 168, showOverflowTooltip: true },
-      { prop: "updated_time", label: "更新时间", width: 168, showOverflowTooltip: true },
+      { prop: "description", label: "描述", minWidth: 120, showOverflowTooltip: true },
+      {
+        prop: "created_time",
+        label: "创建时间",
+        width: 168,
+        sortable: true,
+        showOverflowTooltip: true,
+      },
+      {
+        prop: "updated_time",
+        label: "更新时间",
+        width: 168,
+        sortable: true,
+        showOverflowTooltip: true,
+      },
       {
         prop: "operation",
         label: "操作",
-        width: 220,
+        width: 230,
         fixed: "right",
         align: "center",
         formatter: (row: RoleTable) => formatRoleOperationCell(row, opCtx),
@@ -596,17 +612,7 @@ const {
   },
 });
 
-const roleCrudCols = computed(() =>
-  columns.value.map((c: ColumnOption<RoleTable>) => {
-    const t = (c as { type?: string }).type;
-    return {
-      prop: c.prop,
-      label: c.label,
-      type: t === "selection" ? ("selection" as const) : ("default" as const),
-      show: true,
-    };
-  })
-);
+const roleCrudCols = toCrudCols(columns);
 
 const exportQueryParams = computed(() => {
   const sp = stripPaginationParams(searchParams as Record<string, unknown>);
@@ -629,27 +635,33 @@ const { exportVisible, openExport } = useImportExport();
 async function handleSearchBarSearch(params: RoleSearchForm) {
   await searchBarRef.value?.validate?.();
   replaceSearchParams(buildRoleReplaceParams(params));
-  getData();
+  await getData();
 }
 
-function onResetSearch() {
+async function onResetSearch() {
   searchForm.value = {
     name: undefined,
     status: undefined,
+    created_id: undefined,
+    updated_id: undefined,
     created_time: undefined,
+    updated_time: undefined,
   };
-  void resetSearchParams();
+  await resetSearchParams();
 }
 
 async function handleBatchDelete() {
   const ids = selectedIds.value;
   if (ids.length === 0) return;
   try {
-    await confirmBatchDelete(ids.length);
+    await confirmBatchDelete(
+      ids.length,
+      selectedRows.value.map((r) => String(r.name ?? r.id))
+    );
     batchDeleting.value = true;
     await RoleAPI.deleteRole(ids);
     const userStore = useUserStore();
-    await userStore.getUserInfo();
+    await userStore.refreshPermissions();
     faTableRef.value?.elTableRef?.clearSelection();
     await refreshRemove();
   } catch {
@@ -659,19 +671,20 @@ async function handleBatchDelete() {
   }
 }
 
-async function handleMoreClick(status: number) {
+async function handleMoreClick(value: "enable" | "disable") {
   const ids = selectedIds.value;
   if (!ids.length) {
     ElMessage.warning("请先选择要操作的数据");
     return;
   }
   try {
-    await confirmToggleStatus(status);
+    await confirmToggleStatus(value);
     moreLoading.value = true;
+    const status = value === "enable" ? 0 : 1;
     await RoleAPI.batchRole({ ids, status });
     await refreshData();
     const userStore = useUserStore();
-    await userStore.getUserInfo();
+    await userStore.refreshPermissions();
   } catch {
     // 用户取消
   } finally {

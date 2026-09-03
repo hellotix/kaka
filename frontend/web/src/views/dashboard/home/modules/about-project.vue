@@ -1,13 +1,13 @@
 <template>
-  <div class="fa-card p-5 flex justify-between h-full">
+  <div class="fa-card p-5 flex justify-between h-100">
     <div>
       <h2 class="text-2xl font-medium">关于项目</h2>
       <p class="text-g-700 mt-1">{{ systemName }} 是一款兼具设计美学与高效开发的后台系统</p>
       <p class="text-g-700 mt-1">使用了 Vue3、TypeScript、Vite、Element Plus 等前沿技术</p>
 
-      <div class="flex flex-wrap gap-3.5 max-w-150 mt-9">
+      <div class="grid grid-cols-2 gap-3.5 max-w-150 mt-9">
         <div
-          class="w-60 flex items-center justify-between h-12.5 px-3.5 border border-g-300 cursor-pointer rounded-lg text-sm bg-g-100 duration-300 hover:-translate-y-1 max-sm:w-full"
+          class="flex items-center justify-between h-12.5 px-3.5 border border-g-300 cursor-pointer rounded-lg text-sm bg-g-100 duration-300 hover:-translate-y-1"
           v-for="link in linkList"
           :key="link.label"
           @click="goPage(link.url)"

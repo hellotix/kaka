@@ -4,6 +4,7 @@ from app.core.base_schema import AuthSchema, PageResultSchema
 from app.core.exceptions import CustomException
 from app.utils.common_util import search_to_dict
 
+from ..flows.handlers.builtin_nodes import builtin_node_options
 from .crud import WorkflowNodeTypeCRUD
 from .schema import (
     WorkflowNodeTypeCreateSchema,
@@ -26,17 +27,20 @@ class WorkflowNodeTypeService:
 
     async def get_options(self) -> list[dict]:
         objs = await WorkflowNodeTypeCRUD(self.auth, self.db).list_active_options_crud()
-        return [
+        db_options = [
             {
                 "id": o.id,
                 "code": o.code,
                 "name": o.name,
                 "category": o.category,
+                "description": o.description or "",
                 "args": o.args or "",
                 "kwargs": o.kwargs or "{}",
             }
             for o in objs
         ]
+        # 内置业务节点排在前面，用户可开箱即用地串联存储/中转/通知等模块
+        return builtin_node_options() + db_options
 
     async def get_detail(self, id: int) -> WorkflowNodeTypeOutSchema:
         obj = await WorkflowNodeTypeCRUD(self.auth, self.db).get_obj_by_id_crud(id=id)

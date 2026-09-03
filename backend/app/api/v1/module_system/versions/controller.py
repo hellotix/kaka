@@ -25,8 +25,8 @@ VersionRouter = APIRouter(route_class=OperationLogRoute, prefix="/versions", tag
 async def get_version_list_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:version:query"]))],
     db: Annotated[AsyncSession, Depends(db_getter)],
-    page: Annotated[PaginationQueryParam, Query(description="分页参数")],
-    search: Annotated[VersionQueryParam, Query(description="查询参数")],
+    page: Annotated[PaginationQueryParam, Depends()],
+    search: Annotated[VersionQueryParam, Query()],
 ) -> JSONResponse:
     service = VersionService(auth, db)
     result = await service.page(page_no=page.page_no, page_size=page.page_size, search=search)
@@ -37,7 +37,7 @@ async def get_version_list_controller(
 async def get_published_versions_controller(
     db: Annotated[AsyncSession, Depends(db_getter)],
 ) -> JSONResponse:
-    auth = AuthSchema(check_data_scope=False)
+    auth = AuthSchema()
     service = VersionService(auth, db)
     result = await service.get_published()
     return SuccessResponse(data=result, msg="查询成功")

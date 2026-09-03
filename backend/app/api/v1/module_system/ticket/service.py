@@ -1,11 +1,13 @@
+from typing import Any
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.module_system.user.model import UserModel
 from app.core.base_schema import AuthSchema, PageResultSchema
-from app.core.event_bus import EventBus
 from app.core.exceptions import CustomException
 from app.utils.common_util import search_to_dict
+from app.utils.excel_util import ExcelUtil
 
 from .crud import TicketCommentCRUD, TicketCRUD
 from .schema import (
@@ -31,6 +33,9 @@ _TICKET_STATUS_LABELS = {
     2: "已完成",
     3: "已关闭",
 }
+
+
+_TICKET_PRELOAD = ["assigned_by"]
 
 
 class TicketService:
@@ -85,17 +90,18 @@ class TicketService:
             order_by=order_by or [{"created_time": "desc"}],
             search=search_to_dict(search),
             out_schema=TicketOutSchema,
+            preload=_TICKET_PRELOAD,
         )
 
     async def detail(self, id: int) -> TicketOutSchema:
-        obj = await TicketCRUD(self.auth, self.db).get_or_404(id=id)
+        obj = await TicketCRUD(self.auth, self.db).get_or_404(id=id, preload=_TICKET_PRELOAD)
         return TicketOutSchema.model_validate(obj)
 
     async def create(self, data: TicketCreateSchema) -> TicketOutSchema:
         obj = await TicketCRUD(self.auth, self.db).create(data=data)
         if not obj:
             raise CustomException(msg="创建工单失败")
-        return TicketOutSchema.model_validate(obj)
+        return await self.detail(id=obj.id)
 
     async def update(self, id: int, data: TicketUpdateSchema) -> TicketOutSchema:
         obj = await TicketCRUD(self.auth, self.db).get_or_404(id=id, msg="工单不存在")
@@ -112,26 +118,12 @@ class TicketService:
             assigned_user = user_result.scalar_one_or_none()
             if not assigned_user:
                 raise CustomException(msg="指定的处理人不存在")
-            if assigned_user.tenant_id != obj.tenant_id:
-                raise CustomException(msg="处理人必须与工单属于同一租户")
 
         updated = await TicketCRUD(self.auth, self.db).update(id=id, data=data)
         if not updated:
             raise CustomException(msg="工单不存在")
 
-        # 有回复内容时 SSE 推送通知给工单创建者
-        if data.reply and obj.created_id:
-            await EventBus.publish(
-                obj.created_id,
-                {
-                    "type": "ticket_reply",
-                    "ticket_id": obj.id,
-                    "title": obj.title,
-                    "ticket_type": obj.ticket_type,
-                },
-            )
-
-        return TicketOutSchema.model_validate(updated)
+        return await self.detail(id=updated.id)
 
     async def delete(self, ids: list[int]) -> None:
         if not ids:
@@ -150,6 +142,33 @@ class TicketService:
                 raise CustomException(msg=f"工单[{tid}]不存在")
             self._validate_status_transition(obj, data.status)
         await TicketCRUD(self.auth, self.db).set(ids=data.ids, status=data.status)
+
+    async def get_list(
+        self,
+        search: TicketQueryParam | None = None,
+        order_by: list[dict[str, str]] | None = None,
+    ) -> list[TicketOutSchema]:
+        obj_list = await TicketCRUD(self.auth, self.db).get_list(
+            search=search_to_dict(search),
+            order_by=order_by or [{"created_time": "desc"}],
+            preload=_TICKET_PRELOAD,
+        )
+        return [TicketOutSchema.model_validate(obj) for obj in obj_list]
+
+    @staticmethod
+    def export_list(ticket_list: list[dict[str, Any]]) -> bytes:
+        """导出工单列表"""
+        mapping_dict = {
+            "id": "工单编号",
+            "title": "工单标题",
+            "ticket_type": "工单类型",
+            "summary": "工单摘要",
+            "status": "工单状态",
+            "description": "备注",
+            "created_time": "创建时间",
+            "updated_time": "更新时间",
+        }
+        return ExcelUtil.export_list2excel(list_data=ticket_list, mapping_dict=mapping_dict)
 
 
 class TicketCommentService:

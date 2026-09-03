@@ -1,0 +1,14 @@
+/* ============================================================================
+ * Styles — 入口
+ * 顺序很重要:tokens → base → background → theme-dark → components →
+ * animations → print
+ * ============================================================================ */
+
+@import './tokens.css';
+@import './base.css';
+@import './background.css';
+@import './theme-dark.css';
+@import './components.css';
+@import './animations.css';
+@import './reduced-motion.css';
+@import './print.css';

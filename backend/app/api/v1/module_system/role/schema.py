@@ -6,10 +6,9 @@ from pydantic import (
     model_validator,
 )
 
-from app.api.v1.module_platform.menu.schema import MenuOutSchema
 from app.api.v1.module_system.dept.schema import DeptOutSchema
-from app.common.enums import QueueEnum
-from app.core.base_schema import BaseQueryParam, BaseSchema, TenantByQueryParam, TenantBySchema, UserByQueryParam, UserBySchema
+from app.api.v1.module_system.menu.schema import MenuOutSchema
+from app.core.base_schema import BaseQueryParam, BaseSchema, UserByQueryParam, UserBySchema
 from app.core.validator import (
     role_permission_request_validator,
     validate_required_code,
@@ -26,8 +25,8 @@ class RoleCreateSchema(BaseModel):
     data_scope: int | None = Field(
         default=1,
         ge=1,
-        le=5,
-        description="数据权限范围(1:仅本人 2:本部门 3:本部门及以下 4:全部 5:自定义)",
+        le=3,
+        description="数据权限范围(1:仅本人 2:本部门及以下 3:全部)",
     )
     status: int = Field(default=0, ge=0, le=1, description="状态(0:启动 1:停用)")
     description: str | None = Field(default=None, max_length=255, description="描述")
@@ -63,8 +62,8 @@ class RolePermissionSettingSchema(BaseModel):
     data_scope: int = Field(
         default=1,
         ge=1,
-        le=5,
-        description="数据权限范围(1:仅本人 2:本部门 3:本部门及以下 4:全部 5:自定义)",
+        le=3,
+        description="数据权限范围(1:仅本人 2:本部门及以下 3:全部)",
     )
     role_ids: list[int] = Field(default_factory=list, description="角色ID列表")
     menu_ids: list[int] = Field(default_factory=list, description="菜单ID列表")
@@ -85,7 +84,7 @@ class RoleUpdateSchema(RoleCreateSchema):
     """
 
 
-class RoleOutSchema(RoleCreateSchema, BaseSchema, UserBySchema, TenantBySchema):
+class RoleOutSchema(RoleCreateSchema, BaseSchema, UserBySchema):
     """角色信息响应模型
     """
 
@@ -95,20 +94,10 @@ class RoleOutSchema(RoleCreateSchema, BaseSchema, UserBySchema, TenantBySchema):
     depts: list[DeptOutSchema] = Field(default_factory=list, description="角色部门列表")
 
 
-class RoleQueryParam(BaseQueryParam, UserByQueryParam, TenantByQueryParam):
+class RoleQueryParam(BaseQueryParam, UserByQueryParam):
     """角色管理查询参数
     """
 
-    name: str | tuple[str, str] | None = Field(None, description="角色名称")
-    code: str | tuple[str, str] | None = Field(None, description="角色编码")
-    status: int | tuple[str, int] | None = Field(None, description="状态(0:启动 1:停用)")
-
-    @model_validator(mode="after")
-    def validate_query_params(self) -> "RoleQueryParam":
-        if isinstance(self.name, str):
-            self.name = (QueueEnum.like.value, self.name)
-        if isinstance(self.code, str):
-            self.code = (QueueEnum.like.value, self.code)
-        if isinstance(self.status, int):
-            self.status = (QueueEnum.eq.value, self.status)
-        return self
+    name: str | None = Field(None, description="角色名称", json_schema_extra={"q": "like"})
+    code: str | None = Field(None, description="角色编码", json_schema_extra={"q": "eq"})
+    status: int | None = Field(None, description="状态(0:启动 1:停用)", json_schema_extra={"q": "eq"})

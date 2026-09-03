@@ -27,9 +27,6 @@ _HEALTH_STREAM_INTERVAL = 30  # 秒
 async def _check_database() -> DependencyStatus:
     """检查数据库连接"""
     try:
-        if not settings.SQL_DB_ENABLE:
-            return DependencyStatus(status=0)
-
         start = time.perf_counter()
         async with async_db_session() as session:
             await session.execute(text("SELECT 1"))
@@ -43,9 +40,6 @@ async def _check_database() -> DependencyStatus:
 async def _check_redis(request: Request) -> DependencyStatus:
     """检查 Redis 连接"""
     try:
-        if not settings.REDIS_ENABLE:
-            return DependencyStatus(status=0)
-
         redis = getattr(request.app.state, "redis", None)
         if not redis:
             return DependencyStatus(status=0)
@@ -140,7 +134,7 @@ async def readiness_check(request: Request) -> JSONResponse:
 
     # 判断总体状态
     def is_ok(d: DependencyStatus) -> bool:
-        return d.status in ("up", "disabled")
+        return d.status == 1
 
     all_ok = all(is_ok(d) for d in dependencies.values())
 

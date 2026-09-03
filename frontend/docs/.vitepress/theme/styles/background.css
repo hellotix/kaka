@@ -1,0 +1,79 @@
+/* ============================================================================
+ * Background — 静态径向渐变(亮 + 深)
+ *
+ * 纯 CSS 静态光晕,无任何动画层 — 符合"克制专业"的整体调性。
+ *   - 亮色:浅紫蓝径向渐变,5 个角落的彩色光晕给页面"现代感",无动画
+ *   - 深色:深空背景,4 个角落的彩色光晕(更暗更饱和)
+ *   - hero 区域用 CSS variables 提供更显眼的品牌色加强(见 :deep(.VPHomeHero))
+ * ============================================================================ */
+
+/* 亮色主题下的浅色径向渐变 */
+:deep(.VPContent)::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(99, 102, 241, 0.10) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 20%, rgba(236, 72, 153, 0.08) 0%, transparent 55%),
+    radial-gradient(ellipse at 50% 80%, rgba(6, 182, 212, 0.08) 0%, transparent 60%),
+    radial-gradient(ellipse at 30% 30%, rgba(168, 85, 247, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 70%, rgba(6, 182, 212, 0.06) 0%, transparent 50%),
+    #fafaff;
+  pointer-events: none;
+}
+
+/* 亮色 — 顶层柔和光晕,增加层次感 */
+:deep(.VPContent)::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at -10% -20%, rgba(99, 102, 241, 0.12) 0%, transparent 45%),
+    radial-gradient(circle at 110% 25%, rgba(139, 92, 246, 0.10) 0%, transparent 40%),
+    radial-gradient(circle at 50% 120%, rgba(6, 182, 212, 0.10) 0%, transparent 40%);
+}
+
+/* 内容层必须在背景之上 */
+:deep(.VPContent) > * {
+  position: relative;
+  z-index: 1;
+}
+
+:deep(.VPContent) {
+  min-height: 100vh;
+}
+
+/* ============================================================================
+ * 深色主题 — 深空背景(R6 加强:微调 #0a0a0a → #08080f 带蓝调,顶部加 aurora 渐变
+ * 给页面"深度感",从顶部的靛紫渐入深空,而不是"死黑")
+ * ============================================================================ */
+.dark :deep(.VPContent)::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(91, 108, 247, 0.18) 0%, transparent 55%),
+    radial-gradient(ellipse at 20% 50%, rgba(91, 108, 247, 0.15) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 20%, rgba(236, 72, 153, 0.12) 0%, transparent 55%),
+    radial-gradient(ellipse at 50% 80%, rgba(6, 182, 212, 0.10) 0%, transparent 60%),
+    radial-gradient(ellipse at 30% 30%, rgba(139, 92, 246, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 70%, rgba(6, 182, 212, 0.08) 0%, transparent 50%),
+    #08080f;
+  pointer-events: none;
+}
+
+.dark :deep(.VPContent)::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at -10% -20%, rgba(91, 108, 247, 0.25) 0%, transparent 45%),
+    radial-gradient(circle at 110% 25%, rgba(139, 92, 246, 0.20) 0%, transparent 40%),
+    radial-gradient(circle at 50% 120%, rgba(6, 182, 212, 0.18) 0%, transparent 40%);
+}

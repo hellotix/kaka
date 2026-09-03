@@ -1,5 +1,5 @@
 <template>
-  <div class="fa-card flex flex-col p-5 h-134 overflow-hidden">
+  <div class="fa-card flex flex-col p-5 h-138 overflow-hidden">
     <div class="fa-card-header">
       <div class="title">
         <h4>新用户</h4>
@@ -73,6 +73,7 @@ import avatar3 from "@imgs/avatar/avatar3.webp";
 import avatar4 from "@imgs/avatar/avatar4.webp";
 import avatar5 from "@imgs/avatar/avatar5.webp";
 import avatar6 from "@imgs/avatar/avatar6.webp";
+import FaTable from "@/components/tables/fa-table/index.vue";
 
 interface UserTableItem {
   username: string;

@@ -1,13 +1,15 @@
 <template>
-  <div class="edge-config-panel">
-    <div class="panel-header">
+  <div class="flex flex-col h-full">
+    <div
+      class="flex items-center justify-between px-4 py-3 font-semibold border-b border-(--el-border-color-lighter)"
+    >
       <span>连线配置</span>
-      <ElButton type="text" class="close-btn" @click="handleClose">
+      <ElButton type="text" class="p-1" @click="handleClose">
         <ElIcon><Close /></ElIcon>
       </ElButton>
     </div>
 
-    <ElScrollbar class="panel-content" view-class="p-4">
+    <ElScrollbar class="flex-1" view-class="p-4">
       <FaForm
         v-model="formData"
         :items="edgeFormItems"
@@ -25,7 +27,9 @@
         </template>
       </FaForm>
 
-      <div class="panel-actions">
+      <div
+        class="flex gap-2 pt-4 border-t border-(--el-border-color-lighter) [&_.el-button]:flex-1"
+      >
         <ElButton type="primary" size="small" @click="handleSave">保存</ElButton>
         <ElButton type="danger" size="small" @click="handleDelete">删除连线</ElButton>
       </div>
@@ -35,8 +39,9 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from "vue";
-import { ElButton, ElColorPicker, ElIcon, ElScrollbar } from "element-plus";
+
 import { Close } from "@element-plus/icons-vue";
+import FaForm from "@/components/forms/fa-form/index.vue";
 
 interface Props {
   edge?: Record<string, any>;
@@ -156,40 +161,6 @@ function handleDelete() {
 </script>
 
 <style scoped lang="scss">
-.edge-config-panel {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-.panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  font-weight: 600;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.close-btn {
-  padding: 4px;
-}
-
-.panel-content {
-  flex: 1;
-}
-
-.panel-actions {
-  display: flex;
-  gap: 8px;
-  padding-top: 16px;
-  border-top: 1px solid #e5e7eb;
-}
-
-.panel-actions .el-button {
-  flex: 1;
-}
-
 .panel-art-form :deep(.el-row > .el-col:last-child) {
   display: none;
 }

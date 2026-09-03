@@ -1,5 +1,4 @@
 import ast
-import json
 import os
 import re
 import shutil
@@ -8,8 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
-from fastapi_cache import FastAPICache
-
+from app.config.path_conf import STATIC_DIR
 from app.config.setting import settings
 from app.core.exceptions import CustomException
 from app.core.logger import logger
@@ -18,7 +16,6 @@ from app.utils.excel_util import ExcelUtil
 from .schema import (
     ResourceCopySchema,
     ResourceCreateDirSchema,
-    ResourceDirectorySchema,
     ResourceItemSchema,
     ResourceMoveSchema,
     ResourceRenameSchema,
@@ -35,9 +32,7 @@ class ResourceService:
 
     @staticmethod
     def _get_resource_root() -> str:
-        if not settings.STATIC_ENABLE:
-            raise CustomException(msg="静态文件服务未启用")
-        resource_root = os.path.join(str(settings.STATIC_ROOT), "upload", "resource")
+        resource_root = os.path.join(str(STATIC_DIR), "upload")
         os.makedirs(resource_root, exist_ok=True)
         return resource_root
 
@@ -161,7 +156,7 @@ class ResourceService:
 
     @staticmethod
     def _generate_http_url(file_path: str, base_url: str | None = None) -> str:
-        static_root = str(settings.STATIC_ROOT)
+        static_root = str(STATIC_DIR)
         try:
             relative_path = os.path.relpath(file_path, static_root)
             url_path = relative_path.replace(os.sep, "/")
@@ -213,75 +208,6 @@ class ResourceService:
             return None
 
     @staticmethod
-    async def get_directory_list(
-        path: str | None = None,
-        include_hidden: bool = False,
-        base_url: str | None = None,
-    ) -> ResourceDirectorySchema:
-        # 进程级缓存（目录内容变更极低频，30s 过期）
-        _RESOURCE_DIR_TTL = 30
-        cache_key = f"resource_dir:{path or 'root'}:{include_hidden}"
-        _backend = FastAPICache.get_backend()
-        cached = await _backend.get(cache_key)
-        if cached:
-            return ResourceDirectorySchema(**json.loads(cached.decode()))
-
-        try:
-            if path is None:
-                safe_path = ResourceService._get_resource_root()
-                display_path = ResourceService._generate_http_url(safe_path, base_url)
-            else:
-                safe_path = ResourceService._get_safe_path(path)
-                display_path = ResourceService._generate_http_url(safe_path, base_url)
-
-            if not os.path.exists(safe_path):
-                raise CustomException(msg="目录不存在")
-
-            if not os.path.isdir(safe_path):
-                raise CustomException(msg="路径不是目录")
-
-            items = []
-            total_files = 0
-            total_dirs = 0
-            total_size = 0
-
-            try:
-                for item_name in os.listdir(safe_path):
-                    if not include_hidden and item_name.startswith("."):
-                        continue
-
-                    item_path = os.path.join(safe_path, item_name)
-                    file_info = ResourceService._get_file_info(item_path, base_url)
-
-                    if file_info:
-                        items.append(file_info)
-                        if file_info.is_file:
-                            total_files += 1
-                            total_size += file_info.size or 0
-                        elif file_info.is_dir:
-                            total_dirs += 1
-
-            except PermissionError:
-                raise CustomException(msg="没有权限访问此目录")
-
-            result = ResourceDirectorySchema(
-                path=display_path,
-                name=os.path.basename(safe_path),
-                items=items,
-                total_files=total_files,
-                total_dirs=total_dirs,
-                total_size=total_size,
-            )
-            await _backend.set(cache_key, json.dumps(result.model_dump()).encode(), expire=_RESOURCE_DIR_TTL)
-            return result
-
-        except CustomException:
-            raise
-        except Exception as e:
-            logger.error(f"获取目录列表失败: {e!s}")
-            raise CustomException(msg=f"获取目录列表失败: {e!s}")
-
-    @staticmethod
     async def get_resources_list(
         search: ResourceSearchQueryParam | None = None,
         order_by: str | None = None,
@@ -302,8 +228,10 @@ class ResourceService:
             all_resources = []
 
             try:
+                include_hidden = search.include_hidden if search and hasattr(search, "include_hidden") else False
+
                 for item_name in os.listdir(resource_root):
-                    if item_name.startswith("."):
+                    if item_name.startswith(".") and not include_hidden:
                         continue
 
                     item_path = os.path.join(resource_root, item_name)

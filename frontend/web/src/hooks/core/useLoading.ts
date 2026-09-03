@@ -68,7 +68,7 @@ export function useLoading(defaultKey?: string): UseLoadingReturn {
   const loadingMap = ref<Record<string, boolean>>({});
 
   function setLoading(key: string, val: boolean): void {
-    loadingMap.value = { ...loadingMap.value, [key]: val };
+    loadingMap.value[key] = val;
   }
 
   function isLoading(key: string): boolean {

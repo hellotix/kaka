@@ -98,7 +98,7 @@ class NoticeService:
         if notice:
             raise CustomException(msg="创建失败，该数据已存在")
         notice_obj = await NoticeCRUD(self.auth, self.db).create(data=data)
-        return NoticeOutSchema.model_validate(notice_obj)
+        return await self.detail(id=notice_obj.id)
 
     async def update(self, id: int, data: NoticeUpdateSchema) -> NoticeOutSchema:
         """更新公告
@@ -114,8 +114,8 @@ class NoticeService:
         exist_notice = await NoticeCRUD(self.auth, self.db).get(notice_title=data.notice_title)
         if exist_notice and exist_notice.id != id:
             raise CustomException(msg="更新失败，标题已存在")
-        notice_obj = await NoticeCRUD(self.auth, self.db).update(id=id, data=data)
-        return NoticeOutSchema.model_validate(notice_obj)
+        await NoticeCRUD(self.auth, self.db).update(id=id, data=data)
+        return await self.detail(id=id)
 
     async def delete(self, ids: list[int]) -> None:
         """删除公告

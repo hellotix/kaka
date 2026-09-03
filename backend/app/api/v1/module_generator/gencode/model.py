@@ -3,19 +3,18 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 from sqlalchemy.sql import expression
 
 from app.config.setting import settings
-from app.core.base_model import ModelMixin, TenantMixin, UserMixin
+from app.core.base_model import ModelMixin, UserMixin
 from app.utils.common_util import SqlalchemyUtil
 
 
-class GenTableModel(ModelMixin, TenantMixin, UserMixin):
+class GenTableModel(ModelMixin, UserMixin):
     """代码生成表
     """
 
     __tablename__: str = "gen_table"
     __table_args__: dict[str, str] = {"comment": "代码生成表"}
-    __loader_options__: list[str] = ["columns", "created_by", "updated_by", "deleted_by", "tenant_by"]
-
-    table_name: Mapped[str] = mapped_column(String(200), nullable=False, default="", comment="表名称")
+    
+    table_name: Mapped[str] = mapped_column(String(200), nullable=False, default="", index=True, comment="表名称")
     table_comment: Mapped[str | None] = mapped_column(String(500), nullable=True, comment="表描述")
     class_name: Mapped[str] = mapped_column(String(100), nullable=False, default="", comment="实体类名称")
     package_name: Mapped[str | None] = mapped_column(String(100), nullable=True, comment="生成包路径")
@@ -26,7 +25,7 @@ class GenTableModel(ModelMixin, TenantMixin, UserMixin):
     sub_table_fk_name: Mapped[str | None] = mapped_column(String(64), nullable=True, server_default=SqlalchemyUtil.get_server_default_null(settings.DATABASE_TYPE), comment="子表关联的外键名")
     parent_menu_id: Mapped[int | None] = mapped_column(Integer, nullable=True, comment="父菜单ID")
     columns: Mapped[list["GenTableColumnModel"]] = relationship(order_by="GenTableColumnModel.sort", back_populates="table", cascade="all, delete-orphan")
-    status: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="状态(0:启动 1:停用)", index=True)
+    status: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="状态(0:启动 1:停用)")
     description: Mapped[str | None] = mapped_column(Text, default=None, nullable=True, comment="备注")
 
     @validates("table_name")
@@ -44,14 +43,13 @@ class GenTableModel(ModelMixin, TenantMixin, UserMixin):
         return class_name.strip()
 
 
-class GenTableColumnModel(ModelMixin, TenantMixin, UserMixin):
+class GenTableColumnModel(ModelMixin, UserMixin):
     """代码生成表字段"""
 
     __tablename__: str = "gen_table_column"
     __table_args__: dict[str, str] = {"comment": "代码生成表字段"}
-    __loader_options__: list[str] = ["created_by", "updated_by", "deleted_by", "tenant_by"]
-
-    column_name: Mapped[str] = mapped_column(String(200), nullable=False, comment="列名称")
+    
+    column_name: Mapped[str] = mapped_column(String(200), nullable=False, index=True, comment="列名称")
     column_comment: Mapped[str | None] = mapped_column(String(500), nullable=True, comment="列描述")
     column_type: Mapped[str] = mapped_column(String(100), nullable=False, comment="列类型")
     column_length: Mapped[str | None] = mapped_column(String(50), nullable=True, comment="列长度")
@@ -72,7 +70,7 @@ class GenTableColumnModel(ModelMixin, TenantMixin, UserMixin):
     sort: Mapped[int] = mapped_column(Integer, nullable=False, default=0, comment="排序")
     table_id: Mapped[int] = mapped_column(Integer, ForeignKey("gen_table.id", ondelete="CASCADE"), nullable=False, index=True, comment="归属表编号")
     table: Mapped["GenTableModel"] = relationship(back_populates="columns")
-    status: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="状态(0:启动 1:停用)", index=True)
+    status: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="状态(0:启动 1:停用)")
     description: Mapped[str | None] = mapped_column(Text, default=None, nullable=True, comment="备注")
 
     @validates("column_name")

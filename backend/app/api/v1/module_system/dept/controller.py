@@ -2,8 +2,6 @@ from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, Path, Query, Security, status
 from fastapi.responses import JSONResponse
-from fastapi_cache import FastAPICache
-from fastapi_cache.decorator import cache
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.response import ResponseSchema, SuccessResponse
@@ -16,15 +14,12 @@ from .service import DeptService
 
 DeptRouter = APIRouter(route_class=OperationLogRoute, prefix="/dept", tags=["部门管理"])
 
-_DEPT_NS = "dept"
-
 
 @DeptRouter.get("/tree", summary="查询部门树", response_model=ResponseSchema[list[DeptOutSchema]])
-@cache(expire=300, namespace=_DEPT_NS)
 async def get_dept_tree_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:dept:query"]))],
     db: Annotated[AsyncSession, Depends(db_getter)],
-    search: Annotated[DeptQueryParam, Query(description="部门查询参数")],
+    search: Annotated[DeptQueryParam, Query()],
 ) -> JSONResponse:
     order_by = [{"order": "asc"}]
     result_dict_tree = await DeptService(auth, db).tree(search=search, order_by=order_by)
@@ -48,7 +43,6 @@ async def create_obj_controller(
     data: Annotated[DeptCreateSchema, Body(description="部门创建参数")],
 ) -> JSONResponse:
     result_dict = await DeptService(auth, db).create(data=data)
-    await FastAPICache.clear(namespace=_DEPT_NS)
     return SuccessResponse(data=result_dict, msg="创建部门成功")
 
 
@@ -60,7 +54,6 @@ async def update_obj_controller(
     data: Annotated[DeptUpdateSchema, Body(description="部门修改参数")],
 ) -> JSONResponse:
     result_dict = await DeptService(auth, db).update(id=id, data=data)
-    await FastAPICache.clear(namespace=_DEPT_NS)
     return SuccessResponse(data=result_dict, msg="修改部门成功")
 
 
@@ -71,7 +64,6 @@ async def delete_obj_controller(
     ids: Annotated[list[int], Body(description="ID列表")],
 ) -> JSONResponse:
     await DeptService(auth, db).delete(ids=ids)
-    await FastAPICache.clear(namespace=_DEPT_NS)
     return SuccessResponse(msg="删除部门成功")
 
 
@@ -82,5 +74,4 @@ async def batch_set_available_obj_controller(
     data: Annotated[BatchSetAvailable, Body(description="状态设置")],
 ) -> JSONResponse:
     await DeptService(auth, db).batch_set_available(data=data)
-    await FastAPICache.clear(namespace=_DEPT_NS)
     return SuccessResponse(msg="批量修改部门状态成功")

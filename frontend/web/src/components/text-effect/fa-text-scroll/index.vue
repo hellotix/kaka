@@ -23,13 +23,13 @@
       <!-- 原始内容 -->
       <span ref="textRef" class="inline-block">
         <slot>
-          <span v-html="text"></span>
+          <span v-html="sanitizedText"></span>
         </slot>
       </span>
       <!-- 克隆内容用于无缝循环 -->
       <span v-if="shouldClone" class="inline-block" :style="cloneSpacing">
         <slot>
-          <span v-html="text"></span>
+          <span v-html="sanitizedText"></span>
         </slot>
       </span>
     </div>
@@ -48,6 +48,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import { storeToRefs } from "pinia";
+import DOMPurify from "dompurify";
 import {
   useElementSize,
   useRafFn,
@@ -117,7 +118,6 @@ const settingStore = useSettingsStore();
 const { isDark } = storeToRefs(settingStore);
 
 const containerRef = ref<HTMLElement>();
-const contentRef = ref<HTMLElement>();
 const textRef = ref<HTMLElement>();
 const isReady = ref(false);
 
@@ -128,6 +128,8 @@ const shouldClone = ref(false);
 
 const isHorizontal = computed(() => props.direction === "left" || props.direction === "right");
 const isReverse = computed(() => props.direction === "right" || props.direction === "down");
+
+const sanitizedText = computed(() => DOMPurify.sanitize(props.text));
 
 // 使用 VueUse 的 useElementSize 监听容器尺寸变化
 const { width: containerWidth, height: containerHeight } = useElementSize(containerRef);

@@ -24,14 +24,14 @@ export const MANUAL_SYSTEM_TAIL_PAGES: CompactManualPage[] = [
   {
     anchor: "page-menu",
     title: "菜单管理",
-    path: "module_platform/menu/index.vue",
+    path: "module_system/menu/index.vue",
     notes: [
       "检索：FaSearchBar（菜单名称等）。",
       "分区：Tab「PC 桌面菜单管理 / APP 移动端菜单管理」两套树数据。",
       "主区：树形表格（勾选、行点击）；展开/收起工具按钮。",
       "工具栏：新增、批量删除、批量更多(patch)、刷新、列配置、显示搜索栏。",
       "弹层：详情 Descriptions；新增/编辑 Drawer（目录 / 菜单 / 按钮 / 外链等类型与路由、图标、权限标识）。",
-      "权限：`module_platform:menu:create|delete|patch` + 行级 detail/update/delete。",
+      "权限：`module_system:menu:create|delete|patch` + 行级 detail/update/delete。",
     ],
   },
   {
@@ -66,7 +66,7 @@ export const MANUAL_SYSTEM_TAIL_PAGES: CompactManualPage[] = [
       "检索：字典类型 FaSearchBar + 分页表。",
       "工具栏：新增类型、导出类型、批量删除、批量更多(patch)、刷新、列配置。",
       "类型弹层：详情 / 新增编辑 Dialog。",
-      "子层：`DataDrawer` 维护某字典类型下的字典数据项（二级）。",
+      "子层：`DictDataPanel` 维护某字典类型下的字典数据项（二级）。",
       "权限：`module_system:dict_type:*` 与字典数据接口权限（见行内按钮）。",
     ],
   },
@@ -90,17 +90,6 @@ export const MANUAL_SYSTEM_TAIL_PAGES: CompactManualPage[] = [
       "工具栏：新增、导出、批量删除、批量更多(patch)、刷新、列配置。",
       "弹层：详情；新增/编辑 Dialog；正文为富文本 `FaWangEditor`；HTML 预览。",
       "权限：`module_system:notice:create|export|delete|patch` + 行级操作。",
-    ],
-  },
-  {
-    anchor: "page-tenant",
-    title: "租户管理",
-    path: "module_system/tenant/index.vue",
-    notes: [
-      "检索：FaSearchBar + 分页表。",
-      "工具栏：新增、批量删除、刷新、列配置（无导出/更多 patch 于顶栏）。",
-      "弹层：详情；新增/编辑 Dialog（名称、编码、起止时间、状态、描述等）。",
-      "权限：`module_platform:tenant:create|delete` + 行级 update/detail/delete。",
     ],
   },
   {

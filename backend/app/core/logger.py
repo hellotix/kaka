@@ -1,11 +1,26 @@
 import logging
 import sys
+from contextvars import ContextVar, Token
 
 from loguru import logger
 
 from app.config.path_conf import LOG_DIR
 from app.config.setting import settings
-from app.core.request_context import get_correlation_id
+
+# ── 请求链路 ID（日志追踪） ──
+_correlation_id: ContextVar[str] = ContextVar("correlation_id", default="")
+
+
+def set_correlation_id(cid: str) -> Token:
+    return _correlation_id.set(cid)
+
+
+def get_correlation_id() -> str:
+    return _correlation_id.get()
+
+
+def reset_correlation_id(token: Token) -> None:
+    _correlation_id.reset(token)
 
 
 def _context_patcher(record):
@@ -29,6 +44,7 @@ class InterceptHandler(logging.Handler):
 
 
 def setup_logger() -> None:
+    """配置日志记录器"""
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     logger.remove()
     logger.configure(patcher=_context_patcher)

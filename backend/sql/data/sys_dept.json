@@ -1,15 +1,11 @@
 [
-  {
-    "name": "平台租户",
-    "code": "DEFAULT",
-    "order": 1,
-    "status": 0,
-    "leader": "管理员",
-    "phone": "15382112620",
-    "email": "948080782@qq.com",
-    "description": "平台默认部门",
-    "parent_id": null,
-    "tenant_id": 1,
-    "children": []
-  }
+    {
+        "name": "系统部门",
+        "code": "DEFAULT",
+        "order": 1,
+        "status": 0,
+        "description": "系统默认部门",
+        "parent_id": null,
+        "children": []
+    }
 ]

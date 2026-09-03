@@ -15,7 +15,7 @@
 
     <div class="mt-2">
       <ElRow :gutter="20">
-        <ElCol :span="6" :xs="24" v-for="(item, index) in salesData" :key="index">
+        <ElCol :span="6" :xs="24" v-for="item in salesData" :key="item.label">
           <div
             class="flex px-5 flex-col justify-center h-55 border border-g-300/85 rounded-xl max-lg:mb-4 max-sm:flex-row max-sm:justify-between max-sm:items-center max-sm:h-40"
           >

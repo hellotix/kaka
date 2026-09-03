@@ -3,20 +3,17 @@ from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, File, Path, Query, Security, UploadFile, status
 from fastapi.responses import JSONResponse, StreamingResponse
-from redis.asyncio.client import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.module_system.auth.service import CaptchaService
 from app.common.response import ResponseSchema, StreamResponse, SuccessResponse
-from app.config.setting import settings
 from app.core.base_schema import AuthSchema, BatchSetAvailable, PageResultSchema, PaginationQueryParam
-from app.core.dependencies import AuthPermission, db_getter, get_current_user, redis_getter
-from app.core.exceptions import CustomException
+from app.core.dependencies import AuthPermission, db_getter, get_current_user
 from app.core.logger import logger
 from app.core.router_class import OperationLogRoute
 from app.utils.common_util import bytes2file_response
 
 from .schema import (
+    CurrentUserOutSchema,
     CurrentUserUpdateSchema,
     ResetPasswordSchema,
     UserChangePasswordSchema,
@@ -24,6 +21,7 @@ from .schema import (
     UserForgetPasswordSchema,
     UserOutSchema,
     UserQueryParam,
+    UserRegisterSchema,
     UserUpdateSchema,
 )
 from .service import UserService
@@ -31,12 +29,13 @@ from .service import UserService
 UserRouter = APIRouter(route_class=OperationLogRoute, prefix="/user", tags=["用户管理"])
 
 
-@UserRouter.get("/current/info", summary="查询当前用户信息", response_model=ResponseSchema[UserOutSchema])
+@UserRouter.get("/current/info", summary="查询当前用户信息", response_model=ResponseSchema[CurrentUserOutSchema])
 async def get_current_user_info_controller(
     auth: Annotated[AuthSchema, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(db_getter)],
+    check_data_scope: Annotated[bool, Query(description="是否加载完整数据（含部门/岗位/角色/OAuth），True-加载全部(默认)，False-仅菜单/权限")] = True,
 ) -> JSONResponse:
-    user_dict = await UserService(auth, db).current_info()
+    user_dict = await UserService(auth, db).current_info(check_data_scope=check_data_scope)
     return SuccessResponse(data=user_dict, msg="获取当前用户信息成功")
 
 
@@ -75,30 +74,31 @@ async def reset_password_controller(
 @UserRouter.post("/password/forget", summary="忘记密码", response_model=ResponseSchema[UserOutSchema])
 async def forget_password_controller(
     db: Annotated[AsyncSession, Depends(db_getter)],
-    redis: Annotated[Redis, Depends(redis_getter)],
     data: Annotated[UserForgetPasswordSchema, Body(description="忘记密码参数")],
 ) -> JSONResponse:
-    # 安全加固：忘记密码必须先校验图形验证码（防暴力枚举用户名/手机号接管账户）
-    if settings.CAPTCHA_ENABLE:
-        if not data.captcha_key or not data.captcha:
-            raise CustomException(msg="验证码不能为空")
-        await CaptchaService.check_captcha(
-            redis=redis,
-            key=data.captcha_key,
-        )
-
-    auth = AuthSchema(check_data_scope=False)
+    auth = AuthSchema()
     user_forget_password_result = await UserService(auth, db).forget_password(data=data)
     logger.info(f"{data.username} 重置密码成功")
     return SuccessResponse(data=user_forget_password_result, msg="重置密码成功")
+
+
+@UserRouter.post("/register", summary="用户注册", response_model=ResponseSchema[UserOutSchema])
+async def register_controller(
+    db: Annotated[AsyncSession, Depends(db_getter)],
+    data: Annotated[UserRegisterSchema, Body(description="用户注册参数")],
+) -> JSONResponse:
+    auth = AuthSchema()
+    register_result = await UserService(auth, db).register(data=data)
+    logger.info(f"新用户注册成功: {data.username}")
+    return SuccessResponse(data=register_result, msg="注册成功")
 
 
 @UserRouter.get("/list", summary="查询用户", response_model=ResponseSchema[PageResultSchema[UserOutSchema]])
 async def get_user_list_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:user:query"]))],
     db: Annotated[AsyncSession, Depends(db_getter)],
-    page: Annotated[PaginationQueryParam, Query(description="分页参数")],
-    search: Annotated[UserQueryParam, Query(description="用户查询参数")],
+    page: Annotated[PaginationQueryParam, Depends()],
+    search: Annotated[UserQueryParam, Query()],
 ) -> JSONResponse:
     result_dict = await UserService(auth, db).page(
         page_no=page.page_no,
@@ -174,12 +174,12 @@ async def export_user_import_template_controller() -> StreamingResponse:
     )
 
 
-@UserRouter.get("/export", summary="导出用户")
+@UserRouter.post("/export", summary="导出用户")
 async def export_user_list_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:user:export"]))],
     db: Annotated[AsyncSession, Depends(db_getter)],
-    page: Annotated[PaginationQueryParam, Query(description="分页参数")],
-    search: Annotated[UserQueryParam, Query(description="用户查询参数")],
+    page: Annotated[PaginationQueryParam, Depends()],
+    search: Annotated[UserQueryParam, Body()],
 ) -> StreamingResponse:
     user_list = await UserService(auth, db).get_list(search=search, order_by=page.order_by)
     user_export_result = UserService.export_list(user_list=[item.model_dump() for item in user_list])

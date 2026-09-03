@@ -1,13 +1,14 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, Path, Query, Security, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.common.response import ResponseSchema, SuccessResponse
+from app.common.response import ResponseSchema, StreamResponse, SuccessResponse
 from app.core.base_schema import AuthSchema, PageResultSchema, PaginationQueryParam
 from app.core.dependencies import AuthPermission, db_getter
 from app.core.router_class import OperationLogRoute
+from app.utils.common_util import bytes2file_response
 
 from .schema import TicketBatchSchema, TicketCommentCreateSchema, TicketCommentOutSchema, TicketCreateSchema, TicketOutSchema, TicketQueryParam, TicketUpdateSchema
 from .service import TicketCommentService, TicketService
@@ -19,8 +20,8 @@ TicketRouter = APIRouter(route_class=OperationLogRoute, prefix="/ticket", tags=[
 async def ticket_list_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:ticket:query"]))],
     db: Annotated[AsyncSession, Depends(db_getter)],
-    page: Annotated[PaginationQueryParam, Query(description="分页参数")],
-    search: Annotated[TicketQueryParam, Query(description="工单查询参数")],
+    page: Annotated[PaginationQueryParam, Depends()],
+    search: Annotated[TicketQueryParam, Query()],
 ) -> JSONResponse:
     result = await TicketService(auth, db).page(
         page_no=page.page_no,
@@ -82,12 +83,28 @@ async def ticket_delete_controller(
     return SuccessResponse(msg="删除成功")
 
 
+@TicketRouter.post("/export", summary="导出工单")
+async def ticket_export_controller(
+    auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:ticket:export"]))],
+    db: Annotated[AsyncSession, Depends(db_getter)],
+    search: Annotated[TicketQueryParam, Body()],
+) -> StreamingResponse:
+    ticket_list = await TicketService(auth, db).get_list(search=search)
+    export_result = TicketService.export_list(ticket_list=[item.model_dump() for item in ticket_list])
+
+    return StreamResponse(
+        data=bytes2file_response(export_result),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=ticket.xlsx"},
+    )
+
+
 @TicketRouter.get("/{ticket_id}/comments", summary="工单评论列表", response_model=ResponseSchema[PageResultSchema[TicketCommentOutSchema]])
 async def ticket_comment_list_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:ticket:detail"]))],
     db: Annotated[AsyncSession, Depends(db_getter)],
     ticket_id: Annotated[int, Path(description="工单ID")],
-    page: Annotated[PaginationQueryParam, Query(description="分页参数")],
+    page: Annotated[PaginationQueryParam, Depends()],
 ) -> JSONResponse:
     result = await TicketCommentService(auth, db).page(ticket_id=ticket_id, page_no=page.page_no, page_size=page.page_size)
     return SuccessResponse(data=result, msg="查询成功")

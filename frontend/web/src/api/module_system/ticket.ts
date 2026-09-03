@@ -25,8 +25,8 @@ const TicketAPI = {
   exportTicket(query?: TicketPageQuery) {
     return request<ApiResponse<Blob>>({
       url: `${API_PATH}/export`,
-      method: "get",
-      params: query,
+      method: "post",
+      data: query,
       responseType: "blob",
     });
   },

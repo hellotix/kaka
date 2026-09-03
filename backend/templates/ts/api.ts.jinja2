@@ -62,7 +62,7 @@ const {{ class_name }}API = {
   },
 
   downloadTemplate{{ class_name }}() {
-    return request<ApiResponse>({
+    return request<Blob>({
       url: `${API_PATH}/download/template`,
       method: "post",
       responseType: "blob",
@@ -88,7 +88,7 @@ export default {{ class_name }}API;
 // ------------------------------
 
 /** 列表查询参数 */
-export interface {{ class_name }}PageQuery extends PageQuery, UserByQueryParams, TenantByQueryParams {
+export interface {{ class_name }}PageQuery extends PageQuery, UserByQueryParams {
   {% for column in columns %}
   {% if column.is_query and column.column_name != pk_column_name and column.column_name not in ['created_time', 'updated_time', 'created_id', 'updated_id', 'tenant_id', 'is_deleted', 'deleted_time', 'deleted_id'] %}
   {{ column.column_name }}?: {{

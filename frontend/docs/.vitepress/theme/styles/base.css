@@ -1,0 +1,115 @@
+/* ============================================================================
+ * Base — 全局基础样式
+ * 平滑滚动、滚动条、文本选择等不影响主题的核心样式
+ * ============================================================================ */
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* 移动端点击高亮(改成品牌色,避免默认蓝框突兀) */
+a, button {
+  -webkit-tap-highlight-color: rgba(139, 92, 246, 0.18);
+}
+
+/* 键盘焦点可见性(仅键盘,鼠标点击不显示) */
+:focus-visible {
+  outline: var(--vp-focus-ring);
+  outline-offset: var(--vp-focus-offset);
+  border-radius: 4px;
+}
+
+.dark :focus-visible {
+  outline-color: var(--vp-brand-accent-light);
+}
+
+/* 链接焦点增强 */
+a:focus-visible {
+  outline: 2px solid var(--vp-brand-accent);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+.dark a:focus-visible {
+  outline-color: var(--vp-brand-accent-light);
+}
+
+/* 滚动条(深色 — 星云渐变) */
+.dark ::-webkit-scrollbar {
+  width: 7px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: rgba(8, 8, 20, 0.6);
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #6366f1 0%, #a855f7 50%, #ec4899 100%);
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #7c7ff2 0%, #b87cf7 50%, #f062a8 100%);
+}
+
+/* 文本选择高亮(深色) */
+.dark ::selection {
+  background: rgba(139, 92, 246, 0.35);
+  color: #fff;
+}
+
+/* ============================================================================
+ * visually-hidden — 屏幕阅读器可见,视觉隐藏(WAI-ARIA 标准模式)
+ * 用于 lightbox announcer 等
+ * ============================================================================ */
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* ============================================================================
+ * Sticky CTA 协同样式
+ * 当 .has-sticky-cta 添加到 body 时:
+ *   - .VPContent 加 padding-bottom 避免 doc pager + FooterNav 被覆盖
+ *   - 移动端不隐藏,改用 compact 模式(更窄的 pill bar)避免转化漏斗断裂
+ *   - 移动端 padding 补偿减小(StickyCta compact 高度 ~56px vs 桌面 ~80px)
+ * ============================================================================ */
+body.has-sticky-cta .VPContent {
+  padding-bottom: 7rem;
+}
+
+@media (max-width: 768px) {
+  body.has-sticky-cta .VPContent {
+    /* compact 模式:bar 高度约 56px,只需 4rem 留白 */
+    padding-bottom: 4rem;
+  }
+}
+
+/* ============================================================================
+ * ✅ R5 P0-9 修复:SectionNav 移动端 × StickyCta compact 位置冲突
+ *   R4 报告"z-index 阶梯化"做了 StickyCta/SectionNav 都 = 70,HTML 顺序上
+ *   StickyCta 后渲染盖住 SectionNav,移动端访客滚过 end-to-end 后整底 tab
+ *   导航被覆盖,必须先点 close 才能继续浏览
+ *   修复:body.has-sticky-cta 时(StickyCta 在屏幕底部显示),把 SectionNav
+ *   滑出屏幕;StickyCta 关闭后(body class 移除)SectionNav 自动回到原位
+ *   桌面端两个 fixed 元素都在 ≥1024px 才有,SectionNav 是右侧 fixed,StickyCta 是底部
+ *   贴边,位置不冲突,只针对 ≤768px 移动端
+ * ============================================================================ */
+@media (max-width: 768px) {
+  .section-nav {
+    transition: transform 0.3s var(--vp-ease-emphasis, cubic-bezier(0.4, 0, 0.2, 1));
+  }
+  body.has-sticky-cta .section-nav {
+    transform: translateY(calc(100% + 2rem));
+    pointer-events: none;
+  }
+}
+

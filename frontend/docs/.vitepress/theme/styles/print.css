@@ -1,0 +1,38 @@
+/* ============================================================================
+ * Print — 打印样式
+ * 打印时隐藏导航/侧边栏/页脚,优化纸张排版
+ * ============================================================================ */
+
+@media print {
+  .VPNav,
+  .VPSidebar,
+  .VPLocalNav,
+  .skip-to-content,
+  .footer-nav,
+  .medium-zoom-overlay {
+    display: none !important;
+  }
+
+  .VPContent {
+    margin-left: 0 !important;
+    padding: 0 !important;
+  }
+
+  body {
+    font-size: 12pt;
+    color: #000 !important;
+    background: #fff !important;
+  }
+
+  a {
+    color: #000 !important;
+    text-decoration: underline;
+  }
+
+  .vp-doc pre {
+    break-inside: avoid;
+    border: 1px solid #ccc !important;
+    background: #f5f5f5 !important;
+    color: #333 !important;
+  }
+}

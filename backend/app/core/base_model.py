@@ -1,10 +1,9 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column, relationship
 
-from app.common.enums import PermissionFilterStrategy
 from app.utils.common_util import uuid4_str
 
 
@@ -22,8 +21,9 @@ class MappedBase(AsyncAttrs, DeclarativeBase):
 
     __abstract__: bool = True
 
-    # 权限过滤策略，子类可以覆盖
-    __permission_strategy__: PermissionFilterStrategy = PermissionFilterStrategy.DATA_SCOPE
+    @declared_attr.directive
+    def __tablename__(cls) -> str:
+        return cls.__name__.lower()
 
 
 class ModelMixin(MappedBase):
@@ -55,6 +55,14 @@ class ModelMixin(MappedBase):
 
     __abstract__: bool = True
 
+    @declared_attr.directive
+    def __table_args__(cls) -> tuple:
+        table_name = cls.__tablename__ if hasattr(cls, '__tablename__') else cls.__name__.lower()
+        return (
+            Index(f"ix_{table_name}_status_deleted", "status", "is_deleted"),
+            Index(f"ix_{table_name}_created_deleted", "created_time", "is_deleted"),
+        )
+
     # 基础字段
     id: Mapped[int] = mapped_column(
         Integer,
@@ -79,56 +87,33 @@ class ModelMixin(MappedBase):
         index=True,
     )
     created_time: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=datetime.now,
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
         nullable=False,
         comment="创建时间",
         index=True,
     )
     updated_time: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=datetime.now,
-        onupdate=datetime.now,
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
         nullable=False,
         comment="更新时间",
-        index=True,
     )
     deleted_time: Mapped[datetime | None] = mapped_column(
-        DateTime,
+        DateTime(timezone=True),
         default=None,
         nullable=True,
         comment="删除时间",
-        index=True,
     )
-
-
-class TenantMixin(MappedBase):
-    """租户隔离字段 Mixin"""
-
-    __abstract__ = True
-
-    tenant_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey("platform_tenant.id", ondelete="RESTRICT", onupdate="CASCADE"),
-        nullable=False,
-        default=1,
-        index=True,
-        comment="租户ID",
-    )
-
-    @declared_attr
-    def tenant_by(self):
-        """租户关联关系"""
-        return relationship(
-            "TenantModel",
-            lazy="selectin",
-            foreign_keys=lambda: self.tenant_id,  # pyright: ignore[reportArgumentType]
-            uselist=False,
-        )
 
 
 class UserMixin(MappedBase):
-    """用户审计字段 Mixin"""
+    """用户审计字段 Mixin
+
+    CRUD（base_crud.py）会自动检测并预加载 created_by/updated_by（使用 joinedload，一对一关系最高效），
+    无需在 service 层显式声明。deleted_by 仅在回收站等特定场景需要时通过 preload 参数显式获取。
+    """
 
     __abstract__: bool = True
 
@@ -163,7 +148,6 @@ class UserMixin(MappedBase):
         """创建人关联关系"""
         return relationship(
             "UserModel",
-            lazy="selectin",
             foreign_keys=lambda: self.created_id,  # pyright: ignore[reportArgumentType]
             uselist=False,
         )
@@ -173,7 +157,6 @@ class UserMixin(MappedBase):
         """更新人关联关系"""
         return relationship(
             "UserModel",
-            lazy="selectin",
             foreign_keys=lambda: self.updated_id,  # pyright: ignore[reportArgumentType]
             uselist=False,
         )
@@ -183,7 +166,6 @@ class UserMixin(MappedBase):
         """删除人关联关系"""
         return relationship(
             "UserModel",
-            lazy="selectin",
             foreign_keys=lambda: self.deleted_id,  # pyright: ignore[reportArgumentType]
             uselist=False,
         )

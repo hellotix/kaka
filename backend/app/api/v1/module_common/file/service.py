@@ -20,16 +20,14 @@ class FileService:
         file: UploadFile,
         upload_type: str = "file",
         target_path: str | None = None,
-        tenant_id: int | None = None,
     ) -> UploadResponseSchema:
-        """上传文件（带租户隔离）"""
-        tenant_prefix = f"tenant_{tenant_id}/" if tenant_id and tenant_id != 1 else ""
+        """上传文件"""
 
         filename, filepath, file_url = await UploadUtil.upload_file(
             file=file,
             base_url=base_url,
             upload_type=upload_type,
-            target_path=f"{tenant_prefix}{target_path}" if target_path else None,
+            target_path=target_path,
         )
 
         return UploadResponseSchema(
@@ -40,8 +38,8 @@ class FileService:
         )
 
     @classmethod
-    async def download_service(cls, file_path: str, tenant_id: int | None = None) -> DownloadFileSchema:
-        """下载文件（带租户隔离）"""
+    async def download_service(cls, file_path: str) -> DownloadFileSchema:
+        """下载文件"""
         if not file_path:
             raise CustomException(msg="请选择要下载的文件")
 
@@ -57,12 +55,6 @@ class FileService:
         if not abs_path.startswith(str(upload_root)):
             logger.error(f"路径不在上传目录内: {file_path}")
             raise CustomException(msg="非法的文件路径")
-
-        if tenant_id and tenant_id != 1:
-            tenant_prefix = f"{upload_root}/tenant_{tenant_id}"
-            if not abs_path.startswith(str(tenant_prefix)):
-                logger.error(f"文件不属于当前租户: {file_path}")
-                raise CustomException(msg="无权访问该文件")
 
         if not UploadUtil.check_file_exists(abs_path):
             raise CustomException(msg="文件不存在")

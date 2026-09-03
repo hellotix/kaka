@@ -1,5 +1,6 @@
 import json
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -42,15 +43,6 @@ class UserBySchema(BaseModel):
     deleted_by: CommonSchema | None = Field(default=None, description="删除人信息")
 
 
-class TenantBySchema(BaseModel):
-    """租户嵌套出参（不再使用扁平 tenant_id / tenant_name / tenant_code）"""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    tenant_id: int | None = Field(default=None, description="租户ID")
-    tenant_by: CommonSchema | None = Field(default=None, description="租户信息")
-
-
 class BatchSetAvailable(BaseModel):
     """批量设置可用状态的请求模型"""
 
@@ -85,8 +77,6 @@ class SessionInfoSchema(BaseModel):
 
     session_id: str = Field(default="", description="会话ID（Redis key 后缀）")
     user_id: int | None = Field(default=None, description="用户ID")
-    tenant_id: int = Field(default=0, description="租户ID")
-    tenant_status: int = Field(default=0, description="租户状态")
     is_superuser: bool = Field(default=False, description="是否为超级管理员")
     user_status: int = Field(default=0, description="用户状态")
     name: str | None = Field(default=None, description="用户名称")
@@ -97,10 +87,7 @@ class SessionInfoSchema(BaseModel):
     gender: str | None = Field(default=None, description="性别(0:男 1:女 2:未知)")
     avatar: str | None = Field(default=None, description="头像")
     permissions: list[str] = Field(default_factory=list, description="用户权限列表")
-    permissions_with_menu: dict[str, int] = Field(default_factory=dict, description="权限→菜单ID映射")
     menu_ids: list[int] = Field(default_factory=list, description="菜单ID列表")
-    data_scopes: list[int] = Field(default_factory=list, description="数据权限范围")
-    custom_dept_ids: list[int] = Field(default_factory=list, description="自定义部门ID")
     ipaddr: str | None = Field(default=None, description="登陆IP地址")
     login_location: str | None = Field(default=None, description="登录所属地")
     os: str | None = Field(default=None, description="操作系统")
@@ -147,80 +134,49 @@ class PageResultSchema[T](BaseModel):
 
 
 class PaginationQueryParam(BaseModel):
-    """分页 —— 自动继承 page_no / page_size / order_by，子类无需重复声明"""
+    """分页 —— order_by 以 JSON 字符串传递，避免 Depends() 模式下 list 字段被当 body 验证。"""
 
     page_no: int = Field(default=1, description="当前页码", ge=1)
     page_size: int = Field(default=10, description="每页数量", ge=1, le=100)
-    order_by: list = Field(
-        default_factory=lambda: [{"id": "desc"}],
-        description="排序字段,格式:[{'field1': 'asc'}, {'field2': 'desc'}]",
+    order_by: Any = Field(
+        default=None,
+        description="排序字段 JSON 字符串, 格式:[{'field1': 'asc'}, {'field2': 'desc'}]",
     )
 
-    @field_validator("order_by", mode="before")
+    @field_validator("order_by")
     @classmethod
-    def parse_order_by(cls, v: object) -> list:
+    def validate_order_by(cls, v: Any) -> Any:
+        """校验 order_by：None→默认升序，str→json.loads 转 list，list→直接返回，其他→抛异常。"""
         if v is None:
-            return [{"id": "desc"}]
+            return [{"id": "asc"}]
         if isinstance(v, str):
             try:
-                return json.loads(v)
-            except (ValueError, json.JSONDecodeError):
-                return [{"id": "desc"}]
+                result = json.loads(v)
+                if not isinstance(result, list):
+                    raise ValueError("order_by 必须是 JSON 数组字符串，例如 [{\"id\":\"asc\"}]")
+                return result
+            except json.JSONDecodeError:
+                raise ValueError("order_by 字符串无法解析为 JSON，请传入有效的 JSON 数组字符串，例如 [{\"id\":\"asc\"}]")
         if isinstance(v, list):
             return v
-        return [{"id": "desc"}]
+        raise ValueError(f"order_by 类型无效: {type(v).__name__}，预期为 JSON 数组字符串或列表")
 
 
 class BaseQueryParam(BaseModel):
-    """created_time + updated_time —— 子类自动继承"""
+    """created_time + updated_time —— 子类自动继承
 
-    created_time: list[DateTimeStr] | tuple[str, tuple[DateTimeStr, DateTimeStr]] | None = Field(
-        None,
-        description="创建时间范围",
-        examples=["2025-01-01 00:00:00", "2025-12-31 23:59:59"],
-    )
-    updated_time: list[DateTimeStr] | tuple[str, tuple[DateTimeStr, DateTimeStr]] | None = Field(
-        None,
-        description="更新时间范围",
-        examples=["2025-01-01 00:00:00", "2025-12-31 23:59:59"],
-    )
+    前端传数组格式 ``["start", "end"]``，``search_to_dict`` 自动转为 ``("between", [start, end])``。
+    """
 
-    @model_validator(mode="after")
-    def validate_query_params(self) -> "BaseQueryParam":
-        ct = self.created_time
-        if isinstance(ct, list) and len(ct) == 2:
-            self.created_time = ("between", (ct[0], ct[1]))
-        ut = self.updated_time
-        if isinstance(ut, list) and len(ut) == 2:
-            self.updated_time = ("between", (ut[0], ut[1]))
-        return self
+    created_time: list[DateTimeStr] | None = Field(None, description="创建时间范围")
+    updated_time: list[DateTimeStr] | None = Field(None, description="更新时间范围")
 
 
 class UserByQueryParam(BaseModel):
     """created_id + updated_id —— 子类自动继承"""
 
-    created_id: int | tuple[str, int] | None = Field(None, description="创建人")
-    updated_id: int | tuple[str, int] | None = Field(None, description="更新人")
-
-    @model_validator(mode="after")
-    def validate_query_params(self) -> "UserByQueryParam":
-        if isinstance(self.created_id, int):
-            self.created_id = ("eq", self.created_id)
-        if isinstance(self.updated_id, int):
-            self.updated_id = ("eq", self.updated_id)
-        return self
-
-
-class TenantByQueryParam(BaseModel):
-    """tenant_id —— 子类自动继承"""
-
-    tenant_id: int | tuple[str, int] | None = Field(None, description="租户ID")
-
-    @model_validator(mode="after")
-    def validate_query_params(self) -> "TenantByQueryParam":
-        if isinstance(self.tenant_id, int):
-            self.tenant_id = ("eq", self.tenant_id)
-        return self
+    created_id: int | None = Field(None, description="创建人", json_schema_extra={"q": "eq"})
+    updated_id: int | None = Field(None, description="更新人", json_schema_extra={"q": "eq"})
 
 
 class OptionSchema(BaseModel):
@@ -239,12 +195,10 @@ class CoreUserSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int = Field(default=0, description="用户ID")
-    tenant_id: int = Field(default=0, description="租户ID")
     username: str | None = Field(default=None, description="用户名")
     name: str | None = Field(default=None, description="名称")
     dept_id: int | None = Field(default=None, description="部门ID")
     is_superuser: bool = Field(default=False, description="是否超管")
-    token_version: int = Field(default=0, description="令牌版本（用于校验旧 token 失效）")
 
 
 class AuthSchema(BaseModel):
@@ -253,13 +207,5 @@ class AuthSchema(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     user: CoreUserSchema = Field(default_factory=CoreUserSchema, description="用户信息", exclude=True)
-    check_data_scope: bool = Field(default=True, description="是否检查数据权限")
-
-    # 以下字段从缓存会话中提取，避免裸 dict
     permissions: list[str] = Field(default_factory=list, description="用户权限标识列表")
-    permissions_with_menu: dict[str, int] = Field(default_factory=dict, description="权限标识 → 菜单ID 映射")
     menu_ids: list[int] = Field(default_factory=list, description="角色授权的菜单ID列表")
-    data_scopes: list[int] = Field(default_factory=list, description="数据权限范围列表")
-    custom_dept_ids: list[int] = Field(default_factory=list, description="自定义可见部门ID列表")
-    role_ids: list[int] = Field(default_factory=list, description="用户关联的角色ID列表")
-    is_impersonate: bool = Field(default=False, description="是否模拟登录")

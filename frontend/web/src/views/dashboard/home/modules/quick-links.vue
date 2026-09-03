@@ -1,5 +1,5 @@
 <template>
-  <div class="fa-card p-5 pb-3 h-54 max-sm:h-54 flex flex-col">
+  <div class="fa-card p-5 pb-3 h-55 max-sm:h-55 flex flex-col relative overflow-hidden">
     <div class="fa-card-header">
       <div class="title">
         <h4>
@@ -10,8 +10,12 @@
         </h4>
       </div>
     </div>
-    <ElScrollbar class="flex-1 min-h-0">
-      <div v-if="quickLinks.length" class="grid grid-cols-4 gap-2">
+    <ElScrollbar
+      v-if="quickLinks.length"
+      :native="false"
+      class="flex-1 min-h-0 overflow-clip-margin-none"
+    >
+      <div class="grid grid-cols-4 gap-2">
         <div
           v-for="(item, i) in quickLinks"
           :key="item.id || item.href"
@@ -37,8 +41,13 @@
           </button>
         </div>
       </div>
-      <ElEmpty v-else description="暂无链接" :image-size="50" />
     </ElScrollbar>
+    <ElEmpty
+      v-else
+      class="absolute inset-0 flex items-center justify-center"
+      description="暂无链接"
+      :image-size="60"
+    />
   </div>
 </template>
 

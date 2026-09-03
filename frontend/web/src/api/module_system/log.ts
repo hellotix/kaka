@@ -40,20 +40,23 @@ const OperationLogAPI = {
 
 export default OperationLogAPI;
 
-export interface OperationLogPageQuery extends PageQuery, UserByQueryParams, TenantByQueryParams {
+export interface OperationLogPageQuery extends PageQuery, UserByQueryParams {
   request_path?: string;
-  creator_name?: string;
+  request_method?: string;
+  username?: string;
   status?: number;
   request_ip?: string;
 }
 
 export interface OperationLogTable {
   id: number;
-  tenant_id: number;
-  request_path?: string;
-  request_method?: string;
+  username: string;
+  status?: number;
+  description?: string;
+  request_path: string;
+  request_method: string;
   request_payload?: Record<string, unknown> | string;
-  response_code?: number;
+  response_code: number;
   response_json?: Record<string, unknown> | string;
   process_time?: string;
   created_time?: string;
@@ -89,7 +92,7 @@ export const LoginLogAPI = {
   },
 };
 
-export interface LoginLogPageQuery extends PageQuery, UserByQueryParams, TenantByQueryParams {
+export interface LoginLogPageQuery extends PageQuery, UserByQueryParams {
   username?: string;
   status?: number;
 }

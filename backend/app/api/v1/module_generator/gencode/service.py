@@ -20,8 +20,8 @@ from sqlglot.expressions import (
     Update,
 )
 
-from app.api.v1.module_platform.menu.crud import MenuCRUD
-from app.api.v1.module_platform.menu.schema import MenuCreateSchema
+from app.api.v1.module_system.menu.crud import MenuCRUD
+from app.api.v1.module_system.menu.schema import MenuCreateSchema
 from app.common.constant import GenConstant
 from app.common.enums import QueueEnum
 from app.config.path_conf import BASE_DIR
@@ -66,8 +66,8 @@ def handle_service_exception(func: Callable) -> Callable:
     return wrapper
 
 
-_MENU_TYPE_CATALOG = 1  # 与 platform_menu.type、前端 MenuTypeEnum.CATALOG 一致
-_MENU_TYPE_MENU = 2
+_MENU_TYPE_CATALOG = 1  # 与 sys_menu.type、前端 MenuTypeEnum.CATALOG 一致
+_MENU_TYPE_MENU = 2  # 与 sys_menu.type、前端 MenuTypeEnum.MENU 一致
 
 
 class GenTableService:
@@ -242,7 +242,7 @@ class GenTableService:
         返回:
         - list[dict]: 包含业务表列表信息的字典列表。
         """
-        gen_table_list_result = await GenTableCRUD(self.auth, self.db).get_gen_table_list(search)
+        gen_table_list_result = await GenTableCRUD(self.auth, self.db).get_gen_table_list(search, preload=["columns"])
         return [GenTableOutSchema.model_validate(obj).model_dump() for obj in gen_table_list_result]
 
     @handle_service_exception
@@ -273,6 +273,7 @@ class GenTableService:
             order_by=order,
             search=search_to_dict(search, {}),
             out_schema=GenTableOutSchema,
+            preload=["columns"],
         )
 
     @handle_service_exception
@@ -521,7 +522,7 @@ class GenTableService:
                             if db_id:
                                 await GenTableColumnCRUD(self.auth, self.db).delete(ids=[db_id])
                 # 重新获取带有预加载关系的对象，避免懒加载导致的MissingGreenlet错误
-                updated_gen_table = await GenTableCRUD(self.auth, self.db).get_gen_table_by_id(table_id)
+                updated_gen_table = await GenTableCRUD(self.auth, self.db).get_gen_table_by_id(table_id, preload=["columns"])
                 out = GenTableOutSchema.model_validate(updated_gen_table)
                 await self.set_pk_column(out)
                 await self.hydrate_sub_table(out)
@@ -567,7 +568,7 @@ class GenTableService:
         返回:
         - GenTableOutSchema: 业务表详细信息模型。
         """
-        gen_table = await GenTableCRUD(self.auth, self.db).get_gen_table_by_id(table_id)
+        gen_table = await GenTableCRUD(self.auth, self.db).get_gen_table_by_id(table_id, preload=["columns"])
         if not gen_table:
             raise CustomException(msg="业务表不存在")
 
@@ -586,7 +587,7 @@ class GenTableService:
         返回:
         - list[GenTableOutSchema]: 业务表详细信息模型列表。
         """
-        gen_table_all = await GenTableCRUD(self.auth, self.db).get_gen_table_all() or []
+        gen_table_all = await GenTableCRUD(self.auth, self.db).get_gen_table_all(preload=["columns"]) or []
         result = []
         for gen_table in gen_table_all:
             try:
@@ -608,7 +609,7 @@ class GenTableService:
         返回:
         - dict[str, Any]: 文件名到渲染内容的映射。
         """
-        raw = await GenTableCRUD(self.auth, self.db).get_gen_table_by_id(table_id)
+        raw = await GenTableCRUD(self.auth, self.db).get_gen_table_by_id(table_id, preload=["columns"])
         if not raw:
             raise CustomException(msg="业务表不存在")
         gen_table = GenTableOutSchema.model_validate(raw)
@@ -928,7 +929,7 @@ class GenTableService:
         # 验证表名非空
         if not table_name or not table_name.strip():
             raise CustomException(msg="表名不能为空")
-        gen_table = await GenTableCRUD(self.auth, self.db).get_gen_table_by_name(table_name)
+        gen_table = await GenTableCRUD(self.auth, self.db).get_gen_table_by_name(table_name, preload=["columns"])
         if not gen_table:
             raise CustomException(msg="业务表不存在")
         table = GenTableOutSchema.model_validate(gen_table)
@@ -1271,7 +1272,7 @@ class GenTableService:
         异常:
         - CustomException: 当业务表不存在或数据转换失败时抛出。
         """
-        gen_table_model = await GenTableCRUD(self.auth, self.db).get_gen_table_by_name(table_name)
+        gen_table_model = await GenTableCRUD(self.auth, self.db).get_gen_table_by_name(table_name, preload=["columns"])
         # 检查表是否存在
         if gen_table_model is None:
             raise CustomException(msg=f"业务表 {table_name} 不存在")

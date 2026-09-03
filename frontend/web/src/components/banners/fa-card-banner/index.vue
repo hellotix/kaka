@@ -3,7 +3,7 @@
   <div class="fa-card p-5 flex items-center flex-col pb-6 h-full" :style="{ height: height }">
     <div class="flex items-center flex-col gap-4 text-center">
       <div class="w-45">
-        <img :src="image" :alt="title" class="w-full h-full object-contain" loading="eager" />
+        <img :src="image" :alt="title" class="w-full h-full object-contain" />
       </div>
       <div class="box-border px-4">
         <p class="mb-2 text-lg font-semibold text-g-800">{{ title }}</p>

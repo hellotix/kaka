@@ -1,7 +1,7 @@
 <!-- 操作手册：视频演示 + 全功能验收正文 -->
 <template>
   <div class="page-content manual-page">
-    <div class="manual-page__inner mx-auto max-w-[1200px] px-4 pb-8">
+    <div class="manual-page__inner mx-auto max-w-300 px-4 pb-8">
       <!-- 标题 -->
       <h1 class="mb-2 text-2xl font-medium text-g-900 dark:text-g-50">
         {{ t("manualPage.title") }}
@@ -50,44 +50,46 @@
             </div>
 
             <!-- 主体布局：侧边导航 + 内容区 -->
-            <div class="manual-feature-body__layout">
-              <!-- 左侧目录（不用 ElAffix：固钉时 fixed 宽度易丢失成窄条叠在主内容上；与右侧滚动区并排即可始终可见） -->
-              <aside class="manual-feature-body__aside" aria-label="手册导航">
-                <nav v-if="filteredToc.length" class="manual-nav">
-                  <div v-for="mod in filteredToc" :key="mod.anchor" class="manual-nav__module">
-                    <ElButton
-                      link
-                      type="primary"
-                      class="manual-nav__mod-title h-auto! min-h-0 justify-start px-0 py-1"
-                      @click="scrollToAnchor(mod.anchor)"
-                    >
-                      {{ mod.title }}
-                    </ElButton>
-                    <div class="manual-nav__pages">
+            <ElSplitter :style="'height: min(78vh, 880px)'">
+              <ElSplitterPanel size="220px" :min="180" :max="400">
+                <aside class="manual-feature-body__aside h-full">
+                  <nav v-if="filteredToc.length" class="manual-nav">
+                    <div v-for="mod in filteredToc" :key="mod.anchor" class="manual-nav__module">
                       <ElButton
-                        v-for="p in mod.pages"
-                        :key="p.anchor"
                         link
-                        size="small"
-                        class="manual-nav__page h-auto! min-h-0 justify-start px-2 py-1"
-                        @click="scrollToAnchor(p.anchor)"
+                        type="primary"
+                        class="manual-nav__mod-title h-auto! min-h-0 justify-start px-0 py-1"
+                        @click="scrollToAnchor(mod.anchor)"
                       >
-                        {{ p.title }}
+                        {{ mod.title }}
                       </ElButton>
+                      <div class="manual-nav__pages">
+                        <ElButton
+                          v-for="p in mod.pages"
+                          :key="p.anchor"
+                          link
+                          size="small"
+                          class="manual-nav__page h-auto! min-h-0 justify-start px-2 py-1"
+                          @click="scrollToAnchor(p.anchor)"
+                        >
+                          {{ p.title }}
+                        </ElButton>
+                      </div>
                     </div>
+                  </nav>
+                  <div v-else class="manual-nav manual-nav--empty">
+                    <ElEmpty description="无匹配目录" :image-size="64" />
                   </div>
-                </nav>
-                <div v-else class="manual-nav manual-nav--empty">
-                  <ElEmpty description="无匹配目录" :image-size="64" />
-                </div>
-              </aside>
+                </aside>
+              </ElSplitterPanel>
 
               <!-- 右侧内容区（滚动） -->
-              <ElScrollbar
-                ref="scrollbarRef"
-                class="manual-feature-body__scrollbar fa-card-sm rounded-custom-sm"
-                max-height="min(78vh, 880px)"
-              >
+              <ElSplitterPanel :min="300">
+                <ElScrollbar
+                  ref="scrollbarRef"
+                  class="manual-feature-body__scrollbar fa-card-sm rounded-custom-sm h-full"
+                  max-height="min(78vh, 880px)"
+                >
                 <!-- 功能验收手册正文内容 -->
                 <div class="manual-html" @click.capture="handleAnchorClick">
                   <div class="manual-html__inner">
@@ -137,10 +139,6 @@
                             ·
                             <ElLink href="#page-notice" type="primary" underline="never">
                               通知公告
-                            </ElLink>
-                            ·
-                            <ElLink href="#page-tenant" type="primary" underline="never">
-                              租户管理
                             </ElLink>
                             ·
                             <ElLink href="#page-log" type="primary" underline="never">
@@ -813,7 +811,8 @@
                   </div>
                 </div>
               </ElScrollbar>
-            </div>
+              </ElSplitterPanel>
+            </ElSplitter>
           </div>
         </ElTabPane>
 
@@ -875,7 +874,10 @@
                   <h3>完整编辑器内容</h3>
                   <ElTabs v-model="fullActiveTab">
                     <ElTabPane label="渲染效果" name="preview">
-                      <div class="content-preview" v-html="fullEditorHtml"></div>
+                      <div
+                        class="content-preview"
+                        v-html="DOMPurify.sanitize(fullEditorHtml)"
+                      ></div>
                     </ElTabPane>
                     <ElTabPane label="HTML源码" name="html">
                       <ElInput
@@ -893,7 +895,10 @@
                   <h3>简化编辑器内容</h3>
                   <ElTabs v-model="simpleActiveTab">
                     <ElTabPane label="渲染效果" name="preview">
-                      <div class="content-preview" v-html="simpleEditorHtml"></div>
+                      <div
+                        class="content-preview"
+                        v-html="DOMPurify.sanitize(simpleEditorHtml)"
+                      ></div>
                     </ElTabPane>
                     <ElTabPane label="HTML源码" name="html">
                       <ElInput
@@ -1040,6 +1045,7 @@ import { computed, ref } from "vue";
 import lockImg from "@imgs/lock/bg_dark.webp";
 import { MANUAL_MODULES_AFTER_SYSTEM, MANUAL_SYSTEM_TAIL_PAGES } from "./manualSections";
 import { manualModuleMatchesQuery, manualPageMatchesQuery } from "./manualTocSearch";
+import DOMPurify from "dompurify";
 
 defineOptions({ name: "DashboardTutorial" });
 
@@ -1076,7 +1082,6 @@ const MANUAL_TOC: ManualModule[] = [
       { anchor: "page-dict", title: "字典管理" },
       { anchor: "page-param", title: "参数配置" },
       { anchor: "page-notice", title: "通知公告" },
-      { anchor: "page-tenant", title: "租户管理" },
       { anchor: "page-log", title: "操作日志" },
       { anchor: "page-login", title: "登录页" },
     ],
@@ -1458,19 +1463,8 @@ const setSimpleEditorDemo = () => {
     max-width: 320px;
   }
 
-  &__layout {
-    display: grid;
-    grid-template-columns: 220px minmax(0, 1fr);
-    gap: 16px;
-    align-items: start;
-    width: 100%;
-  }
-
-  /* 左侧栏固定宽度；勿设 min-width:0，否则在 Tabs/网格内易被压成细条 */
   &__aside {
-    width: 220px;
-    min-width: 220px;
-    max-width: 220px;
+    height: 100%;
   }
 
   &__scrollbar {
@@ -1712,14 +1706,8 @@ const setSimpleEditorDemo = () => {
 
 // 响应式适配
 @media (width <= 960px) {
-  .manual-feature-body__layout {
-    grid-template-columns: 1fr;
-  }
-
   .manual-feature-body__aside {
     width: 100%;
-    min-width: 0;
-    max-width: none;
   }
 
   .manual-nav {

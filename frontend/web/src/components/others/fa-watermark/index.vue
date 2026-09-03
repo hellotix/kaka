@@ -20,7 +20,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { storeToRefs } from "pinia";
-import AppConfig from "@/config";
 import { defaultSettings } from "@/config/setting";
 import { ThemeMode } from "@/enums";
 import { hexToRgba } from "@utils";
@@ -52,7 +51,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  content: AppConfig.systemInfo.name,
+  content: "",
   visible: false,
   fontSize: 16,
   fontColor: undefined,

@@ -31,7 +31,6 @@ async def upload_controller(
         file=file,
         upload_type=upload_type or "file",
         target_path=target_path,
-        tenant_id=auth.user.tenant_id if auth.user else None,
     )
     return SuccessResponse(data=result, msg="上传文件成功")
 
@@ -43,7 +42,7 @@ async def download_controller(
     file_path: Annotated[str, Body(description="文件路径")],
     delete: Annotated[bool, Body(description="是否删除文件")] = False,
 ) -> FileResponse:
-    result = await FileService.download_service(file_path=file_path, tenant_id=auth.user.tenant_id if auth.user else None)
+    result = await FileService.download_service(file_path=file_path)
     if delete:
         background_tasks.add_task(UploadUtil.delete_file, Path(result.file_path))
     return UploadFileResponse(file_path=result.file_path, filename=result.file_name)

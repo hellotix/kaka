@@ -2,8 +2,6 @@ from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, Path, Query, Security, status
 from fastapi.responses import JSONResponse, StreamingResponse
-from fastapi_cache import FastAPICache
-from fastapi_cache.decorator import cache
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.response import ResponseSchema, StreamResponse, SuccessResponse
@@ -17,25 +15,19 @@ from .service import RoleService
 
 RoleRouter = APIRouter(route_class=OperationLogRoute, prefix="/role", tags=["角色管理"])
 
-_ROLE_NS = "role"
-
 
 @RoleRouter.get("/list", summary="查询角色", response_model=ResponseSchema[PageResultSchema[RoleOutSchema]])
-@cache(expire=300, namespace=_ROLE_NS)
 async def get_role_list_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:role:query"]))],
     db: Annotated[AsyncSession, Depends(db_getter)],
-    page: Annotated[PaginationQueryParam, Query(description="分页参数")],
-    search: Annotated[RoleQueryParam, Query(description="角色查询参数")],
+    page: Annotated[PaginationQueryParam, Depends()],
+    search: Annotated[RoleQueryParam, Query()],
 ) -> JSONResponse:
-    order_by = [{"order": "asc"}]
-    if page.order_by:
-        order_by = page.order_by
     result_dict = await RoleService(auth, db).page(
         page_no=page.page_no,
         page_size=page.page_size,
         search=search,
-        order_by=order_by,
+        order_by=page.order_by,
     )
     return SuccessResponse(data=result_dict, msg="查询角色成功")
 
@@ -57,7 +49,6 @@ async def create_role_controller(
     data: Annotated[RoleCreateSchema, Body(description="角色创建参数")],
 ) -> JSONResponse:
     result_dict = await RoleService(auth, db).create(data=data)
-    await FastAPICache.clear(namespace=_ROLE_NS)
     return SuccessResponse(data=result_dict, msg="创建角色成功")
 
 
@@ -69,7 +60,6 @@ async def update_role_controller(
     data: Annotated[RoleUpdateSchema, Body(description="角色修改参数")],
 ) -> JSONResponse:
     result_dict = await RoleService(auth, db).update(id=id, data=data)
-    await FastAPICache.clear(namespace=_ROLE_NS)
     return SuccessResponse(data=result_dict, msg="修改角色成功")
 
 
@@ -80,7 +70,6 @@ async def delete_role_controller(
     ids: Annotated[list[int], Body(description="ID列表")],
 ) -> JSONResponse:
     await RoleService(auth, db).delete(ids=ids)
-    await FastAPICache.clear(namespace=_ROLE_NS)
     return SuccessResponse(msg="删除角色成功")
 
 
@@ -91,7 +80,6 @@ async def batch_set_available_role_controller(
     data: Annotated[BatchSetAvailable, Body(description="状态设置")],
 ) -> JSONResponse:
     await RoleService(auth, db).set_available(data=data)
-    await FastAPICache.clear(namespace=_ROLE_NS)
     return SuccessResponse(msg="批量修改角色状态成功")
 
 
@@ -102,7 +90,6 @@ async def set_role_permission_controller(
     data: Annotated[RolePermissionSettingSchema, Body(description="角色授权参数")],
 ) -> JSONResponse:
     await RoleService(auth, db).set_permission(data=data)
-    await FastAPICache.clear(namespace=_ROLE_NS)
     return SuccessResponse(msg="授权角色成功")
 
 
@@ -115,11 +102,11 @@ async def get_role_options_controller(
     return SuccessResponse(data=options, msg="获取角色选项成功")
 
 
-@RoleRouter.get("/export", summary="导出角色")
+@RoleRouter.post("/export", summary="导出角色")
 async def export_role_list_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:role:export"]))],
     db: Annotated[AsyncSession, Depends(db_getter)],
-    search: Annotated[RoleQueryParam, Query(description="角色查询参数")],
+    search: Annotated[RoleQueryParam, Body()],
 ) -> StreamingResponse:
     role_query_result = await RoleService(auth, db).get_list(search=search)
     role_export_result = RoleService.export_list(role_list=[item.model_dump() for item in role_query_result])

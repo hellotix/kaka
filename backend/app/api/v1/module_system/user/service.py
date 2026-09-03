@@ -3,15 +3,12 @@ from typing import Any
 from fastapi import UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.module_platform.menu.crud import MenuCRUD
-from app.api.v1.module_platform.menu.schema import MenuOutSchema, MenuTreeOutSchema
-from app.api.v1.module_platform.package.service import PackageService
-from app.api.v1.module_platform.tenant.model import TenantModel
-from app.api.v1.module_platform.tenant.service import TenantService
 from app.api.v1.module_system.dept.crud import DeptCRUD
+from app.api.v1.module_system.menu.crud import MenuCRUD
+from app.api.v1.module_system.menu.schema import MenuOutSchema, MenuTreeOutSchema
 from app.api.v1.module_system.position.crud import PositionCRUD
 from app.api.v1.module_system.role.crud import RoleCRUD
-from app.core.base_schema import AuthSchema, BatchSetAvailable, CommonSchema, PageResultSchema
+from app.core.base_schema import AuthSchema, BatchSetAvailable, PageResultSchema
 from app.core.exceptions import CustomException
 from app.core.logger import logger
 from app.utils.common_util import search_to_dict, traversal_to_tree
@@ -20,6 +17,7 @@ from app.utils.password_util import PwdUtil
 
 from .crud import UserCRUD
 from .schema import (
+    CurrentUserOutSchema,
     CurrentUserUpdateSchema,
     ResetPasswordSchema,
     UserChangePasswordSchema,
@@ -27,8 +25,15 @@ from .schema import (
     UserForgetPasswordSchema,
     UserOutSchema,
     UserQueryParam,
+    UserRegisterSchema,
     UserUpdateSchema,
 )
+
+# 用户管理列表/详情预加载
+_USER_PRELOAD = ["dept", "roles", "positions"]
+
+# 当前用户信息预加载：需完整嵌套关联
+_USER_CURRENT_PRELOAD = ["dept", "positions", "roles.menus", "roles.depts"]
 
 
 class UserService:
@@ -39,11 +44,12 @@ class UserService:
         self.db = db
 
     async def detail(self, id: int) -> UserOutSchema:
-        user = await UserCRUD(self.auth, self.db).get_or_404(id=id)
+        user = await UserCRUD(self.auth, self.db).get_or_404(id=id, preload=_USER_PRELOAD)
         result = UserOutSchema.model_validate(user)
-        if user.dept_id:
-            dept = await DeptCRUD(self.auth, self.db).get(id=user.dept_id)
-            result.dept_name = dept.name if dept else None
+        if user.dept:
+            result.dept_name = user.dept.name
+        result.role_ids = [r.id for r in user.roles]
+        result.position_ids = [p.id for p in user.positions]
         return result
 
     async def get_list(
@@ -51,8 +57,14 @@ class UserService:
         search: UserQueryParam | None = None,
         order_by: list[dict[str, str]] | None = None,
     ) -> list[UserOutSchema]:
-        user_list = await UserCRUD(self.auth, self.db).get_list(search=search_to_dict(search), order_by=order_by)
-        return [UserOutSchema.model_validate(user) for user in user_list]
+        user_list = await UserCRUD(self.auth, self.db).get_list(search=search_to_dict(search), order_by=order_by, preload=_USER_PRELOAD)
+        result = [UserOutSchema.model_validate(user) for user in user_list]
+        for user, item in zip(user_list, result, strict=True):
+            if user.dept:
+                item.dept_name = user.dept.name
+            item.role_ids = [r.id for r in user.roles]
+            item.position_ids = [p.id for p in user.positions]
+        return result
 
     async def page(
         self,
@@ -62,106 +74,86 @@ class UserService:
         order_by: list[dict[str, str]] | None = None,
     ) -> PageResultSchema[UserOutSchema]:
         offset = (page_no - 1) * page_size
-        return await UserCRUD(self.auth, self.db).page(
+        page_result = await UserCRUD(self.auth, self.db).page(
             offset=offset,
             limit=page_size,
             order_by=order_by or [{"id": "asc"}],
             search=search_to_dict(search),
-            out_schema=UserOutSchema,
+            preload=_USER_PRELOAD,
         )
+        items: list[UserOutSchema] = []
+        for user in page_result.items:
+            item = UserOutSchema.model_validate(user)
+            if user.dept:
+                item.dept_name = user.dept.name
+            item.role_ids = [r.id for r in user.roles]
+            item.position_ids = [p.id for p in user.positions]
+            items.append(item)
+        page_result.items = items
+        return page_result  # type: ignore[return-value]
 
     async def create(self, data: UserCreateSchema) -> UserOutSchema:
-        if not data.username:
-            raise CustomException(msg="用户名不能为空")
         if data.is_superuser:
             raise CustomException(msg="不允许创建超级管理员")
-        user = await UserCRUD(self.auth, self.db).get(username=data.username)
-        if user:
+        if await UserCRUD(self.auth, self.db).get(username=data.username):
             raise CustomException(msg="已存在相同用户名称的账号")
+
+        if data.dept_id and not await DeptCRUD(self.auth, self.db).get(id=data.dept_id):
+            raise CustomException(msg="该数据不存在")
+
+        if data.password:
+            data.password = PwdUtil.hash_password(password=data.password)
+
+        create_data = data.model_dump(exclude_none=True, exclude={"role_ids", "position_ids"})
+        new_user = await UserCRUD(self.auth, self.db).create(data=create_data)
+        if data.role_ids:
+            await UserCRUD(self.auth, self.db).set_user_roles(user_ids=[new_user.id], role_ids=data.role_ids)
+        if data.position_ids:
+            await UserCRUD(self.auth, self.db).set_user_positions(user_ids=[new_user.id], position_ids=data.position_ids)
+        return await self.detail(id=new_user.id)
+
+    async def update(self, id: int, data: UserUpdateSchema) -> UserOutSchema:
+        if data.username:
+            if exist_user := await UserCRUD(self.auth, self.db).get(username=data.username):
+                if exist_user.id != id:
+                    raise CustomException(msg="更新失败，账号已存在")
+
+        if data.mobile:
+            if exist_mobile := await UserCRUD(self.auth, self.db).get(mobile=data.mobile):
+                if exist_mobile.id != id:
+                    raise CustomException(msg="该数据已存在")
+        if data.email:
+            if exist_email := await UserCRUD(self.auth, self.db).get(email=data.email):
+                if exist_email.id != id:
+                    raise CustomException(msg="该数据已存在")
 
         if data.dept_id:
             dept = await DeptCRUD(self.auth, self.db).get(id=data.dept_id)
             if not dept:
                 raise CustomException(msg="该数据不存在")
+            if dept.status == 1:
+                raise CustomException(msg="部门已被禁用")
 
-        await TenantService(self.auth, self.db).check_quota(self.auth.user.tenant_id, "user")
+        update_data = data.model_dump(exclude_unset=True, exclude_none=True, exclude={"role_ids", "position_ids"})
+        await UserCRUD(self.auth, self.db).update(id=id, data=update_data)
 
-        if data.password:
-            data.password = PwdUtil.hash_password(password=data.password)
-        new_user = await UserCRUD(self.auth, self.db).create(data=data)
-        if data.role_ids and len(data.role_ids) > 0:
-            await UserCRUD(self.auth, self.db).set_user_roles(user_ids=[new_user.id], role_ids=data.role_ids)
-        if data.position_ids and len(data.position_ids) > 0:
-            await UserCRUD(self.auth, self.db).set_user_positions(user_ids=[new_user.id], position_ids=data.position_ids)
-        return UserOutSchema.model_validate(new_user)
+        if data.role_ids:
+            roles = await RoleCRUD(self.auth, self.db).get_list(search={"id": ("in", data.role_ids)})
+            if len(roles) != len(data.role_ids):
+                raise CustomException(msg="更新失败，部分角色不存在")
+            if not all(role.status == 0 for role in roles):
+                raise CustomException(msg="更新失败，部分角色已被禁用")
+            await UserCRUD(self.auth, self.db).set_user_roles(user_ids=[id], role_ids=data.role_ids)
 
-    async def update(self, id: int, data: UserUpdateSchema) -> UserOutSchema:
-        if not data.username:
-            raise CustomException(msg="账号不能为空")
+        if data.position_ids:
+            positions = await PositionCRUD(self.auth, self.db).get_list(search={"id": ("in", data.position_ids)})
+            if len(positions) != len(data.position_ids):
+                raise CustomException(msg="更新失败，部分岗位不存在")
+            if not all(position.status == 0 for position in positions):
+                raise CustomException(msg="更新失败，部分岗位已被禁用")
+            await UserCRUD(self.auth, self.db).set_user_positions(user_ids=[id], position_ids=data.position_ids)
 
-        user = await UserCRUD(self.auth, self.db).get_or_404(id=id)
-        if user.is_superuser:
-            raise CustomException(msg="超级管理员不允许修改")
-
-        await self._validate_unique_username(data.username, exclude_id=id)
-        await self._validate_mobile_email_unique(data, exclude_id=id)
-        await self._validate_dept_active(data.dept_id)
-
-        new_user = await UserCRUD(self.auth, self.db).update(id=id, data=data)
-
-        await self._assign_user_roles(id, data.role_ids)
-        await self._assign_user_positions(id, data.position_ids)
-
-        return UserOutSchema.model_validate(new_user)
-
-    async def _validate_unique_username(self, username: str, exclude_id: int) -> None:
-        """校验用户名唯一性"""
-        exist_user = await UserCRUD(self.auth, self.db).get(username=username)
-        if exist_user and exist_user.id != exclude_id:
-            raise CustomException(msg="更新失败，账号已存在")
-
-    async def _validate_mobile_email_unique(self, data: UserUpdateSchema, exclude_id: int) -> None:
-        """校验手机号和邮箱唯一性"""
-        if data.mobile:
-            exist_mobile_user = await UserCRUD(self.auth, self.db).get(mobile=data.mobile)
-            if exist_mobile_user and exist_mobile_user.id != exclude_id:
-                raise CustomException(msg="该数据已存在")
-        if data.email:
-            exist_email_user = await UserCRUD(self.auth, self.db).get(email=data.email)
-            if exist_email_user and exist_email_user.id != exclude_id:
-                raise CustomException(msg="该数据已存在")
-
-    async def _validate_dept_active(self, dept_id: int | None) -> None:
-        """校验部门存在且已启用"""
-        if not dept_id:
-            return
-        dept = await DeptCRUD(self.auth, self.db).get(id=dept_id)
-        if not dept:
-            raise CustomException(msg="该数据不存在")
-        if dept.status == 1:
-            raise CustomException(msg="部门已被禁用")
-
-    async def _assign_user_roles(self, user_id: int, role_ids: list[int] | None) -> None:
-        """校验并分配用户角色"""
-        if not role_ids or len(role_ids) < 1:
-            return
-        roles = await RoleCRUD(self.auth, self.db).get_list(search={"id": ("in", role_ids)})
-        if len(roles) != len(role_ids):
-            raise CustomException(msg="更新失败，部分角色不存在")
-        if not all(role.status == 0 for role in roles):
-            raise CustomException(msg="更新失败，部分角色已被禁用")
-        await UserCRUD(self.auth, self.db).set_user_roles(user_ids=[user_id], role_ids=role_ids)
-
-    async def _assign_user_positions(self, user_id: int, position_ids: list[int] | None) -> None:
-        """校验并分配用户岗位"""
-        if not position_ids or len(position_ids) < 1:
-            return
-        positions = await PositionCRUD(self.auth, self.db).get_list(search={"id": ("in", position_ids)})
-        if len(positions) != len(position_ids):
-            raise CustomException(msg="更新失败，部分岗位不存在")
-        if not all(position.status == 0 for position in positions):
-            raise CustomException(msg="更新失败，部分岗位已被禁用")
-        await UserCRUD(self.auth, self.db).set_user_positions(user_ids=[user_id], position_ids=position_ids)
+        return await self.detail(id=id)
 
     async def delete(self, ids: list[int]) -> None:
         if not ids:
@@ -177,82 +169,77 @@ class UserService:
             if user.is_superuser:
                 errors.append(f"用户[{uid}]是超级管理员，不能删除")
                 continue
-            if user.status == 0:
-                errors.append(f"用户[{uid}]已启用，不能删除")
-                continue
             if self.auth.user.id == uid:
                 errors.append("不能删除当前登陆用户")
                 continue
         if errors:
             raise CustomException(msg="; ".join(errors))
-        if not user_map:
-            raise CustomException(msg="删除对象不存在")
 
         await UserCRUD(self.auth, self.db).set_user_roles(user_ids=ids, role_ids=[])
         await UserCRUD(self.auth, self.db).set_user_positions(user_ids=ids, position_ids=[])
         await UserCRUD(self.auth, self.db).delete(ids=ids)
 
-    async def current_info(self) -> UserOutSchema:
-        if not self.auth.user.id:
+    async def current_info(self, check_data_scope: bool = True) -> CurrentUserOutSchema:
+        user_id = self.auth.user.id
+        if not user_id:
             raise CustomException(msg="该数据不存在")
-        user = await UserCRUD(self.auth, self.db).get(id=self.auth.user.id)
-        user_dict = UserOutSchema.model_validate(user)
-        if user and user.dept:
+
+        if not check_data_scope:
+            # 轻量模式：只刷新菜单/权限，不加载用户嵌套数据
+            menus_raw = await self._load_menus()
+            menu_tree = [MenuTreeOutSchema(**item) for item in traversal_to_tree([menu.model_dump(mode="json") for menu in menus_raw])]
+            return CurrentUserOutSchema(menus=menu_tree)
+
+        user = await UserCRUD(self.auth, self.db).get(id=user_id, preload=_USER_CURRENT_PRELOAD)
+        if user is None:
+            raise CustomException(msg="该数据不存在")
+        user_dict = CurrentUserOutSchema.model_validate(user)
+        if user.dept:
             user_dict.dept_name = user.dept.name
-        if user and user.tenant_by:
-            user_dict.tenant_by = CommonSchema(id=user.tenant_by.id, name=user.tenant_by.name, status=user.tenant_by.status)
-        user_dict.is_impersonate = self.auth.is_impersonate
+        user_dict.is_superuser = user.is_superuser
 
-        _pc_only = {"client": "pc"}
-        if self.auth.user.is_superuser:
-            scope_filter = {"scope": "tenant"} if self.auth.user.tenant_id else {"scope": "platform"}
-            menu_all = await MenuCRUD(self.auth, self.db).tree_list(
-                search={"type": ("in", [1, 2, 3, 4]), "status": 0, **_pc_only, **scope_filter},
-                order_by=[{"order": "asc"}],
-            )
-            menus_raw = [MenuOutSchema.model_validate(menu) for menu in menu_all]
-        else:
-            menu_ids = set(self.auth.menu_ids)
-
-            if menu_ids and self.auth.user.tenant_id:
-                allowed_ids = await PackageService(self.auth, self.db).get_tenant_available_menu_ids(self.auth.user.tenant_id)
-                allowed_set = set(allowed_ids)
-                menu_ids = menu_ids & allowed_set
-
-            menus_raw = (
-                [
-                    MenuOutSchema.model_validate(menu)
-                    for menu in await MenuCRUD(self.auth, self.db).tree_list(
-                        search={"id": ("in", list(menu_ids)), **_pc_only},
-                        order_by=[{"order": "asc"}],
-                    )
-                ]
-                if menu_ids
-                else []
-            )
-        menu_tree = [MenuTreeOutSchema(**item) for item in traversal_to_tree([menu.model_dump(mode="json") for menu in menus_raw])]
+        menu_tree = [MenuTreeOutSchema(**item) for item in traversal_to_tree([menu.model_dump(mode="json") for menu in await self._load_menus()])]
         user_dict.menus = menu_tree
         return user_dict
 
+    async def _load_menus(self) -> list[MenuOutSchema]:
+        """加载当前用户的菜单列表（不含树形转换）"""
+        _pc_only = {"scope": "web"}
+        if self.auth.user.is_superuser:
+            menu_all = await MenuCRUD(self.auth, self.db).get_list(
+                search={"type": ("in", [1, 2, 3, 4]), "status": 0, **_pc_only},
+                order_by=[{"order": "asc"}],
+            )
+            return [MenuOutSchema.model_validate(menu) for menu in menu_all]
+        else:
+            menu_ids = set(self.auth.menu_ids)
+            if not menu_ids:
+                return []
+            return [
+                MenuOutSchema.model_validate(menu)
+                for menu in await MenuCRUD(self.auth, self.db).get_list(
+                    search={"id": ("in", list(menu_ids)), **_pc_only},
+                    order_by=[{"order": "asc"}],
+                )
+            ]
+
     async def update_current_info(self, data: CurrentUserUpdateSchema) -> UserOutSchema:
-        if not self.auth.user.id:
+        user_id = self.auth.user.id
+        if not user_id:
             raise CustomException(msg="该数据不存在")
-        user = await UserCRUD(self.auth, self.db).get(id=self.auth.user.id)
-        if not user:
-            raise CustomException(msg="该数据不存在")
-        if user.is_superuser:
-            raise CustomException(msg="超级管理员不能修改个人信息")
+
         if data.mobile:
-            exist_mobile_user = await UserCRUD(self.auth, self.db).get(mobile=data.mobile)
-            if exist_mobile_user and exist_mobile_user.id != self.auth.user.id:
-                raise CustomException(msg="该数据已存在")
+            if exist_mobile := await UserCRUD(self.auth, self.db).get(mobile=data.mobile):
+                if exist_mobile.id != user_id:
+                    raise CustomException(msg="该数据已存在")
         if data.email:
-            exist_email_user = await UserCRUD(self.auth, self.db).get(email=data.email)
-            if exist_email_user and exist_email_user.id != self.auth.user.id:
-                raise CustomException(msg="该数据已存在")
+            if exist_email := await UserCRUD(self.auth, self.db).get(email=data.email):
+                if exist_email.id != user_id:
+                    raise CustomException(msg="该数据已存在")
+
         user_update_data = UserUpdateSchema(**data.model_dump())
-        new_user = await UserCRUD(self.auth, self.db).update(id=self.auth.user.id, data=user_update_data)
-        return UserOutSchema.model_validate(new_user)
+        await UserCRUD(self.auth, self.db).update(id=user_id, data=user_update_data)
+        return await self.detail(id=user_id)
 
     async def set_available(self, data: BatchSetAvailable) -> None:
         users = await UserCRUD(self.auth, self.db).get_list(search={"id": ("in", data.ids)})
@@ -260,93 +247,60 @@ class UserService:
             if user.is_superuser:
                 raise CustomException(msg="超级管理员状态不能修改")
         await UserCRUD(self.auth, self.db).set(ids=data.ids, status=data.status)
-        # 停用的用户立即让旧 token 失效
-        if data.status == 1:
-            for user in users:
-                await self._invalidate_user_sessions(user_id=user.id)
 
     async def change_password(self, data: UserChangePasswordSchema) -> UserOutSchema:
-        if not self.auth.user.id:
+        user_id = self.auth.user.id
+        if not user_id:
             raise CustomException(msg="该数据不存在")
-        if not data.old_password or not data.new_password:
-            raise CustomException(msg="密码不能为空")
 
-        user = await UserCRUD(self.auth, self.db).get(id=self.auth.user.id)
-        if not user:
-            raise CustomException(msg="该数据不存在")
+        user = await UserCRUD(self.auth, self.db).get_or_404(id=user_id)
         if not PwdUtil.verify_password(plain_password=data.old_password, password_hash=user.password):
             raise CustomException(msg="原密码输入错误")
 
         new_password_hash = PwdUtil.hash_password(password=data.new_password)
-        new_user = await UserCRUD(self.auth, self.db).change_password(id=user.id, password_hash=new_password_hash)
-        # 改密后立即让旧 token 失效：递增 token_version + 清掉该用户的所有 Redis session
-        await self._invalidate_user_sessions(user_id=user.id)
-        return UserOutSchema.model_validate(new_user)
+        await UserCRUD(self.auth, self.db).change_password(id=user_id, password_hash=new_password_hash)
+        return await self.detail(id=user_id)
 
     async def reset_password(self, data: ResetPasswordSchema) -> UserOutSchema:
-        if not data.password:
-            raise CustomException(msg="密码不能为空")
-
-        user = await UserCRUD(self.auth, self.db).get(id=data.id)
-        if not user:
-            raise CustomException(msg="该数据不存在")
-
+        user = await UserCRUD(self.auth, self.db).get_or_404(id=data.id)
         if user.is_superuser:
             raise CustomException(msg="超级管理员密码不能重置")
 
         new_password_hash = PwdUtil.hash_password(password=data.password)
-        new_user = await UserCRUD(self.auth, self.db).change_password(id=data.id, password_hash=new_password_hash)
-        # 重置密码后立即让旧 token 失效
-        await self._invalidate_user_sessions(user_id=user.id)
-        return UserOutSchema.model_validate(new_user)
-
-    async def _invalidate_user_sessions(self, user_id: int) -> None:
-        """使指定用户的所有活跃 session 立即失效。
-
-        递增 ``UserModel.token_version``：JWT 中携带的旧 token_version 与 DB 不匹配 ⇒ 401。
-
-        Redis 中存储的 key 格式为 ``user_session:<session_id>``（session_id = UUID），
-        与 ``user_id`` 无直接映射关系，因此无法按 user_id 精确清理孤立 session 数据。
-        但 ``token_version`` 已确保旧 JWT 无法通过校验，安全无虞。
-        """
-        await UserCRUD(self.auth, self.db).bump_token_version(user_id=user_id)
+        await UserCRUD(self.auth, self.db).change_password(id=data.id, password_hash=new_password_hash)
+        return await self.detail(id=data.id)
 
     async def forget_password(self, data: UserForgetPasswordSchema) -> UserOutSchema:
-        from sqlalchemy import select
-
-        # 根据租户名称查租户
-        tenant_stmt = (
-            select(TenantModel)
-            .where(
-                TenantModel.name == data.tenant_name,
-                TenantModel.status == 0,
-                TenantModel.is_deleted.is_(False),
-            )
-            .limit(1)
-        )
-        result = await self.db.execute(tenant_stmt)
-        tenant = result.scalar_one_or_none()
-        if not tenant:
-            raise CustomException(msg="租户不存在")
-
-        # 在租户范围内查找用户
-        user = await UserCRUD(self.auth, self.db).get(username=data.username, tenant_id=tenant.id)
-        if not user:
-            raise CustomException(msg="该数据不存在")
+        user = await UserCRUD(self.auth, self.db).get_or_404(username=data.username)
         if user.status == 1:
             raise CustomException(msg="用户已停用")
-
         if user.is_superuser:
             raise CustomException(msg="超级管理员密码不能重置")
 
-        if data.mobile and user.mobile != data.mobile:
-            raise CustomException(msg="手机号不匹配")
-
         new_password_hash = PwdUtil.hash_password(password=data.new_password)
-        new_user = await UserCRUD(self.auth, self.db).forget_password(id=user.id, password_hash=new_password_hash)
-        # 忘记密码后使旧 token 失效
-        await self._invalidate_user_sessions(user_id=user.id)
-        return UserOutSchema.model_validate(new_user)
+        await UserCRUD(self.auth, self.db).change_password(id=user.id, password_hash=new_password_hash)
+        return await self.detail(id=user.id)
+
+    async def register(self, data: UserRegisterSchema) -> UserOutSchema:
+        """用户注册"""
+        exists_user = await UserCRUD(self.auth, self.db).get(username=data.username)
+        if exists_user:
+            raise CustomException(msg="已存在相同用户名称的账号")
+
+        create_data = UserCreateSchema(
+            username=data.username,
+            password=PwdUtil.hash_password(password=data.password),
+            name=data.name or data.username,
+            status=0,
+        )
+        create_data_dict = create_data.model_dump(exclude_none=True, exclude={"role_ids", "position_ids"})
+        new_user = await UserCRUD(self.auth, self.db).create(data=create_data_dict)
+        if not new_user:
+            raise CustomException(msg="注册失败")
+        # 注册时 auth 无用户，created_id/updated_id 未设置，补充为自身ID
+        await UserCRUD(self.auth, self.db).set([new_user.id], created_id=new_user.id, updated_id=new_user.id)
+        logger.info(f"新用户注册成功: {data.username}")
+        return await self.detail(id=new_user.id)
 
     async def batch_import(self, file: UploadFile, update_support: bool = False) -> str:
         header_dict = {
@@ -435,8 +389,6 @@ class UserService:
             dept = await DeptCRUD(self.auth, self.db).get(id=dept_id)
             if not dept:
                 return 0, f"第{row_num}行: 部门ID {dept_id} 不存在"
-            if not self.auth.user.is_superuser and dept.tenant_id != self.auth.user.tenant_id:
-                return 0, f"第{row_num}行: 部门ID {dept_id} 不属于当前租户"
 
             user_data = {
                 "username": username,
@@ -461,7 +413,9 @@ class UserService:
                     return 0, f"第{row_num}行: 用户 {user_data['username']} 已存在"
             else:
                 user_create_schema = UserCreateSchema(**user_data)
-                new_user = await UserCRUD(self.auth, self.db).create(data=user_create_schema)
+                new_user = await UserCRUD(self.auth, self.db).create(
+                    data=user_create_schema.model_dump(exclude_none=True, exclude={"role_ids", "position_ids"})  # type: ignore[arg-type]
+                )
                 if user_create_schema.role_ids and len(user_create_schema.role_ids) > 0:
                     await UserCRUD(self.auth, self.db).set_user_roles(
                         user_ids=[new_user.id], role_ids=user_create_schema.role_ids

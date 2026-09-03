@@ -1,7 +1,6 @@
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.common.enums import QueueEnum
-from app.core.base_schema import BaseQueryParam, BaseSchema, TenantByQueryParam, TenantBySchema, UserByQueryParam, UserBySchema
+from app.core.base_schema import BaseQueryParam, BaseSchema, UserByQueryParam, UserBySchema
 from app.core.validator import validate_required_code
 
 
@@ -11,10 +10,7 @@ class DeptCreateSchema(BaseModel):
     name: str = Field(..., min_length=1, max_length=64, description="部门名称")
     order: int = Field(default=1, ge=0, description="显示顺序")
     code: str = Field(..., min_length=2, max_length=64, description="部门编码")
-    leader: str | None = Field(default=None, max_length=32, description="部门负责人")
-    phone: str | None = Field(default=None, max_length=20, description="联系电话")
-    email: str | None = Field(default=None, max_length=128, description="邮箱")
-    parent_id: int | None = Field(default=None, ge=0, description="父部门ID")
+    parent_id: int | None = Field(default=None, ge=1, description="父部门ID")
     status: int = Field(default=0, ge=0, le=1, description="状态(0:启动 1:停用)")
     description: str | None = Field(default=None, max_length=255, description="备注")
 
@@ -45,7 +41,7 @@ class DeptUpdateSchema(DeptCreateSchema):
     """部门更新模型"""
 
 
-class DeptOutSchema(DeptCreateSchema, BaseSchema, UserBySchema, TenantBySchema):
+class DeptOutSchema(DeptCreateSchema, BaseSchema, UserBySchema):
     """部门详情响应模型（不含 children，用于详情和更新）"""
 
     model_config = ConfigDict(from_attributes=True)
@@ -59,16 +55,8 @@ class DeptTreeOutSchema(DeptOutSchema):
     children: list["DeptTreeOutSchema"] | None = Field(default=None, description="子部门列表")
 
 
-class DeptQueryParam(BaseQueryParam, UserByQueryParam, TenantByQueryParam):
+class DeptQueryParam(BaseQueryParam, UserByQueryParam):
     """部门管理查询参数"""
 
-    name: str | tuple[str, str] | None = Field(None, description="部门名称")
-    status: int | tuple[str, int] | None = Field(None, ge=0, le=1, description="状态(0:启动 1:停用)")
-
-    @model_validator(mode="after")
-    def validate_query_params(self) -> "DeptQueryParam":
-        if isinstance(self.name, str):
-            self.name = (QueueEnum.like.value, self.name)
-        if isinstance(self.status, int):
-            self.status = (QueueEnum.eq.value, self.status)
-        return self
+    name: str | None = Field(None, description="部门名称", json_schema_extra={"q": "like"})
+    status: int | None = Field(None, ge=0, le=1, description="状态(0:启动 1:停用)", json_schema_extra={"q": "eq"})
