@@ -44,7 +44,6 @@ import type { LocationQueryRaw, Router } from "vue-router";
 import type { WorkTab } from "@/types/store";
 
 import { useCommon } from "@/hooks/core/useCommon";
-import { ROUTE_PATH_LOGIN_ALT } from "@/router/routes";
 
 interface WorktabState {
   current: Partial<WorkTab>;
@@ -485,13 +484,27 @@ export const useWorktabStore = defineStore(
           }
         };
 
-        /** 登录页不应出现在工作台标签（历史持久化可能残留） */
-        const isLoginWorktab = (tab: Partial<WorkTab>): boolean =>
-          tab.name === "Login" || tab.path === "/login" || tab.path === ROUTE_PATH_LOGIN_ALT;
+        /**
+         * 路由是否声明了 `meta.isHideTab`（登录页、异常页、静态外链页等）。
+         * 这类页面不该出现在工作台标签，历史持久化可能残留，启动时按 meta 统一清理。
+         */
+        const isHideTabWorktab = (tab: Partial<WorkTab>): boolean => {
+          try {
+            if (!tab.path) return false;
+            return (
+              routerInstance.resolve({
+                path: tab.path,
+                query: (tab.query as LocationQueryRaw) || undefined,
+              }).meta.isHideTab === true
+            );
+          } catch {
+            return false;
+          }
+        };
 
         // 过滤出有效的标签页
         const validTabs = opened.value.filter(
-          (tab) => isTabRouteValid(tab) && !isLoginWorktab(tab)
+          (tab) => isTabRouteValid(tab) && !isHideTabWorktab(tab)
         );
 
         if (validTabs.length !== opened.value.length) {
@@ -506,9 +519,9 @@ export const useWorktabStore = defineStore(
           opened.value = validTabs;
         }
 
-        // 验证当前激活标签的有效性（登录页不应作为当前工作台标签）
+        // 验证当前激活标签的有效性（isHideTab 页面不应作为当前工作台标签）
         const isCurrentValid =
-          current.value && isTabRouteValid(current.value) && !isLoginWorktab(current.value);
+          current.value && isTabRouteValid(current.value) && !isHideTabWorktab(current.value);
 
         if (!isCurrentValid && validTabs.length > 0) {
           if (import.meta.env.DEV) console.warn("当前激活标签无效，已自动切换");
@@ -529,6 +542,14 @@ export const useWorktabStore = defineStore(
      */
     const clearAll = (): void => {
       const fixedTabs = opened.value.filter((tab) => tab.fixedTab);
+      // 旧会话的 KeepAlive 缓存实例必须驱逐：
+      // opened 清空后 include 会变为 undefined（KeepAlive 对 undefined include 不做 prune），
+      // 旧实例会带着 WebSocket / 定时器等副作用跨会话存活。
+      const removedTabs = fixedTabs.length > 0 ? opened.value.filter((tab) => !tab.fixedTab) : opened.value;
+      const excludeNames = new Set<string>();
+      for (const tab of removedTabs) {
+        if (tab.name && tab.keepAlive !== false) excludeNames.add(String(tab.name));
+      }
       if (fixedTabs.length > 0) {
         opened.value = fixedTabs;
         current.value = { ...fixedTabs[0] };
@@ -536,7 +557,9 @@ export const useWorktabStore = defineStore(
         current.value = {};
         opened.value = [];
       }
-      keepAliveExclude.value = [];
+      // 用「待删标签组件名」替换 exclude（而非清空）：KeepAlive 收到非空 exclude 会 prune 掉这些组件的缓存实例；
+      // 下次 openTab 的 removeKeepAliveExclude 会自动将其移出，恢复正常缓存
+      keepAliveExclude.value = Array.from(excludeNames);
     };
 
     /**

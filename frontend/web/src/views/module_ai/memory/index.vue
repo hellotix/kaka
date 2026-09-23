@@ -141,11 +141,11 @@
 
 <script setup lang="ts">
 defineOptions({
-  name: "ChatSession",
+  // 与菜单 route_name 一致：KeepAlive 的 include/exclude 按组件 name 匹配
+  name: "Memory",
   inheritAttrs: false,
 });
 
-import { ref, reactive, computed, nextTick } from "vue";
 import { Edit } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 import AiChatAPI, { type ChatSession, type ChatSessionDetail } from "@/api/module_ai/chat";

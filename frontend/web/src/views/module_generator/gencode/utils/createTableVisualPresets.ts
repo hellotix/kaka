@@ -94,7 +94,7 @@ function pkMysql(): ColDef[] {
   return [
     {
       name: "id",
-      type: "bigint",
+      type: "int",
       nullable: false,
       isPk: true,
       comment: "主键ID",
@@ -129,7 +129,7 @@ function buildSubColumns(dialect: SqlDialect, mainTableName: string, fkColumn: s
   const subPk = isMysql ? pkMysql() : pkPostgres();
   const fkColDef: ColDef = {
     name: fkColumn,
-    type: "bigint",
+    type: isMysql ? "int" : "integer",
     nullable: false,
     isPk: false,
     comment: `关联 ${mainTableName}.${"id"}`,

@@ -52,15 +52,13 @@
 
 <script setup lang="ts">
 defineOptions({
-  name: "OnlineUser",
+  // 与菜单 route_name 一致：KeepAlive 的 include/exclude 按组件 name 匹配
+  name: "MonitorOnline",
   inheritAttrs: false,
 });
 
-import { h, ref, computed } from "vue";
 import OnlineAPI, { type OnlineUserTable } from "@/api/module_monitor/online";
-import { ElMessageBox } from "element-plus";
-import type { TableOperationAction } from "@/utils/table";
-import { renderTableOperationCell } from "@utils";
+import { renderTableOperationCell, type TableOperationAction } from "@utils";
 import type FaSearchBar from "@/components/forms/fa-search-bar/index.vue";
 import type { SearchFormItem } from "@/components/forms/fa-search-bar/index.vue";
 import FaCopyButton from "@/components/actions/fa-copy-button/index.vue";
@@ -122,11 +120,7 @@ const clearAllLoading = ref(false);
 
 async function kickSession(sessionId: string) {
   try {
-    await ElMessageBox.confirm(`确认强制退出会话 ${sessionId}?`, "警告", {
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-      type: "warning",
-    });
+    await confirmDelete(`确认强制退出会话 ${sessionId}?`);
     await OnlineAPI.deleteOnline(sessionId);
     // 成功 / 失败提示由 axios 拦截器统一处理
     await refreshData();
@@ -259,11 +253,7 @@ async function onResetSearch() {
 
 async function handleClearAll() {
   try {
-    await ElMessageBox.confirm("确认强制退出所有用户?", "警告", {
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-      type: "warning",
-    });
+    await confirmDelete("确认强制退出所有用户?");
     clearAllLoading.value = true;
     await OnlineAPI.clearOnline();
     // 成功 / 失败提示由 axios 拦截器统一处理
@@ -274,11 +264,6 @@ async function handleClearAll() {
     clearAllLoading.value = false;
   }
 }
-
-// 列表数据在页面挂载时加载一次，不自动轮询
-onMounted(() => {
-  refreshData();
-});
 </script>
 
 <style lang="scss" scoped></style>

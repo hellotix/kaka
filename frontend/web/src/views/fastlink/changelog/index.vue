@@ -36,7 +36,8 @@
 import { ref, onMounted } from "vue";
 import VersionAPI from "@/api/module_system/version";
 
-defineOptions({ name: "SystemChangeLog" });
+// 与路由 name 一致：KeepAlive 的 include/exclude 按组件 name 匹配
+defineOptions({ name: "FastlinkChangeLog" });
 
 interface UpgradeLog {
   version: string;

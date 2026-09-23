@@ -14,10 +14,8 @@ import { h } from "vue";
 import {
   IframeRouteManager,
   IframeView,
-  NestedRouterParent,
   ROOT_LAYOUT_ROUTE_NAME,
   ROUTE_COMPONENT_LAYOUT,
-  ROUTE_COMPONENT_NESTED_PARENT,
 } from "./routes";
 
 // ──────── ComponentLoader ────────
@@ -63,16 +61,6 @@ export class ComponentLoader {
     return IframeView;
   }
 
-  /** NestedRouterParent 占位组件 */
-  loadNestedParent(): any {
-    return NestedRouterParent;
-  }
-
-  /** 空组件（空白 div） */
-  createEmptyComponent(): any {
-    return { render: () => null };
-  }
-
   /** 错误提示组件（后端配置了不存在的路径时显示） */
   private createErrorComponent(path: string): any {
     return {
@@ -96,6 +84,7 @@ export class ComponentLoader {
  * - name 重复 → warn
  * - 叶子节点没有 component → warn
  * - 子菜单错误使用 ROUTE_COMPONENT_LAYOUT → error
+ * - 目录节点挂了组件 → warn（RouterView 深度跳级的前提是中间层无组件）
  */
 function warnInvalidRouteConfig(routes: AppRouteRecord[], parentPath = ""): void {
   if (import.meta.env.PROD) return;
@@ -124,6 +113,17 @@ function warnInvalidRouteConfig(routes: AppRouteRecord[], parentPath = ""): void
           `[路由配置] 菜单 "${route.meta?.title || route.path}" 为 ${pPath} 子菜单，不能使用 ${ROUTE_COMPONENT_LAYOUT}`
         );
       }
+      // 检查目录挂组件：会让 RouterView 的深度跳级失效（出口渲染目录组件而非叶子页面，叶子被重复挂载）
+      if (
+        route.children?.length &&
+        route.component &&
+        route.component !== ROUTE_COMPONENT_LAYOUT
+      ) {
+        console.warn(
+          `[路由配置] 目录节点不应挂组件: "${route.path}" → ${String(route.component)}；` +
+            "中间层一旦有组件，RouterView 深度跳级即失效，页面会被重复挂载、接口重复请求"
+        );
+      }
       if (route.children?.length) check(route.children, fullPath);
     });
   };
@@ -140,7 +140,7 @@ function warnInvalidRouteConfig(routes: AppRouteRecord[], parentPath = ""): void
  *
  * 1. 一级叶子菜单（如 /user）→ 包一层 Layout，其下挂实际组件
  * 2. iframe 菜单    → 一级包 Layout，子级直接 IframeView
- * 3. 多级目录       → 父级用 NestedRouterParent 占位，子级挂实际组件
+ * 3. 多级目录       → 父级不挂组件（靠 RouterView 深度跳级直达叶子），子级挂实际组件
  * 4. 常规子菜单     → 直接绑定组件
  */
 export class RouteTransformer {
@@ -244,15 +244,15 @@ export class RouteTransformer {
   /**
    * 常规路由处理
    *
-   * - 无 children 或 children 都是叶子 → 直接绑定组件
-   * - 有 children（多级目录）→ 父级用 NestedRouterParent 占位，递归处理子级
+   * - 无 children → 直接绑定组件
+   * - 有 children（目录）→ 父级不挂组件，由 RouterView 的深度跳级直接渲染叶子
    */
   private handleNormalRoute(route: AppRouteRecord, depth: number): Record<string, any> | null {
     if (!route.children?.length) {
       return this.buildLeafRoute(route, depth);
     }
 
-    // 多级目录：父级占位 + 递归子级
+    // 目录：父级 component 置空 + 递归子级
     const children = route.children
       .map((child) => this.transform(child, depth + 1))
       .filter(Boolean);
@@ -262,10 +262,9 @@ export class RouteTransformer {
       name: route.name,
       redirect: children.length > 0 ? { name: children[0]?.name } : undefined,
       component:
-        route.component &&
-        ![ROUTE_COMPONENT_NESTED_PARENT, ROUTE_COMPONENT_LAYOUT].includes(String(route.component))
+        route.component && route.component !== ROUTE_COMPONENT_LAYOUT
           ? this.loader.load(String(route.component))
-          : NestedRouterParent,
+          : undefined,
       meta: route.meta,
       children,
     };
@@ -273,20 +272,14 @@ export class RouteTransformer {
 
   /** 叶子路由（直接绑定组件） */
   private buildLeafRoute(route: AppRouteRecord, depth: number): Record<string, any> | null {
-    if (
-      (!route.component ||
-        route.component === ROUTE_COMPONENT_NESTED_PARENT ||
-        route.component === ROUTE_COMPONENT_LAYOUT) &&
-      route.meta?.link
-    ) {
+    if ((!route.component || route.component === ROUTE_COMPONENT_LAYOUT) && route.meta?.link) {
       return null;
     }
     return {
       path: this.routerPath(route.path, depth),
       name: route.name,
       component:
-        route.component &&
-        ![ROUTE_COMPONENT_NESTED_PARENT, ROUTE_COMPONENT_LAYOUT].includes(String(route.component))
+        route.component && route.component !== ROUTE_COMPONENT_LAYOUT
           ? this.loader.load(String(route.component))
           : undefined,
       meta: route.meta,
