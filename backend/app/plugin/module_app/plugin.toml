@@ -1,0 +1,9 @@
+# 插件元数据（可选）：供文档、运维与 module_application.portal 展示使用。
+# 不用于运行时 pip 安装依赖；依赖见仓库根目录 pyproject.toml / uv.lock。
+
+name = "app"
+title = "C端客户端"
+version = "1.0.0"
+description = "C端客户端全部接口的统一入口，按子板块组织（login: 注册登录/令牌/会话/用户）。"
+optional = true
+tags = ["app", "client", "auth", "jwt"]

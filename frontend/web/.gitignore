@@ -23,4 +23,10 @@ stats.html
 .stylelintcache
 .eslintcache
 
+# 本地环境配置（含机器相关的后端地址），只提交 .example 模板；
+# 缺失时 build/ensureEnv.ts 会在启动前自动从模板复制
+.env.development
+.env.production
+.env.test
+
 # docs and app directories are at frontend root, managed by frontend/.gitignore

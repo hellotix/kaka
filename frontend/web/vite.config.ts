@@ -11,6 +11,7 @@ import ElementPlus from "unplugin-element-plus/vite";
 import { ElementPlusResolver } from "unplugin-vue-components/resolvers";
 import tailwindcss from "@tailwindcss/vite";
 import vitePluginStart from "./build/vitePluginStart";
+import { ensureEnvFile } from "./build/ensureEnv";
 import Icons from "unplugin-icons/vite";
 import IconsResolver from "unplugin-icons/resolver";
 import { name, version, engines, dependencies, devDependencies } from "./package.json";
@@ -22,10 +23,22 @@ const __APP_INFO__ = {
   buildTimestamp: Date.now(),
 };
 
-export default ({ mode }: { mode: string }) => {
+export default ({ mode, command }: { mode: string; command: "build" | "serve" }) => {
   const root = process.cwd();
+  // .env.[mode] 属本地配置不入库，缺失时先从 .env.[mode].example 补齐，
+  // 否则下面的代理目标会是 undefined，运行期只报 "Must set target or forward"
+  ensureEnvFile(mode, root);
   const env = loadEnv(mode, root);
-  const isProduction = mode === "prod";
+  // mode 取值由 package.json 脚本决定（development / production）；
+  // 历史写法 mode === "prod" 恒为 false，会导致生产构建不压缩、不产 gzip/brotli 且带上 DevTools
+  const isProduction = mode === "production";
+
+  // 开发服务器必须有代理目标，缺失时尽早给出可操作的报错
+  if (command === "serve" && !env.VITE_API_BASE_URL) {
+    throw new Error(
+      `缺少 VITE_API_BASE_URL：请创建 .env.${mode}（可从 .env.${mode}.example 复制）并填写后端地址`
+    );
+  }
 
   return defineConfig({
     define: {
