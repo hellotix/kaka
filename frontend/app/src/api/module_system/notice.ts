@@ -11,8 +11,10 @@ export const NoticeAPI = {
   getPage(params?: Record<string, any>) {
     return http.Get<PageResult<NoticeItem>>(`${SYSTEM_BASE}/notice/list`, params)
   },
-  getDetail(id: number): Promise<NoticeItem> {
-    return http.Get(`${SYSTEM_BASE}/notice/detail/${id}`)
+  getDetail(id: number) {
+    const method = http.Get<NoticeItem>(`${SYSTEM_BASE}/notice/detail/${id}`)
+    method.config.cacheFor = 0
+    return method
   },
   create(data: NoticeForm): Promise<NoticeItem> {
     return http.Post(`${SYSTEM_BASE}/notice/create`, data)
@@ -21,7 +23,7 @@ export const NoticeAPI = {
     return http.Put(`${SYSTEM_BASE}/notice/update/${id}`, data)
   },
   remove(ids: number[]): Promise<void> {
-    return http.Delete(`${SYSTEM_BASE}/notice/delete`, { ids: JSON.stringify(ids) })
+    return http.Delete(`${SYSTEM_BASE}/notice/delete`, ids)
   },
   batchStatus(data: BatchSetStatus): Promise<void> {
     return http.Patch(`${SYSTEM_BASE}/notice/status/batch`, data)

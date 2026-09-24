@@ -100,8 +100,8 @@
                   <span class="text-xs text-(--el-text-color-secondary)">
                     {{
                       fieldsMap.access[0]!.localValue === "on"
-                        ? "登录时将查询客户端 IP 归属地，用于日志记录"
-                        : "IP 归属地查询已关闭，登录日志不记录地理位置"
+                        ? "登录时基于内置离线库本地解析客户端 IP 归属地，用于日志记录"
+                        : "IP 归属地查询已关闭，登录位置只记录内网 / 未解析"
                     }}
                   </span>
                 </div>
@@ -231,14 +231,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, onMounted } from "vue";
 import { ElMessage } from "element-plus";
 import ParamsAPI from "@/api/module_system/params";
 import { useConfigStore } from "@stores";
 import ParamTabPane from "./components/ParamTabPane.vue";
 import ParamFieldCard from "./components/ParamFieldCard.vue";
 
-defineOptions({ name: "ParamsSettings" });
+// 与菜单 route_name 一致：KeepAlive 的 include/exclude 按组件 name 匹配
+defineOptions({ name: "Params" });
 
 const configStore = useConfigStore();
 const activeTab = ref("brand");
@@ -391,7 +391,7 @@ async function saveField(field: ParamField) {
       config_value: field.localValue,
       config_name: field.configName,
       config_key: field.configKey,
-    } as any);
+    });
     field.modified = false;
     field.displayValue = field.localValue;
     configStore.isConfigLoaded = false;
@@ -414,7 +414,7 @@ async function saveGroup(fields: ParamField[]) {
         config_value: field.localValue,
         config_name: field.configName,
         config_key: field.configKey,
-      } as any);
+      });
       field.modified = false;
       field.displayValue = field.localValue;
       successCount++;

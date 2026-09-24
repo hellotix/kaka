@@ -137,14 +137,9 @@
 </template>
 
 <script setup lang="ts">
-import {
-  renderTableOperationCell,
-  resolveStatusColumns,
-  type TableOperationAction,
-} from "@/utils/table";
+import { renderTableOperationCell, resolveStatusColumns, type TableOperationAction } from "@utils";
 import VersionAPI, { type VersionForm, type VersionTable } from "@/api/module_system/version";
 import { Plus } from "@element-plus/icons-vue";
-import { reactive } from "vue";
 import type { AuditSearchFormParams } from "@/components/forms/fa-search-bar/auditSearchFormItems";
 import type { FormItem } from "@/components/forms/fa-form/index.vue";
 import type { ColumnOption } from "@/types/component";
@@ -155,7 +150,8 @@ import FaDescriptions from "@/components/display/fa-descriptions/index.vue";
 import FaForm from "@/components/forms/fa-form/index.vue";
 
 defineOptions({
-  name: "Version",
+  // 与菜单 route_name 一致：KeepAlive 的 include/exclude 按组件 name 匹配
+  name: "ModuleVersion",
   inheritAttrs: false,
 });
 

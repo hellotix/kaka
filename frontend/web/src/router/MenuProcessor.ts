@@ -10,7 +10,6 @@ import {
   DASHBOARD_PARENT_META,
   dashboardLayoutChildren,
   ROUTE_COMPONENT_LAYOUT,
-  ROUTE_COMPONENT_NESTED_PARENT,
 } from "./routes";
 import { MenuTypeEnum } from "@/enums/system/menu.enum";
 
@@ -56,7 +55,8 @@ function mapMenuNode(item: MenuTable, depth = 0, parentAbsolutePath = ""): AppRo
 
   let component: string | undefined;
   if (isDirectory || (hasKids && !(item.component_path ?? "").trim())) {
-    component = depth === 0 ? ROUTE_COMPONENT_LAYOUT : ROUTE_COMPONENT_NESTED_PARENT;
+    // 目录：父级不挂组件，由 RouterView 的深度跳级直接渲染首个含组件的后代（单层 KeepAlive）
+    component = undefined;
   } else if ((item.component_path ?? "").trim()) {
     component = toComponentImportPath(item.component_path!);
   }

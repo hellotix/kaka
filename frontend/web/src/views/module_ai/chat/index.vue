@@ -58,9 +58,8 @@ defineOptions({
   inheritAttrs: false,
 });
 
-import { ref, onMounted, onUnmounted } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
-import AiChatAPI, { ChatSession } from "@/api/module_ai/chat";
+import AiChatAPI, { type ChatSession } from "@/api/module_ai/chat";
 import { Auth } from "@utils/auth";
 import type { ChatMessage, UploadedFile } from "./types";
 import FaSidebar from "./components/FaSidebar.vue";
@@ -89,7 +88,9 @@ const WS_URL = import.meta.env.VITE_APP_WS_ENDPOINT;
 
 // ============ WebSocket 操作 ============
 const connectWebSocket = () => {
-  if (ws?.readyState === WebSocket.OPEN) return;
+  // CONNECTING / OPEN / CLOSING 期间一律拒绝重入：
+  // 仅挡 OPEN 会在连接握手期间被重复调用，旧连接引用被覆盖后泄漏（后台照样连上并弹「连接成功」）
+  if (ws && ws.readyState !== WebSocket.CLOSED) return;
 
   connectionStatus.value = "connecting";
   error.value = "";
@@ -97,9 +98,10 @@ const connectWebSocket = () => {
   try {
     const url = new URL("/api/v1/ai/chat/ws", WS_URL);
     const token = Auth.getAccessToken();
-    if (token) url.searchParams.append("token", token);
-
-    ws = new WebSocket(url.toString());
+    // 令牌经 Sec-WebSocket-Protocol 传递，避免出现在 URL 与服务端 access log 中
+    ws = token
+      ? new WebSocket(url.toString(), ["access_token", `access_token.${token}`])
+      : new WebSocket(url.toString());
 
     ws.onopen = () => {
       isConnected.value = true;
@@ -129,8 +131,14 @@ const connectWebSocket = () => {
 
 const disconnectWebSocket = () => {
   if (ws) {
-    ws.close(1000, "用户主动断开");
+    const socket = ws;
     ws = null;
+    // 先摘除回调再关闭：握手期中止 / 关闭竞态期间不应再触发任何提示或状态回调
+    socket.onopen = null;
+    socket.onmessage = null;
+    socket.onerror = null;
+    socket.onclose = null;
+    socket.close(1000, "用户主动断开");
   }
   isConnected.value = false;
   connectionStatus.value = "disconnected";
@@ -294,9 +302,9 @@ const handleSelectSession = async (session: ChatSession) => {
     const sessionData = response.data.data || {};
     const runs = sessionData.runs || [];
 
-    runs.forEach((run: any) => {
+    runs.forEach((run: { messages?: { role: string; content: string }[] }) => {
       const runMessages = run.messages || [];
-      runMessages.forEach((msg: any) => {
+      runMessages.forEach((msg: { role: string; content: string }) => {
         if (msg.role === "user" || msg.role === "assistant") {
           addMessage(msg.role, msg.content);
         }
@@ -336,6 +344,13 @@ const toggleSidebar = () => {
 // ============ 生命周期 ============
 onMounted(connectWebSocket);
 onUnmounted(disconnectWebSocket);
+
+// KeepAlive 缓存切换：离开视图即断开，回到视图按需重连。
+// 缺失 deactivated 时被缓存实例会持续占用 WebSocket 连接（登出后旧实例的连接也不会释放）。
+onActivated(() => {
+  if (!isConnected.value) connectWebSocket();
+});
+onDeactivated(disconnectWebSocket);
 </script>
 
 <style lang="scss" scoped>

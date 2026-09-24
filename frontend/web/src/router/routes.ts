@@ -11,12 +11,11 @@
 import type { AppRouteRecordRaw } from "@utils";
 import type { AppRouteRecord, RouteMeta } from "@/types/router";
 import { defineComponent, h, onMounted, ref } from "vue";
-import { RouterView, useRoute } from "vue-router";
+import { useRoute } from "vue-router";
 import { $t } from "@/locales";
 import LayoutComponent from "@/layouts/index.vue";
 import DashboardWorkplace from "@views/dashboard/workplace/index.vue";
 import DashboardAnalysis from "@views/dashboard/analysis/index.vue";
-import DashboardScreen from "@views/dashboard/screen/index.vue";
 import RedirectView from "@views/redirect/index.vue";
 import LoginView from "@views/module_system/auth/login/index.vue";
 import Exception401 from "@views/exception/401/index.vue";
@@ -130,12 +129,6 @@ export const dashboardLayoutChildren: AppRouteRecordRaw[] = [
       keepAlive: false,
     },
   },
-  {
-    path: "screen",
-    name: "DashboardScreen",
-    component: DashboardScreen,
-    meta: { title: "数据大屏", icon: "ri:tv-line", keepAlive: false, hidden: false },
-  },
 ];
 
 // ──────── 路由常量 ────────
@@ -146,19 +139,8 @@ export const ROOT_LAYOUT_ROUTE_NAME = "RootLayout" as const;
 /** 首页子路由 name（面包屑组件会用） */
 export const HOME_ROUTE_NAME = "Home" as const;
 
-/** 纯 RouterView 占位组件 —— 多级目录只需要嵌一层，不需要实际页面 */
-export const NestedRouterParent = defineComponent({
-  name: "NestedRouterParent",
-  setup() {
-    return () => h(RouterView);
-  },
-});
-
 /** 后端菜单中 component: "/index/index" = 使用 Layout 框架 */
 export const ROUTE_COMPONENT_LAYOUT = "/index/index";
-
-/** 多级目录父级占位 component */
-export const ROUTE_COMPONENT_NESTED_PARENT = "/nested/router-view-parent";
 
 /** 登录页的备用 path（守卫判断用） */
 export const ROUTE_PATH_LOGIN_ALT = "/auth/login";
@@ -206,10 +188,10 @@ export const IframeView = defineComponent({
  * 2、静态路由不管是否登录都可以访问
  */
 export const staticRoutes: AppRouteRecordRaw[] = [
-  // 重定向中转页
+  // 重定向中转页：仅用于强制重新进入目标路由，本身不应出现在菜单和工作标签栏
   {
     path: "/redirect",
-    meta: { hidden: true },
+    meta: { hidden: true, isHideTab: true },
     component: LayoutComponent,
     children: [
       {
@@ -225,29 +207,29 @@ export const staticRoutes: AppRouteRecordRaw[] = [
     meta: { hidden: true, isHideTab: true, title: "menus.login.title" },
     component: LoginView,
   },
-  // 异常页
+  // 异常页：不在侧栏菜单显示（hidden），也不进入工作标签栏（isHideTab）
   {
     path: "/401",
     name: "401",
-    meta: { hidden: true, title: "401" },
+    meta: { hidden: true, isHideTab: true, title: "401" },
     component: Exception401,
   },
   {
     path: "/403",
     name: "403",
     component: Exception403,
-    meta: { hidden: true, title: "403" },
+    meta: { hidden: true, isHideTab: true, title: "403" },
   },
   {
     path: "/404",
     name: "404",
-    meta: { hidden: true, title: "404" },
+    meta: { hidden: true, isHideTab: true, title: "404" },
     component: Exception404,
   },
   {
     path: "/500",
     name: "500",
-    meta: { hidden: true, title: "500" },
+    meta: { hidden: true, isHideTab: true, title: "500" },
     component: Exception500,
   },
   // 根 Layout：存放壳层路由（home/dashboard/fastlink）
@@ -267,7 +249,6 @@ export const staticRoutes: AppRouteRecordRaw[] = [
         path: "dashboard",
         name: "Dashboard",
         redirect: "/dashboard/workplace",
-        component: NestedRouterParent,
         meta: DASHBOARD_PARENT_META,
         children: dashboardLayoutChildren,
       },
@@ -275,7 +256,6 @@ export const staticRoutes: AppRouteRecordRaw[] = [
       {
         path: "fastlink",
         name: "Fastlink",
-        component: NestedRouterParent,
         meta: { hidden: true },
         children: [
           {
@@ -356,6 +336,6 @@ export const staticRoutes: AppRouteRecordRaw[] = [
     path: "/:pathMatch(.*)*",
     name: "CatchAll404",
     component: Exception404,
-    meta: { hidden: true, title: "404" },
+    meta: { hidden: true, isHideTab: true, title: "404" },
   },
 ];
