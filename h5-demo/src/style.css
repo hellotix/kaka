@@ -1,0 +1,876 @@
+/* ============================================================
+ * KAKA 家庭物资 H5 演示 —— 全站样式
+ *
+ * 设计取向：移动端优先（大点击区、底部安全区适配），
+ * 桌面浏览器打开时收成一条 480px 的「手机宽度」窄栏，居中显示。
+ * ============================================================ */
+
+:root {
+  --primary: #16a34a;
+  --primary-dark: #15803d;
+  --primary-soft: #dcfce7;
+  --danger: #dc2626;
+  --danger-soft: #fee2e2;
+  --warning: #b45309;
+  --warning-soft: #fef3c7;
+  --text: #111827;
+  --text-2: #4b5563;
+  --text-3: #9ca3af;
+  --bg: #f3f4f6;
+  --card: #ffffff;
+  --border: #e5e7eb;
+  --radius: 12px;
+  --shadow: 0 1px 3px rgb(0 0 0 / 8%);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+#app {
+  width: 100%;
+  max-width: 480px;
+  min-height: 100vh;
+  background: var(--bg);
+  position: relative;
+}
+
+/* ── 页面骨架：顶部栏固定、内容区滚动 ───────────────────── */
+
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.navbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 52px;
+  padding: 0 12px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+
+.navbar-title {
+  flex: 1;
+  font-size: 17px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.navbar-title .sub {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-3);
+}
+
+.navbar-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.content {
+  flex: 1;
+  padding: 12px 12px calc(88px + var(--safe-bottom));
+}
+
+.content.no-fab {
+  padding-bottom: 24px;
+}
+
+/* ── 按钮 ─────────────────────────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--text);
+  font-size: 14px;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.btn:active {
+  opacity: 0.7;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  font-weight: 600;
+}
+
+.btn-danger {
+  color: var(--danger);
+  border-color: var(--danger-soft);
+  background: var(--danger-soft);
+}
+
+.btn-ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-2);
+}
+
+.btn-sm {
+  font-size: 13px;
+  padding: 5px 10px;
+}
+
+.btn-block {
+  width: 100%;
+  padding: 12px;
+  font-size: 16px;
+}
+
+.icon-btn {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 8px;
+  font-size: 16px;
+}
+
+/* ── 卡片与列表 ───────────────────────────────────────── */
+
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 14px;
+  margin-bottom: 10px;
+}
+
+/* 卡片内的小标题：与 .form-section-title 的区别是它总出现在卡片第一行，
+   不需要 18px 的段前间距（否则卡片顶部会多出一截空白） */
+.card-title {
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-3);
+  letter-spacing: 0.5px;
+}
+
+.item-card {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  cursor: pointer;
+}
+
+.item-thumb {
+  width: 56px;
+  height: 56px;
+  flex: none;
+  border-radius: 10px;
+  background: var(--bg);
+  object-fit: cover;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: var(--text-3);
+  overflow: hidden;
+}
+
+.item-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.item-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.item-name {
+  font-size: 16px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item-sub {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item-meta {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.item-qty {
+  flex: none;
+  text-align: right;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.item-qty b {
+  display: block;
+  font-size: 17px;
+  color: var(--text);
+}
+
+/* ── 标签 ─────────────────────────────────────────────── */
+
+.tag {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  line-height: 18px;
+  background: var(--bg);
+  color: var(--text-2);
+}
+
+.tag-green {
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+}
+
+.tag-amber {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.tag-red {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.tag-blue {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+/* ── 筛选区：搜索框 + 分类横向滚动 ─────────────────────── */
+
+.search-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.search-bar input {
+  flex: 1;
+}
+
+.chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  margin-bottom: 4px;
+  scrollbar-width: none;
+}
+
+.chips::-webkit-scrollbar {
+  display: none;
+}
+
+.chip {
+  flex: none;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text-2);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.chip.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+/* 列表顶部的一行统计（共 N 条 · 筛选条件） */
+.list-summary {
+  margin: 0 0 8px;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+
+/* ── 表单 ─────────────────────────────────────────────── */
+
+.field {
+  margin-bottom: 14px;
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13.5px;
+  color: var(--text-2);
+}
+
+.field-label .required {
+  color: var(--danger);
+  margin-left: 2px;
+}
+
+.field-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  outline: none;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--primary);
+}
+
+textarea {
+  resize: vertical;
+  min-height: 72px;
+}
+
+.checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.checkbox-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+.checkbox-item input {
+  width: auto;
+  margin: 0;
+  accent-color: var(--primary);
+}
+
+.form-section-title {
+  margin: 18px 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-3);
+  letter-spacing: 0.5px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.form-actions .btn {
+  flex: 1;
+}
+
+/* 两列小表单（批次的数量/单价这类短字段） */
+.field-row {
+  display: flex;
+  gap: 10px;
+}
+
+.field-row .field {
+  flex: 1;
+}
+
+/* ── 图片网格 ─────────────────────────────────────────── */
+
+.img-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.img-cell {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.img-cell img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.img-del {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 55%);
+  color: #fff;
+  font-size: 12px;
+  line-height: 20px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.img-add {
+  aspect-ratio: 1;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--text-3);
+  font-size: 22px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── 键值对（详情页信息行） ───────────────────────────── */
+
+.kv {
+  display: flex;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px dashed var(--border);
+  font-size: 14px;
+}
+
+.kv:last-child {
+  border-bottom: none;
+}
+
+.kv-k {
+  flex: none;
+  width: 84px;
+  color: var(--text-3);
+}
+
+.kv-v {
+  flex: 1;
+  color: var(--text);
+  word-break: break-all;
+}
+
+/* ── 悬浮录入按钮与底部条 ─────────────────────────────── */
+
+.fab {
+  position: fixed;
+  right: calc(50% - 240px + 18px);
+  bottom: calc(24px + var(--safe-bottom));
+  width: 54px;
+  height: 54px;
+  border: none;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  font-size: 26px;
+  line-height: 54px;
+  box-shadow: 0 4px 14px rgb(22 163 74 / 45%);
+  cursor: pointer;
+  z-index: 20;
+}
+
+/* 窄屏时 480px 上限不生效，用 clamp 保证按钮始终贴右边 */
+@media (max-width: 480px) {
+  .fab {
+    right: 18px;
+  }
+}
+
+.fab:active {
+  transform: scale(0.96);
+}
+
+.load-more {
+  text-align: center;
+  padding: 10px;
+  color: var(--text-3);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* ── 空态 / 加载 ──────────────────────────────────────── */
+
+.empty {
+  text-align: center;
+  padding: 56px 20px;
+  color: var(--text-3);
+}
+
+.empty .icon {
+  font-size: 44px;
+  margin-bottom: 10px;
+}
+
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-3);
+  font-size: 14px;
+}
+
+/* ── toast 与确认框 ───────────────────────────────────── */
+
+.toast {
+  position: fixed;
+  left: 50%;
+  top: 18%;
+  transform: translateX(-50%);
+  max-width: 320px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: rgb(17 24 39 / 92%);
+  color: #fff;
+  font-size: 14px;
+  text-align: center;
+  z-index: 100;
+  animation: toast-in 0.18s ease-out;
+}
+
+.toast-error {
+  background: rgb(220 38 38 / 95%);
+}
+
+.toast-success {
+  background: rgb(22 163 74 / 95%);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
+}
+
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 45%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 90;
+}
+
+.modal {
+  width: 100%;
+  max-width: 340px;
+  background: var(--card);
+  border-radius: 14px;
+  padding: 18px;
+}
+
+.modal-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.modal-body {
+  font-size: 14px;
+  color: var(--text-2);
+  margin-bottom: 16px;
+  max-height: 60vh;
+  overflow: auto;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.modal-actions .btn {
+  flex: 1;
+}
+
+/* 底部弹出的动作菜单（家庭切换 / 更多操作） */
+.sheet-mask {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 45%);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 90;
+}
+
+.sheet {
+  width: 100%;
+  max-width: 480px;
+  background: var(--card);
+  border-radius: 16px 16px 0 0;
+  padding: 16px 16px calc(16px + var(--safe-bottom));
+}
+
+.sheet-title {
+  font-size: 13px;
+  color: var(--text-3);
+  margin-bottom: 8px;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 4px;
+  border-bottom: 1px solid var(--border);
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.menu-item:last-child {
+  border-bottom: none;
+}
+
+.menu-item .check {
+  margin-left: auto;
+  color: var(--primary);
+}
+
+.menu-item.danger {
+  color: var(--danger);
+}
+
+/* ── 登录 / 注册页 ────────────────────────────────────── */
+
+.auth-page {
+  min-height: 100vh;
+  padding: 48px 24px 32px;
+  display: flex;
+  flex-direction: column;
+}
+
+.auth-hero {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.auth-logo {
+  width: 68px;
+  height: 68px;
+  margin: 0 auto 14px;
+  border-radius: 20px;
+  background: var(--primary-soft);
+  font-size: 34px;
+  line-height: 68px;
+}
+
+.auth-title {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.auth-sub {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+.auth-tabs {
+  display: flex;
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 20px;
+}
+
+.auth-tab {
+  flex: 1;
+  text-align: center;
+  padding: 8px 0;
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.auth-tab.active {
+  background: var(--card);
+  color: var(--primary-dark);
+  font-weight: 600;
+  box-shadow: var(--shadow);
+}
+
+.auth-hint {
+  margin-top: auto;
+  padding-top: 24px;
+  font-size: 12.5px;
+  color: var(--text-3);
+  text-align: center;
+  line-height: 1.8;
+}
+
+.sms-row {
+  display: flex;
+  gap: 8px;
+}
+
+.sms-row input {
+  flex: 1;
+}
+
+.sms-row .btn {
+  flex: none;
+  width: 108px;
+}
+
+/* ── 批次卡片 ─────────────────────────────────────────── */
+
+.batch-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  font-size: 13.5px;
+}
+
+.batch-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.batch-head b {
+  font-size: 14px;
+}
+
+.batch-head .spacer {
+  flex: 1;
+}
+
+.batch-line {
+  color: var(--text-2);
+  line-height: 1.7;
+}
+
+.batch-edit {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+}
+
+/* ── 个人中心 ─────────────────────────────────────────── */
+
+.profile-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.profile-avatar {
+  width: 54px;
+  height: 54px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-name {
+  font-size: 16px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-sub {
+  margin-top: 3px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+/* 两个按钮竖排：横排在 375px 宽的屏上会把中间的名字挤没 */
+.profile-actions {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: stretch;
+}
