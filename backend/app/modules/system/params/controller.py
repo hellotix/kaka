@@ -20,7 +20,7 @@ ParamsRouter = APIRouter(route_class=OperationLogRoute, prefix="/param", tags=["
 async def update_param_controller(
     redis: Annotated[Redis, Depends(redis_getter)],
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:param:update"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     id: Annotated[int, Path(description="参数ID", ge=1)],
     data: Annotated[ParamsUpdateSchema, Body(description="参数修改参数")],
 ) -> JSONResponse:

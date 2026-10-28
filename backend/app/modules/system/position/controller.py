@@ -19,7 +19,7 @@ PositionRouter = APIRouter(route_class=OperationLogRoute, prefix="/position", ta
 @PositionRouter.get("/list", summary="查询岗位", response_model=ResponseSchema[PageResultSchema[PositionOutSchema]])
 async def get_obj_list_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:position:query"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     page: Annotated[PaginationQueryParam, Depends()],
     search: Annotated[PositionQueryParam, Query()],
 ) -> JSONResponse:
@@ -35,7 +35,7 @@ async def get_obj_list_controller(
 @PositionRouter.get("/detail/{id}", summary="查询岗位详情", response_model=ResponseSchema[PositionOutSchema])
 async def get_obj_detail_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:position:detail"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     id: Annotated[int, Path(description="岗位ID", ge=1)],
 ) -> JSONResponse:
     result_dict: PositionOutSchema = await PositionService(auth, db).detail(id=id)
@@ -45,7 +45,7 @@ async def get_obj_detail_controller(
 @PositionRouter.post("/create", status_code=status.HTTP_201_CREATED, summary="创建岗位", response_model=ResponseSchema[PositionOutSchema])
 async def create_obj_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:position:create"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     data: Annotated[PositionCreateSchema, Body(description="岗位创建参数")],
 ) -> JSONResponse:
     result_dict: PositionOutSchema = await PositionService(auth, db).create(data=data)
@@ -55,7 +55,7 @@ async def create_obj_controller(
 @PositionRouter.put("/update/{id}", summary="修改岗位", response_model=ResponseSchema[PositionOutSchema])
 async def update_obj_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:position:update"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     id: Annotated[int, Path(description="岗位ID", ge=1)],
     data: Annotated[PositionUpdateSchema, Body(description="岗位修改参数")],
 ) -> JSONResponse:
@@ -66,7 +66,7 @@ async def update_obj_controller(
 @PositionRouter.delete("/delete", summary="删除岗位", response_model=ResponseSchema[None])
 async def delete_obj_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:position:delete"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     ids: Annotated[list[int], Body(description="ID列表")],
 ) -> JSONResponse:
     await PositionService(auth, db).delete(ids=ids)
@@ -76,7 +76,7 @@ async def delete_obj_controller(
 @PositionRouter.patch("/status/batch", summary="批量修改岗位状态", response_model=ResponseSchema[None])
 async def batch_set_available_obj_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:position:patch"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     data: Annotated[BatchSetAvailable, Body(description="状态设置")],
 ) -> JSONResponse:
     await PositionService(auth, db).set_available(data=data)
@@ -86,7 +86,7 @@ async def batch_set_available_obj_controller(
 @PositionRouter.get("/options", summary="获取岗位下拉选项", response_model=ResponseSchema[list[dict[str, int | str]]])
 async def get_position_options_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:position:query"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     options: list[dict[str, Any]] = await PositionService(auth, db).get_options()
     return SuccessResponse(data=options, msg="获取岗位选项成功")
@@ -95,7 +95,7 @@ async def get_position_options_controller(
 @PositionRouter.post("/export", summary="导出岗位")
 async def export_obj_list_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:position:export"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     search: Annotated[PositionQueryParam, Body()],
 ) -> StreamingResponse:
     position_query_result: list[PositionOutSchema] = await PositionService(auth, db).get_list(search=search)

@@ -24,7 +24,7 @@ VersionRouter = APIRouter(route_class=OperationLogRoute, prefix="/versions", tag
 @VersionRouter.get("/list", summary="分页查询版本", response_model=ResponseSchema[PageResultSchema[VersionOutSchema]])
 async def get_version_list_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:version:query"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     page: Annotated[PaginationQueryParam, Depends()],
     search: Annotated[VersionQueryParam, Query()],
 ) -> JSONResponse:
@@ -35,7 +35,7 @@ async def get_version_list_controller(
 
 @VersionRouter.get("/published", summary="已发布版本列表", response_model=ResponseSchema[list[VersionOutSchema]])
 async def get_published_versions_controller(
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     auth = AuthSchema()
     service = VersionService(auth, db)
@@ -46,7 +46,7 @@ async def get_published_versions_controller(
 @VersionRouter.get("/detail/{id}", summary="获取版本详情", response_model=ResponseSchema[VersionOutSchema])
 async def get_version_detail_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:version:detail"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     id: Annotated[int, Path(description="版本ID", ge=1)],
 ) -> JSONResponse:
     service = VersionService(auth, db)
@@ -57,7 +57,7 @@ async def get_version_detail_controller(
 @VersionRouter.post("/create", status_code=status.HTTP_201_CREATED, summary="创建版本", response_model=ResponseSchema[VersionOutSchema])
 async def create_version_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:version:create"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     data: Annotated[VersionCreateSchema, Body(description="创建参数")],
 ) -> JSONResponse:
     service = VersionService(auth, db)
@@ -68,7 +68,7 @@ async def create_version_controller(
 @VersionRouter.put("/update/{id}", summary="修改版本", response_model=ResponseSchema[VersionOutSchema])
 async def update_version_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:version:update"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     id: Annotated[int, Path(description="版本ID", ge=1)],
     data: Annotated[VersionUpdateSchema, Body(description="修改参数")],
 ) -> JSONResponse:
@@ -80,7 +80,7 @@ async def update_version_controller(
 @VersionRouter.delete("/delete", summary="删除版本", response_model=ResponseSchema[None])
 async def delete_version_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:version:delete"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     ids: Annotated[list[int], Body(description="ID列表")],
 ) -> JSONResponse:
     service = VersionService(auth, db)
@@ -91,7 +91,7 @@ async def delete_version_controller(
 @VersionRouter.put("/{id}/status", summary="变更版本状态", response_model=ResponseSchema[VersionOutSchema])
 async def set_version_status_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:version:update"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     id: Annotated[int, Path(description="版本ID", ge=1)],
     data: Annotated[VersionStatusSchema, Body(description="状态参数")],
 ) -> JSONResponse:

@@ -21,7 +21,7 @@ MediaRouter = APIRouter(route_class=OperationLogRoute, prefix="/media", tags=["�
 async def get_obj_detail_controller(
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_media:Media:detail"]))],
     id: Annotated[int, Path(description="示例ID")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     service = MediaService(auth, db)
     result_dict = await service.detail(id=id)
@@ -33,7 +33,7 @@ async def get_obj_list_controller(
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_media:Media:query"]))],
     page: Annotated[PaginationQueryParam, Depends()],
     search: Annotated[MediaQueryParam, Query()],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     service = MediaService(auth, db)
     result_dict = await service.page(
@@ -49,7 +49,7 @@ async def get_obj_list_controller(
 async def create_obj_controller(
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_media:Media:create"]))],
     data: Annotated[MediaCreateSchema, Body(description="创建参数")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     service = MediaService(auth, db)
     result_dict = await service.create(data=data)
@@ -61,7 +61,7 @@ async def update_obj_controller(
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_media:Media:update"]))],
     id: Annotated[int, Path(description="示例ID")],
     data: Annotated[MediaUpdateSchema, Body(description="修改参数")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     service = MediaService(auth, db)
     result_dict = await service.update(id=id, data=data)
@@ -72,7 +72,7 @@ async def update_obj_controller(
 async def delete_obj_controller(
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_media:Media:delete"]))],
     ids: Annotated[list[int], Body(description="ID列表")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     service = MediaService(auth, db)
     await service.delete(ids=ids)
@@ -83,7 +83,7 @@ async def delete_obj_controller(
 async def batch_set_available_obj_controller(
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_media:Media:patch"]))],
     data: Annotated[BatchSetAvailable, Body(description="状态设置")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     service = MediaService(auth, db)
     await service.set_available(data=data)
@@ -94,7 +94,7 @@ async def batch_set_available_obj_controller(
 async def export_obj_list_controller(
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_media:Media:export"]))],
     search: Annotated[MediaQueryParam, Query()],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> StreamingResponse:
     service = MediaService(auth, db)
     result_dict_list = await service.get_list(search=search)
@@ -111,7 +111,7 @@ async def export_obj_list_controller(
 async def import_obj_list_controller(
     file: Annotated[UploadFile, File(description="导入文件")],
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_media:Media:import"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     service = MediaService(auth, db)
     batch_import_result = await service.batch_import(file=file, update_support=True)

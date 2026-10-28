@@ -9,16 +9,15 @@ from fastapi import Request
 from redis.asyncio.client import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.common.enums import RET
 from app.config.setting import settings
 from app.core.base_schema import AuthSchema
 from app.core.database import async_db_session
-from app.core.exceptions import CustomException
 from app.core.logger import logger
 from app.core.redis_crud import RedisCURD
 from app.utils.ip_local_util import IpLocalUtil, get_client_ip
 from app.utils.password_util import PwdUtil
 
+from ...exceptions import BusinessError
 from ..core.constants import (
     ACCESS_TOKEN_EXPIRE_SECONDS,
     PASSWORD_LOCK_SECONDS,
@@ -70,7 +69,7 @@ async def collect_request_meta(request: Request, redis: Redis) -> dict[str, Any]
     user_agent = request.headers.get("user-agent") or ""
     ua_result = ua_parser.parse(user_agent)
     ip = get_client_ip(request)
-    location = await IpLocalUtil.resolve_location_for_log(redis, ip)
+    location = await IpLocalUtil.resolve_location(redis, ip)
     return {
         "login_ip": ip or None,
         "login_location": location,
@@ -111,7 +110,7 @@ class AppLoginService:
         - AppLoginOutSchema: 令牌与用户信息。
 
         异常:
-        - CustomException: 账号或密码错误、触发锁定、账号被禁用。
+        - BusinessError: 账号或密码错误、触发锁定、账号被禁用。
         """
         account = data.account
         meta = await collect_request_meta(request, self.redis)
@@ -120,24 +119,24 @@ class AppLoginService:
         fail_times = int(await self.cache.get(fail_key) or 0)
         if fail_times >= PASSWORD_MAX_FAIL_TIMES:
             ttl = await self.cache.ttl(key=fail_key)
-            raise CustomException(msg=f"密码连续错误次数过多，请 {max(int(ttl), 0)} 秒后再试")
+            raise BusinessError(msg=f"密码连续错误次数过多，请 {max(int(ttl), 0)} 秒后再试", status_code=429)
 
         user = await self.users.get_by_account(account)
         if not user:
             await self._log_failure(account=account, msg="账号或密码错误", platform=data.platform, login_type=AppLoginType.PASSWORD, meta=meta)
-            raise CustomException(msg="账号或密码错误")
+            raise BusinessError(msg="账号或密码错误")
 
         if not user.password:
             msg = "该账号未设置密码，请使用短信验证码登录"
             await self._log_failure(account=account, msg=msg, platform=data.platform, login_type=AppLoginType.PASSWORD, meta=meta, user=user)
-            raise CustomException(msg=msg)
+            raise BusinessError(msg=msg)
 
         if not PwdUtil.verify_password(plain_password=data.password, password_hash=user.password):
             count = await self.redis.incr(fail_key)
             if count == 1:
                 await self.redis.expire(fail_key, PASSWORD_LOCK_SECONDS)
             await self._log_failure(account=account, msg="账号或密码错误", platform=data.platform, login_type=AppLoginType.PASSWORD, meta=meta, user=user)
-            raise CustomException(msg="账号或密码错误")
+            raise BusinessError(msg="账号或密码错误")
 
         await self.cache.delete(fail_key)
         await self._ensure_enabled(user, account=account, platform=data.platform, login_type=AppLoginType.PASSWORD, meta=meta)
@@ -163,7 +162,7 @@ class AppLoginService:
         if not user:
             if not SMS_LOGIN_AUTO_REGISTER:
                 await self._log_failure(account=data.mobile, msg="该手机号尚未注册", platform=data.platform, login_type=AppLoginType.SMS, meta=meta)
-                raise CustomException(msg="该手机号尚未注册")
+                raise BusinessError(msg="该手机号尚未注册", status_code=404)
             user = await self.create_user(
                 mobile=data.mobile,
                 nickname=self._default_nickname(data.mobile),
@@ -215,7 +214,7 @@ class AppLoginService:
                     provider=info.provider,
                     meta=meta,
                 )
-                raise CustomException(msg="第三方账号绑定的用户不存在，请联系客服")
+                raise BusinessError(msg="第三方账号绑定的用户不存在，请联系客服", status_code=404)
             await self._refresh_binding(binding.id, info)
         else:
             user = await self.users.get(mobile=info.mobile) if info.mobile else None
@@ -262,16 +261,16 @@ class AppLoginService:
         - AppLoginOutSchema: 令牌与用户信息。
         """
         if not SMS_REGISTER_ENABLE:
-            raise CustomException(msg="注册功能已关闭，请联系管理员")
+            raise BusinessError(msg="注册功能已关闭，请联系管理员", status_code=403)
         if not data.code:
-            raise CustomException(msg="请输入短信验证码")
+            raise BusinessError(msg="请输入短信验证码")
 
         await self.sms.verify_code(mobile=data.mobile, code=data.code, scene=AppSmsScene.REGISTER)
 
         if await self.users.get(mobile=data.mobile):
-            raise CustomException(msg="该手机号已注册，请直接登录")
+            raise BusinessError(msg="该手机号已注册，请直接登录", status_code=409)
         if data.username and await self.users.get(username=data.username):
-            raise CustomException(msg="该用户名已被占用")
+            raise BusinessError(msg="该用户名已被占用", status_code=409)
 
         meta = await collect_request_meta(request, self.redis)
         user = await self.create_user(
@@ -297,7 +296,7 @@ class AppLoginService:
         - AppTokenOutSchema: 新令牌。
 
         异常:
-        - CustomException: 刷新令牌非法、已被使用过、会话过期或账号被禁用。
+        - BusinessError: 刷新令牌非法、已被使用过、会话过期或账号被禁用。
         """
         payload = decode_app_token(data.refresh_token, token_type=AppTokenType.REFRESH)
         info = await self.sessions.get(payload.sub)
@@ -313,7 +312,7 @@ class AppLoginService:
         if not user:
             raise unauthorized("用户不存在，请重新登录")
         if user.status == 1:
-            raise CustomException(msg="账号已被禁用，请联系客服", code=RET.FORBIDDEN.code, status_code=403)
+            raise BusinessError(msg="账号已被禁用，请联系客服", status_code=403)
 
         access_token = create_app_token(
             session_id=info.session_id,
@@ -353,9 +352,9 @@ class AppLoginService:
         """下线指定会话（校验会话归属）。"""
         info = await self.sessions.get(session_id)
         if not info:
-            raise CustomException(msg="会话不存在或已下线")
+            raise BusinessError(msg="会话不存在或已下线", status_code=404)
         if info.user_id != user_id:
-            raise CustomException(msg="无权操作该会话", code=RET.FORBIDDEN.code, status_code=403)
+            raise BusinessError(msg="无权操作该会话", status_code=403)
         await self.sessions.remove(session_id)
 
     async def remove_other_sessions(self, user_id: int, current_session_id: str) -> int:
@@ -379,11 +378,11 @@ class AppLoginService:
         """
         if user.password:
             if not old_password:
-                raise CustomException(msg="请输入原密码")
+                raise BusinessError(msg="请输入原密码")
             if not PwdUtil.verify_password(plain_password=old_password, password_hash=user.password):
-                raise CustomException(msg="原密码不正确")
+                raise BusinessError(msg="原密码不正确")
         elif old_password:
-            raise CustomException(msg="该账号尚未设置密码，无需填写原密码")
+            raise BusinessError(msg="该账号尚未设置密码，无需填写原密码")
 
         await self.users.set(ids=[user.id], password=PwdUtil.hash_password(new_password))
         await self.sessions.remove_by_user(user.id, exclude_session_id=current_session_id)
@@ -399,7 +398,7 @@ class AppLoginService:
         await self.sms.verify_code(mobile=mobile, code=code, scene=AppSmsScene.RESET_PASSWORD)
         user = await self.users.get(mobile=mobile)
         if not user:
-            raise CustomException(msg="该手机号尚未注册")
+            raise BusinessError(msg="该手机号尚未注册", status_code=404)
         await self.users.set(ids=[user.id], password=PwdUtil.hash_password(new_password))
         await self.sessions.remove_by_user(user.id)
 
@@ -538,7 +537,7 @@ class AppLoginService:
             meta=meta,
             user=user,
         )
-        raise CustomException(msg="账号已被禁用，请联系客服", code=RET.FORBIDDEN.code, status_code=403)
+        raise BusinessError(msg="账号已被禁用，请联系客服", status_code=403)
 
     async def _log_failure(
         self,

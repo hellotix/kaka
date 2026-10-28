@@ -17,7 +17,7 @@ StorageWorkflowRouter = APIRouter(route_class=OperationLogRoute, prefix="/storag
 @StorageWorkflowRouter.get("/page", summary="分页查询传输流程", response_model=ResponseSchema[PageResultSchema[WorkflowOutSchema]])
 async def get_flow_page_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_task:storage:flow:query"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     page: Annotated[PaginationQueryParam, Depends()],
     search: Annotated[WorkflowQueryParam, Query()],
 ) -> JSONResponse:
@@ -33,7 +33,7 @@ async def get_flow_page_controller(
 @StorageWorkflowRouter.get("/list", summary="查询传输流程列表", response_model=ResponseSchema[list[WorkflowOutSchema]])
 async def get_flow_list_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_task:storage:flow:query"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     search: Annotated[WorkflowQueryParam, Query()],
 ) -> JSONResponse:
     result: list[WorkflowOutSchema] = await WorkflowService(auth, db).get_list(search=search)
@@ -43,7 +43,7 @@ async def get_flow_list_controller(
 @StorageWorkflowRouter.get("/detail/{id}", summary="查询传输流程详情", response_model=ResponseSchema[WorkflowOutSchema])
 async def get_flow_detail_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_task:storage:flow:query"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     id: Annotated[int, Path(description="流程ID", ge=1)],
 ) -> JSONResponse:
     result: WorkflowOutSchema = await WorkflowService(auth, db).detail(id=id)
@@ -53,7 +53,7 @@ async def get_flow_detail_controller(
 @StorageWorkflowRouter.post("/create", status_code=status.HTTP_201_CREATED, summary="创建传输流程", response_model=ResponseSchema[WorkflowOutSchema])
 async def create_flow_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_task:storage:flow:create"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     data: Annotated[WorkflowCreateSchema, Body(description="流程创建参数")],
 ) -> JSONResponse:
     result: WorkflowOutSchema = await WorkflowService(auth, db).create(data=data)
@@ -63,7 +63,7 @@ async def create_flow_controller(
 @StorageWorkflowRouter.put("/update/{id}", summary="修改传输流程", response_model=ResponseSchema[WorkflowOutSchema])
 async def update_flow_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_task:storage:flow:update"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     id: Annotated[int, Path(description="流程ID", ge=1)],
     data: Annotated[WorkflowUpdateSchema, Body(description="流程修改参数")],
 ) -> JSONResponse:
@@ -74,7 +74,7 @@ async def update_flow_controller(
 @StorageWorkflowRouter.delete("/delete", summary="删除传输流程", response_model=ResponseSchema[None])
 async def delete_flow_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_task:storage:flow:delete"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     ids: Annotated[list[int], Body(description="流程ID列表")],
 ) -> JSONResponse:
     await WorkflowService(auth, db).delete(ids=ids)
@@ -84,7 +84,7 @@ async def delete_flow_controller(
 @StorageWorkflowRouter.post("/execute/{id}", summary="执行传输流程", response_model=ResponseSchema[list[int]])
 async def execute_flow_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_task:storage:transfer:create"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     id: Annotated[int, Path(description="流程ID", ge=1)],
     data: Annotated[WorkflowExecuteSchema | None, Body(description="执行参数（源文件/目录路径映射，可选）")] = None,
 ) -> JSONResponse:

@@ -95,7 +95,12 @@ def run_migrations_online() -> None:
             target_metadata=target_metadata,
             # compare_type 自 Alembic 1.12 起默认开启，无需显式传入
             compare_server_default=True,  # 默认关闭的可选增强；MySQL 下简单场景可靠，若出现误报移除本行即可
-            render_as_batch=True,  # SQLite 不支持部分 ALTER，须走 batch 重建；对 MySQL/PG 无影响
+            # batch 模式只对 SQLite 有意义（它不支持部分 ALTER，须整表重建）。
+            # 在 MySQL/PG 上开启反而有害：DDL 会被渲染成 `batch_op.drop_*` 而非
+            # `op.drop_*`（绕过 initialize.py 的破坏性 DROP 守护正则），且 batch
+            # 生成的语句顺序会先 DROP INDEX 再 DROP CONSTRAINT，MySQL 下该索引正被
+            # 外键依赖时会直接报 1553。故按方言开关。
+            render_as_batch=connection.dialect.name == "sqlite",
             transaction_per_migration=True,
             include_name=include_name,
             process_revision_directives=process_revision_directives,

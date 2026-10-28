@@ -23,6 +23,23 @@ async def db_getter() -> AsyncGenerator[AsyncSession, None]:
 
     一个 HTTP 请求内所有 SQL 共享同一个事务：要么全成功，要么全失败。
     读操作也走这个事务（牺牲一点 MVCC 隔离换取读已写一致性）。
+
+    ⚠️ 注入时必须显式写 scope="function"，即 ``Depends(db_getter, scope="function")``
+    ------------------------------------------------------------------------------
+    FastAPI ≥ 0.106 起，「带 yield 的依赖」默认在**响应发出之后**才退出（request scope），
+    也就是 session.begin() 的 commit 晚于 HTTP 响应发出，会带来两个问题：
+
+    1. 客户端拿到 201/200 时数据其实可能还没提交；若提交失败（死锁/约束冲突），
+       客户端会收到「成功」但数据已回滚 —— 静默数据丢失；
+    2. 客户端紧接着发起的下一个请求可能读不到刚写入的数据（实测窗口约 36ms），
+       典型表现是「创建父分类成功后立刻创建子分类」稳定报 404。
+
+    ``scope="function"`` 让会话在响应发出**之前**退出，commit 先于响应，
+    上面两个问题同时消除，与本函数「读已写一致性」的承诺一致。
+
+    注意：依赖缓存键包含 scope（fastapi/dependencies/models.py 的 cache_key），
+    function 与 request 会各自建立一个会话（同请求两条连接、两个事务），
+    因此全工程务必统一使用 scope="function"，不要混用。
     """
     async with async_db_session() as session, session.begin():
         yield session
@@ -41,7 +58,7 @@ async def redis_getter(request: Request) -> Redis:
 
 
 async def get_current_user(
-    db: AsyncSession = Depends(db_getter),
+    db: AsyncSession = Depends(db_getter, scope="function"),
     redis: Redis = Depends(redis_getter),
     token: str = Depends(OAuth2Schema),
 ) -> AuthSchema:

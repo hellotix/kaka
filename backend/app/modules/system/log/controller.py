@@ -26,7 +26,7 @@ LogRouter = APIRouter(route_class=OperationLogRoute, prefix="/log", tags=["日�
 @LogRouter.get("/login/detail/{id}", summary="获取登录日志详情", response_model=ResponseSchema[LoginLogDetailOutSchema])
 async def get_log_detail_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:login_log:query"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     id: Annotated[int, Path(description="登录日志ID", ge=1)],
 ) -> JSONResponse:
     result_dict: LoginLogDetailOutSchema = await LoginLogService(auth, db).detail(id=id)
@@ -36,7 +36,7 @@ async def get_log_detail_controller(
 @LogRouter.get("/login/list", summary="查询登录日志列表", response_model=ResponseSchema[PageResultSchema[LoginLogOutSchema]])
 async def get_log_list_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:login_log:query"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     page: Annotated[PaginationQueryParam, Depends()],
     search: Annotated[LoginLogQueryParam, Query()],
 ) -> JSONResponse:
@@ -52,7 +52,7 @@ async def get_log_list_controller(
 @LogRouter.delete("/login/delete", summary="删除登录日志", response_model=ResponseSchema)
 async def delete_log_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:login_log:delete"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     ids: Annotated[list[int], Body(description="ID列表")],
 ) -> JSONResponse:
     await LoginLogService(auth, db).delete(ids=ids)
@@ -62,7 +62,7 @@ async def delete_log_controller(
 @LogRouter.get("/operation/detail/{id}", summary="获取操作日志详情", response_model=ResponseSchema[OperationLogDetailOutSchema], dependencies=[Security(AuthPermission(["module_system:log:query"]))])
 async def get_operation_log_detail_controller(
     auth: Annotated[AuthSchema, Security(get_current_user)],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     id: Annotated[int, Path(description="操作日志ID", ge=1)],
 ) -> JSONResponse:
     result_dict: OperationLogDetailOutSchema = await OperationLogService(auth, db).detail(id=id)
@@ -74,7 +74,7 @@ async def get_operation_log_detail_controller(
 )
 async def get_operation_log_list_controller(
     auth: Annotated[AuthSchema, Security(get_current_user)],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     page: Annotated[PaginationQueryParam, Depends()],
     search: Annotated[OperationLogQueryParam, Query()],
 ) -> JSONResponse:
@@ -90,7 +90,7 @@ async def get_operation_log_list_controller(
 @LogRouter.delete("/operation/delete", summary="删除操作日志", response_model=ResponseSchema, dependencies=[Security(AuthPermission(["module_system:log:delete"]))])
 async def delete_operation_log_controller(
     auth: Annotated[AuthSchema, Security(get_current_user)],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     ids: Annotated[list[int], Body(description="ID列表")],
 ) -> JSONResponse:
     await OperationLogService(auth, db).delete(ids=ids)
@@ -100,7 +100,7 @@ async def delete_operation_log_controller(
 @LogRouter.post("/operation/export", summary="导出操作日志", dependencies=[Security(AuthPermission(["module_system:log:export"]))])
 async def export_operation_log_list_controller(
     auth: Annotated[AuthSchema, Security(get_current_user)],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     search: Annotated[OperationLogQueryParam, Body()],
 ) -> StreamingResponse:
     operation_log_query_result: list[OperationLogOutSchema] = await OperationLogService(auth, db).get_list(search=search)

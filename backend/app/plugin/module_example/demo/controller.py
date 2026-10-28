@@ -20,7 +20,7 @@ DemoRouter = APIRouter(route_class=OperationLogRoute, prefix="/demo", tags=["示
 @DemoRouter.get("/detail/{id}", summary="获取示例详情", response_model=ResponseSchema[DemoOutSchema])
 async def get_obj_detail_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_example:demo:detail"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     id: Annotated[int, Path(description="示例ID", ge=1)],
 ) -> JSONResponse:
     result_dict: DemoOutSchema = await DemoService(auth, db).detail(id=id)
@@ -30,7 +30,7 @@ async def get_obj_detail_controller(
 @DemoRouter.get("/list", summary="分页查询示例", response_model=ResponseSchema[PageResultSchema[DemoOutSchema]])
 async def get_obj_list_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_example:demo:query"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     page: Annotated[PaginationQueryParam, Depends()],
     search: Annotated[DemoQueryParam, Query()],
 ) -> JSONResponse:
@@ -46,7 +46,7 @@ async def get_obj_list_controller(
 @DemoRouter.post("/create", status_code=status.HTTP_201_CREATED, summary="创建示例", response_model=ResponseSchema[DemoOutSchema])
 async def create_obj_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_example:demo:create"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     data: Annotated[DemoCreateSchema, Body(description="创建参数")],
 ) -> JSONResponse:
     result_dict: DemoOutSchema = await DemoService(auth, db).create(data=data)
@@ -56,7 +56,7 @@ async def create_obj_controller(
 @DemoRouter.put("/update/{id}", summary="修改示例", response_model=ResponseSchema[DemoOutSchema])
 async def update_obj_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_example:demo:update"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     id: Annotated[int, Path(description="示例ID", ge=1)],
     data: Annotated[DemoUpdateSchema, Body(description="修改参数")],
 ) -> JSONResponse:
@@ -67,7 +67,7 @@ async def update_obj_controller(
 @DemoRouter.delete("/delete", summary="删除示例", response_model=ResponseSchema[None])
 async def delete_obj_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_example:demo:delete"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     ids: Annotated[list[int], Body(description="ID列表")],
 ) -> JSONResponse:
     await DemoService(auth, db).delete(ids=ids)
@@ -77,7 +77,7 @@ async def delete_obj_controller(
 @DemoRouter.patch("/status/batch", summary="批量修改示例状态", response_model=ResponseSchema[None])
 async def batch_set_available_obj_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_example:demo:patch"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     data: Annotated[BatchSetAvailable, Body(description="状态设置")],
 ) -> JSONResponse:
     await DemoService(auth, db).set_available(data=data)
@@ -87,7 +87,7 @@ async def batch_set_available_obj_controller(
 @DemoRouter.post("/export", summary="导出示例")
 async def export_obj_list_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_example:demo:export"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     search: Annotated[DemoQueryParam, Body()],
 ) -> StreamingResponse:
     result_dict_list: list[DemoOutSchema] = await DemoService(auth, db).get_list(search=search)
@@ -104,7 +104,7 @@ async def export_obj_list_controller(
 async def import_obj_list_controller(
     file: Annotated[UploadFile, File(description="导入文件")],
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_example:demo:import"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     batch_import_result = await DemoService(auth, db).batch_import(file=file, update_support=True)
     return SuccessResponse(data=batch_import_result, msg="导入示例成功")

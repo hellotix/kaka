@@ -18,7 +18,7 @@ CronJobNodeRouter = APIRouter(route_class=OperationLogRoute, prefix="/cronjob/no
 @CronJobNodeRouter.get("/options", summary="获取定时任务节点列表", response_model=ResponseSchema[list[NodeOutSchema]])
 async def get_node_options_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_task:cronjob:node:query"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     service = NodeService(auth, db)
     result: list[NodeOutSchema] = await service.options()
@@ -29,7 +29,7 @@ async def get_node_options_controller(
 async def get_obj_detail_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_task:cronjob:node:detail"]))],
     id: Annotated[int, Path(description="节点ID")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     service = NodeService(auth, db)
     result_dict: NodeOutSchema = await service.detail(id=id)
@@ -41,7 +41,7 @@ async def get_obj_list_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_task:cronjob:node:query"]))],
     page: Annotated[PaginationQueryParam, Depends()],
     search: Annotated[NodeQueryParam, Query()],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     service = NodeService(auth, db)
     result_dict: PageResultSchema[NodeOutSchema] = await service.page(
@@ -57,7 +57,7 @@ async def get_obj_list_controller(
 async def create_obj_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_task:cronjob:node:create"]))],
     data: Annotated[NodeCreateSchema, Body(description="创建节点参数")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     service = NodeService(auth, db)
     result_dict: NodeOutSchema = await service.create(data=data)
@@ -69,7 +69,7 @@ async def update_obj_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_task:cronjob:node:update"]))],
     id: Annotated[int, Path(description="节点ID")],
     data: Annotated[NodeUpdateSchema, Body(description="修改节点参数")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     service = NodeService(auth, db)
     result_dict: NodeOutSchema = await service.update(id=id, data=data)
@@ -80,7 +80,7 @@ async def update_obj_controller(
 async def delete_obj_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_task:cronjob:node:delete"]))],
     ids: Annotated[list[int], Body(description="ID列表")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     service = NodeService(auth, db)
     await service.delete(ids=ids)
@@ -90,7 +90,7 @@ async def delete_obj_controller(
 @CronJobNodeRouter.delete("/clear", summary="清空节点", response_model=ResponseSchema[None])
 async def clear_obj_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_task:cronjob:node:delete"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     service = NodeService(auth, db)
     await service.clear()
@@ -101,7 +101,7 @@ async def clear_obj_controller(
 async def execute_job_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_task:cronjob:node:execute"]))],
     id: Annotated[int, Path(description="节点ID")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     service = NodeService(auth, db)
     result: NodeRunResultSchema = await service.execute(id=id)
@@ -112,7 +112,7 @@ async def execute_job_controller(
 async def batch_set_status_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_task:cronjob:node:update"]))],
     data: Annotated[BatchSetAvailable, Body(description="状态设置")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     service = NodeService(auth, db)
     await service.batch_set_status(ids=data.ids, status=data.status)

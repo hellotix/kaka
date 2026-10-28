@@ -52,7 +52,7 @@ AppProfileRouter = APIRouter(prefix="/login/profile", tags=["C端个人中心"])
 async def get_app_user_detail_controller(
     auth: Annotated[AuthSchema, Depends(AuthPermission([AppUserPerm.DETAIL]))],
     id: Annotated[int, Path(description="C端用户ID")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     redis: Annotated[Redis, Depends(redis_getter)],
 ) -> JSONResponse:
     """按ID查询C端用户详情。"""
@@ -66,7 +66,7 @@ async def get_app_user_list_controller(
     auth: Annotated[AuthSchema, Depends(AuthPermission([AppUserPerm.QUERY]))],
     page: Annotated[PaginationQueryParam, Depends()],
     search: Annotated[AppUserQueryParam, Query()],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     redis: Annotated[Redis, Depends(redis_getter)],
 ) -> JSONResponse:
     """分页查询C端用户列表。"""
@@ -79,7 +79,7 @@ async def get_app_user_list_controller(
 async def create_app_user_controller(
     auth: Annotated[AuthSchema, Depends(AuthPermission([AppUserPerm.CREATE]))],
     data: Annotated[AppUserCreateSchema, Body(description="创建参数")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     redis: Annotated[Redis, Depends(redis_getter)],
 ) -> JSONResponse:
     """后台创建C端用户，密码以哈希存储。"""
@@ -93,7 +93,7 @@ async def update_app_user_controller(
     auth: Annotated[AuthSchema, Depends(AuthPermission([AppUserPerm.UPDATE]))],
     id: Annotated[int, Path(description="C端用户ID")],
     data: Annotated[AppUserUpdateSchema, Body(description="修改参数")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     redis: Annotated[Redis, Depends(redis_getter)],
 ) -> JSONResponse:
     """修改C端用户资料，禁用时同步强制下线。"""
@@ -106,7 +106,7 @@ async def update_app_user_controller(
 async def delete_app_user_controller(
     auth: Annotated[AuthSchema, Depends(AuthPermission([AppUserPerm.DELETE]))],
     ids: Annotated[list[int], Body(description="C端用户ID列表")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     redis: Annotated[Redis, Depends(redis_getter)],
 ) -> JSONResponse:
     """批量删除C端用户（软删除）并强制下线全部会话。"""
@@ -119,7 +119,7 @@ async def delete_app_user_controller(
 async def batch_set_app_user_status_controller(
     auth: Annotated[AuthSchema, Depends(AuthPermission([AppUserPerm.PATCH]))],
     data: Annotated[BatchSetAvailable, Body(description="状态设置")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     redis: Annotated[Redis, Depends(redis_getter)],
 ) -> JSONResponse:
     """批量启用/禁用C端用户，禁用后立即失效其在线会话。"""
@@ -133,7 +133,7 @@ async def reset_app_user_password_controller(
     auth: Annotated[AuthSchema, Depends(AuthPermission([AppUserPerm.RESET_PASSWORD]))],
     id: Annotated[int, Path(description="C端用户ID")],
     data: Annotated[AppUserResetPasswordSchema, Body(description="新密码")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     redis: Annotated[Redis, Depends(redis_getter)],
 ) -> JSONResponse:
     """后台重置C端用户密码，成功后该用户全端下线。"""
@@ -146,7 +146,7 @@ async def reset_app_user_password_controller(
 async def get_app_user_session_controller(
     auth: Annotated[AuthSchema, Depends(AuthPermission([AppUserPerm.SESSION]))],
     id: Annotated[int, Path(description="C端用户ID")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     redis: Annotated[Redis, Depends(redis_getter)],
 ) -> JSONResponse:
     """查询指定C端用户的多端在线会话。"""
@@ -159,7 +159,7 @@ async def get_app_user_session_controller(
 async def force_logout_app_user_controller(
     auth: Annotated[AuthSchema, Depends(AuthPermission([AppUserPerm.FORCE_LOGOUT]))],
     id: Annotated[int, Path(description="C端用户ID")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     redis: Annotated[Redis, Depends(redis_getter)],
 ) -> JSONResponse:
     """强制下线指定C端用户的全部在线会话。"""
@@ -173,7 +173,7 @@ async def force_logout_app_user_session_controller(
     auth: Annotated[AuthSchema, Depends(AuthPermission([AppUserPerm.FORCE_LOGOUT]))],
     id: Annotated[int, Path(description="C端用户ID")],
     session_id: Annotated[str, Path(description="会话ID")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     redis: Annotated[Redis, Depends(redis_getter)],
 ) -> JSONResponse:
     """强制下线指定C端用户的单个会话。"""
@@ -187,7 +187,7 @@ async def get_app_login_log_controller(
     auth: Annotated[AuthSchema, Depends(AuthPermission([AppUserPerm.LOGIN_LOG]))],
     page: Annotated[PaginationQueryParam, Depends()],
     search: Annotated[AppLoginLogQueryParam, Query()],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     redis: Annotated[Redis, Depends(redis_getter)],
 ) -> JSONResponse:
     """分页查询C端登录日志（含登录失败记录）。"""
@@ -200,7 +200,7 @@ async def get_app_login_log_controller(
 async def get_app_user_oauth_controller(
     auth: Annotated[AuthSchema, Depends(AuthPermission([AppUserPerm.OAUTH]))],
     id: Annotated[int, Path(description="C端用户ID")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     redis: Annotated[Redis, Depends(redis_getter)],
 ) -> JSONResponse:
     """查询指定C端用户的第三方登录绑定列表。"""
@@ -213,7 +213,7 @@ async def get_app_user_oauth_controller(
 async def unbind_app_user_oauth_controller(
     auth: Annotated[AuthSchema, Depends(AuthPermission([AppUserPerm.OAUTH]))],
     id: Annotated[int, Path(description="第三方绑定记录ID")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     redis: Annotated[Redis, Depends(redis_getter)],
 ) -> JSONResponse:
     """解绑C端用户的第三方登录记录。"""

@@ -12,10 +12,10 @@ from datetime import UTC, datetime
 
 from redis.asyncio.client import Redis
 
-from app.core.exceptions import CustomException
 from app.core.logger import logger
 from app.core.redis_crud import RedisCURD
 
+from ...exceptions import BusinessError
 from ..core.constants import (
     SMS_CODE_EXPIRE_SECONDS,
     SMS_CODE_LENGTH,
@@ -116,26 +116,26 @@ class SmsService:
         - AppSmsSendOutSchema: 发送结果（含脱敏手机号与重发间隔）。
 
         异常:
-        - CustomException: 触发频控、超出每日上限或渠道发送失败。
+        - BusinessError: 触发频控、超出每日上限或渠道发送失败。
         """
         mobile = (mobile or "").strip()
         if not mobile:
-            raise CustomException(msg="手机号不能为空")
+            raise BusinessError(msg="手机号不能为空")
 
         interval_key = sms_interval_key(mobile)
         if await self.cache.exists(interval_key):
             ttl = await self.cache.ttl(key=interval_key)
-            raise CustomException(msg=f"验证码发送过于频繁，请 {max(int(ttl), 1)} 秒后重试")
+            raise BusinessError(msg=f"验证码发送过于频繁，请 {max(int(ttl), 1)} 秒后重试", status_code=429)
 
         today = datetime.now(UTC).strftime("%Y%m%d")
         daily_key = sms_daily_key(mobile, today)
         sent_today = int(await self.cache.get(daily_key) or 0)
         if sent_today >= SMS_DAILY_LIMIT:
-            raise CustomException(msg=f"今日验证码发送次数已达上限({SMS_DAILY_LIMIT}次)")
+            raise BusinessError(msg=f"今日验证码发送次数已达上限({SMS_DAILY_LIMIT}次)", status_code=429)
 
         code = "".join(secrets.choice(string.digits) for _ in range(SMS_CODE_LENGTH))
         if not await get_sms_sender().send(mobile=mobile, code=code, scene=scene):
-            raise CustomException(msg="验证码发送失败，请稍后重试")
+            raise BusinessError(msg="验证码发送失败，请稍后重试", status_code=502)
 
         await self.cache.set(key=sms_code_key(scene, mobile), value=code, expire=SMS_CODE_EXPIRE_SECONDS)
         await self.cache.set(key=interval_key, value="1", expire=SMS_RESEND_INTERVAL_SECONDS)
@@ -157,31 +157,31 @@ class SmsService:
         - scene (AppSmsScene): 使用场景。
 
         异常:
-        - CustomException: 验证码为空、过期、错误或错误次数超限。
+        - BusinessError: 验证码为空、过期、错误或错误次数超限。
         """
         mobile = (mobile or "").strip()
         code = (code or "").strip()
         if not mobile or not code:
-            raise CustomException(msg="手机号和验证码不能为空")
+            raise BusinessError(msg="手机号和验证码不能为空")
 
         key = sms_code_key(scene, mobile)
         fail_key = sms_fail_key(scene, mobile)
 
         cached = await self.cache.get(key)
         if not cached:
-            raise CustomException(msg="验证码已过期，请重新获取")
+            raise BusinessError(msg="验证码已过期，请重新获取")
         if isinstance(cached, bytes):
             cached = cached.decode("utf-8")
 
         fail_count = int(await self.cache.get(fail_key) or 0)
         if fail_count >= SMS_MAX_VERIFY_FAIL:
             await self.cache.delete(key, fail_key)
-            raise CustomException(msg="验证码错误次数过多，请重新获取")
+            raise BusinessError(msg="验证码错误次数过多，请重新获取", status_code=429)
 
         if not secrets.compare_digest(str(cached), code):
             count = await self.redis.incr(fail_key)
             if count == 1:
                 await self.redis.expire(fail_key, SMS_CODE_EXPIRE_SECONDS)
-            raise CustomException(msg="验证码错误")
+            raise BusinessError(msg="验证码错误")
 
         await self.cache.delete(key, fail_key)

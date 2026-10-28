@@ -115,7 +115,7 @@ async def get_job_log_list_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_task:cronjob:job:query"]))],
     page: Annotated[PaginationQueryParam, Depends()],
     search: Annotated[JobQueryParam, Query()],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     result_dict: PageResultSchema[JobOutSchema] = await JobService(auth, db).get_job_log_page(
         page_no=page.page_no,
@@ -130,7 +130,7 @@ async def get_job_log_list_controller(
 async def get_job_log_detail_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_task:cronjob:job:detail"]))],
     id: Annotated[int, Path(description="日志ID")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     result_dict: JobOutSchema = await JobService(auth, db).get_job_log_detail(id=id)
     return SuccessResponse(data=result_dict, msg="获取执行日志详情成功")
@@ -140,7 +140,7 @@ async def get_job_log_detail_controller(
 async def delete_job_log_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_task:cronjob:job:delete"]))],
     ids: Annotated[list[int], Body(description="ID列表")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     await JobService(auth, db).delete_job_log(ids=ids)
     return SuccessResponse(msg="删除执行日志成功")

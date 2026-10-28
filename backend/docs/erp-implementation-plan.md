@@ -59,6 +59,38 @@
 - `app/core/dependencies.py`、`app/core/middlewares.py` —— C端鉴权走插件自有依赖；全工程无限流中间件（`register_docs` 的「豁免限流」注释是历史遗留）。
 - `app/utils/import_util.py` —— `find_models` 会 walk 到 `app/plugin`，ERP 模型自动进 alembic 元数据，无需登记。
 
+### 2.1 已实施的插件外修改（2026-09-29，与 ERP 无关的上游安全缺陷修复）
+
+开工前排查迁移链路时发现两个会**损坏数据库**的缺陷，已修复。这四处不属于上表的 ERP 计划，
+是拉取上游代码后必须补的洞，逐项列在这里：
+
+| 文件 | 位置 | 改了什么 | 为什么必须改 |
+|------|------|----------|--------------|
+| `app/alembic/env.py` | `context.configure(...)` 的 `render_as_batch` | 从无条件 `True` 改为 `connection.dialect.name == "sqlite"` | batch 模式只对 SQLite 有意义（它不支持部分 ALTER，须整表重建）。在 MySQL 上开启有两个害处：① DDL 被渲染成 `batch_op.drop_*` 而非 `op.drop_*`，绕过 `initialize.py` 的破坏性 DROP 守护正则；② batch 生成的语句顺序先 `DROP INDEX` 再 `DROP CONSTRAINT`，MySQL 下该索引正被外键依赖时直接报 1553 |
+| `app/scripts/initialize.py` | `__autogen_migration` 的守护正则 | 补上 `(?:batch_)?` 前缀，使 `batch_op.drop_*` 也被拦 | 上一条的兜底：正则原本只匹配 `op.drop_*`，batch 渲染出来的 DROP 全部漏网，等于这层保护形同虚设 |
+| `app/scripts/initialize.py` | `__apply_migrations` 的 `else` 分支 | 「库非空但 `alembic_version` 为空」时改为 `stamp head` 而非 `upgrade head` | `upgrade head` 会从头重放基线迁移 `121aa3f2dea2`，而该文件含约 35 张表的 `op.drop_table`（包括 MySQL 自带的 `user`/`db`/`tables_priv`/`global_grants`/`proxies_priv`）。一旦 `DATABASE_NAME` 被误指向 `mysql` 系统库，整个实例的权限表会被抹掉、无法再登录 |
+| `app/scripts/initialize.py` | `__clear_unresolvable_alembic_version` | 返回值从 `None` 改为 `bool`（清理后库里是否仍有可用版本记录） | 上一条需要这个信号来决定走 `upgrade` 还是 `stamp` |
+
+`setting.py:104` 的 `DATABASE_NAME = "mysql"` 危险默认值**尚未修改**（按约定改动前会先贴 diff 确认）。
+仓库里 tracked 的有毒基线 `app/alembic/versions/121aa3f2dea2_迁移脚本.py` 也**尚未删除**（删除属影响共享仓库的操作，需要你点头）。
+
+另外：`app/alembic/versions/2026_09_28_1524_bc75b325e9b8.py` 是 dev 启动时自动生成的迁移
+（内容正好是 ERP 的 5 张表）。按本项目「versions/ 不提交迁移历史」的既有约定，它保持未跟踪状态即可。
+
+### 2.2 已移除上游遗留插件 `module_erp`（2026-09-30 用户确认）
+
+上游 `module_erp` 与本方案是两套互斥的建模策略（详见 `architecture-guide.md` §8.5 的对比表），
+已按用户决策**整体移除**，避免它被 `ImportUtil.find_models` 扫到后持续建出无人使用的孤儿表：
+
+- **代码**：删除 `app/plugin/module_erp/`（7 个 .py）。文件在 git 中有历史，`git restore app/plugin/module_erp` 可取回。
+- **数据库**：`DROP` 6 张表 `erp_inv`、`erp_goods_medicine`、`erp_goods_food`、`erp_goods_home`、`erp_goods_electric`、`erp_goods_seasoning`（删除时全部 `rows=0`，无数据损失）。
+- **删除前核查**：`sys_menu` / `sys_role` / `gen_table` 中 0 条 erp 记录，全工程无 `module_erp` 外部引用，有毒基线 `121aa3f2dea2` 里也没有这 6 张表的建表语句。
+- **保留**：本方案已建的 5 张表 `erp_category` / `erp_attr_template` / `erp_family` / `erp_family_member` / `erp_family_grant` 不动。
+- **连带消解**：原「URL 前缀 `/erp` 被占用」的阻塞项不复存在；家庭 ERP 作为 `module_app/erp/` 子板块挂载在 `/api/v1/app/erp`。
+
+> 若日后需要参考上游的字段设计（药品 `medicine_type`、食品 `food_type`、电器 `warranty_expire` 等），
+> 从 git 历史 `b17378c0` 或 `git show HEAD:app/plugin/module_erp/inv/model.py` 取即可。
+
 ---
 
 ## 3. 总体架构图
@@ -659,6 +691,21 @@ APP_ERP_AI_DAILY_LIMIT = 20                   # 单用户每日调用上限（�
 | **P6 加固** | 敏感字段加密落地 + 账号注销钩子 + 鉴权兜底测试 + 压测与索引调优 | 可上线 | 全部、插件外改动 #5 |
 
 建议按 P0 → P1 → P2 → P3 先跑通闭环（这四期不依赖任何外部凭证），P4/P5/P6 可并行。
+
+### P0 交付实况（2026-09-29 已完成）
+
+落地 24 个文件，全部在 `app/plugin/module_app/erp/` 内。与上表的差异：
+
+| 计划 | 实际 | 原因 |
+|------|------|------|
+| `core/visibility.py` 可见性模块 | 未建，可见性逻辑落在 `family/service.py:ErpFamilyService.visible_family_ids()` | 目前只有「自身 + 授权给我的」一条规则，单独开文件是过度设计；P2 物品查询若需要更复杂的收敛再抽出来 |
+| `core/` 含加密 | 加密整体推到 P6 | P0 没有敏感字段落库，提前引入加密只会增加迁移负担 |
+| — | 新增 `core/attrs.py` | 决策 5 的落地点：JSON 属性的规范化（`normalize_attrs`）与过滤条件构造（`build_attr_conditions`）集中一处，量级涨到万级时只改这个文件 |
+| — | 新增 `tests/smoke_p0.py` | 64 项服务层断言，直连 MySQL 单事务回滚、不留数据、不依赖 Redis |
+
+验证结果：47 个端点全部注册成功、无路由冲突、5 张 `erp_*` 表已建且索引正确、`ruff check` 与 `ruff format --check` 全通过、冒烟测试 64/64。
+
+**尚未验证**：HTTP 端到端（需要 Redis，见 §13）。
 
 ---
 

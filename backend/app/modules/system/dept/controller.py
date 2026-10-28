@@ -18,7 +18,7 @@ DeptRouter = APIRouter(route_class=OperationLogRoute, prefix="/dept", tags=["部
 @DeptRouter.get("/tree", summary="查询部门树", response_model=ResponseSchema[list[DeptOutSchema]])
 async def get_dept_tree_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:dept:query"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     search: Annotated[DeptQueryParam, Query()],
 ) -> JSONResponse:
     order_by: list[dict[str, str]] = [{"order": "asc"}]
@@ -29,7 +29,7 @@ async def get_dept_tree_controller(
 @DeptRouter.get("/detail/{id}", summary="查询部门详情", response_model=ResponseSchema[DeptOutSchema])
 async def get_obj_detail_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:dept:detail"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     id: Annotated[int, Path(description="部门ID", ge=1)],
 ) -> JSONResponse:
     result_dict: DeptOutSchema = await DeptService(auth, db).detail(id=id)
@@ -39,7 +39,7 @@ async def get_obj_detail_controller(
 @DeptRouter.post("/create", status_code=status.HTTP_201_CREATED, summary="创建部门", response_model=ResponseSchema[DeptOutSchema])
 async def create_obj_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:dept:create"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     data: Annotated[DeptCreateSchema, Body(description="部门创建参数")],
 ) -> JSONResponse:
     result_dict: DeptOutSchema = await DeptService(auth, db).create(data=data)
@@ -49,7 +49,7 @@ async def create_obj_controller(
 @DeptRouter.put("/update/{id}", summary="修改部门", response_model=ResponseSchema[DeptOutSchema])
 async def update_obj_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:dept:update"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     id: Annotated[int, Path(description="部门ID", ge=1)],
     data: Annotated[DeptUpdateSchema, Body(description="部门修改参数")],
 ) -> JSONResponse:
@@ -60,7 +60,7 @@ async def update_obj_controller(
 @DeptRouter.delete("/delete", summary="删除部门", response_model=ResponseSchema[None])
 async def delete_obj_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:dept:delete"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     ids: Annotated[list[int], Body(description="ID列表")],
 ) -> JSONResponse:
     await DeptService(auth, db).delete(ids=ids)
@@ -70,7 +70,7 @@ async def delete_obj_controller(
 @DeptRouter.patch("/status/batch", summary="批量修改部门状态", response_model=ResponseSchema[None])
 async def batch_set_available_obj_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:dept:patch"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     data: Annotated[BatchSetAvailable, Body(description="状态设置")],
 ) -> JSONResponse:
     await DeptService(auth, db).set_available(data=data)

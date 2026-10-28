@@ -23,7 +23,7 @@ NoticeRouter = APIRouter(route_class=OperationLogRoute, prefix="/notice", tags=[
 @NoticeRouter.get("/detail/{id}", summary="获取公告详情", response_model=ResponseSchema[NoticeOutSchema])
 async def get_notice_detail_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:notice:detail"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     id: Annotated[int, Path(description="公告ID", ge=1)],
 ) -> JSONResponse:
     result_dict: NoticeOutSchema = await NoticeService(auth, db).detail(id=id)
@@ -33,7 +33,7 @@ async def get_notice_detail_controller(
 @NoticeRouter.get("/list", summary="查询公告", response_model=ResponseSchema[PageResultSchema[NoticeOutSchema]])
 async def get_notice_list_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:notice:query"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     page: Annotated[PaginationQueryParam, Depends()],
     search: Annotated[NoticeQueryParam, Query()],
 ) -> JSONResponse:
@@ -49,7 +49,7 @@ async def get_notice_list_controller(
 @NoticeRouter.post("/create", status_code=status.HTTP_201_CREATED, summary="创建公告", response_model=ResponseSchema[NoticeOutSchema])
 async def create_notice_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:notice:create"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     data: Annotated[NoticeCreateSchema, Body(description="公告创建参数")],
 ) -> JSONResponse:
     result_dict: NoticeOutSchema = await NoticeService(auth, db).create(data=data)
@@ -59,7 +59,7 @@ async def create_notice_controller(
 @NoticeRouter.put("/update/{id}", summary="修改公告", response_model=ResponseSchema[NoticeOutSchema])
 async def update_notice_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:notice:update"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     id: Annotated[int, Path(description="公告ID", ge=1)],
     data: Annotated[NoticeUpdateSchema, Body(description="公告修改参数")],
 ) -> JSONResponse:
@@ -70,7 +70,7 @@ async def update_notice_controller(
 @NoticeRouter.delete("/delete", summary="删除公告", response_model=ResponseSchema[None])
 async def delete_notice_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:notice:delete"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     ids: Annotated[list[int], Body(description="ID列表")],
 ) -> JSONResponse:
     await NoticeService(auth, db).delete(ids=ids)
@@ -80,7 +80,7 @@ async def delete_notice_controller(
 @NoticeRouter.patch("/status/batch", summary="批量修改公告状态", response_model=ResponseSchema[None])
 async def batch_set_available_notice_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:notice:patch"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     data: Annotated[BatchSetAvailable, Body(description="状态设置")],
 ) -> JSONResponse:
     await NoticeService(auth, db).set_available(data=data)
@@ -90,7 +90,7 @@ async def batch_set_available_notice_controller(
 @NoticeRouter.get("/available", summary="获取全局启用公告", response_model=ResponseSchema[list[NoticeOutSchema]])
 async def get_notice_list_available_controller(
     auth: Annotated[AuthSchema, Security(get_current_user)],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     result_dict: PageResultSchema[NoticeOutSchema] = await NoticeService(auth, db).available_page()
     return SuccessResponse(data=result_dict.items, msg="查询已启用公告列表成功")

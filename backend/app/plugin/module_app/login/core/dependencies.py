@@ -141,7 +141,7 @@ class AppAuth:
     async def __call__(
         self,
         request: Request,
-        db: Annotated[AsyncSession, Depends(db_getter)],
+        db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
         redis: Annotated[Redis, Depends(redis_getter)],
     ) -> AppAuthContext:
         """执行校验并返回登录上下文。"""
@@ -161,7 +161,7 @@ class OptionalAppAuth:
     async def __call__(
         self,
         request: Request,
-        db: Annotated[AsyncSession, Depends(db_getter)],
+        db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
         redis: Annotated[Redis, Depends(redis_getter)],
     ) -> AppAuthContext | None:
         """尝试解析登录态，失败返回 None。"""
@@ -177,7 +177,7 @@ class OptionalAppAuth:
 
 async def get_current_app_user(
     request: Request,
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     redis: Annotated[Redis, Depends(redis_getter)],
 ) -> AppAuthContext:
     """函数式登录依赖，等价于 ``AppAuth()``。"""

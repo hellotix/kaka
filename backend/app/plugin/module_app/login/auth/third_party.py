@@ -13,9 +13,9 @@ import jwt
 from pydantic import BaseModel, Field
 
 from app.config.setting import settings
-from app.core.exceptions import CustomException
 from app.core.logger import logger
 
+from ...exceptions import BusinessError
 from ..core.constants import (
     APPLE_CLIENT_ID,
     APPLE_ISSUER,
@@ -80,7 +80,7 @@ async def _http_get_json(url: str, params: dict) -> dict:
             return response.json()
     except httpx.HTTPError as e:
         logger.error(f"第三方登录请求失败: url={url}, err={e!s}")
-        raise CustomException(msg="第三方服务请求失败，请稍后重试")
+        raise BusinessError(msg="第三方服务请求失败，请稍后重试", status_code=502)
 
 
 class WechatMiniAuthenticator(ThirdPartyAuthenticator):
@@ -94,9 +94,9 @@ class WechatMiniAuthenticator(ThirdPartyAuthenticator):
 
     async def authenticate(self, credential: ThirdPartyCredential) -> ThirdPartyUserInfo:
         if not credential.code:
-            raise CustomException(msg="微信登录凭证 code 不能为空")
+            raise BusinessError(msg="微信登录凭证 code 不能为空")
         if not self.is_configured():
-            raise CustomException(msg="未配置微信小程序 AppID/AppSecret，无法使用微信登录")
+            raise BusinessError(msg="未配置微信小程序 AppID/AppSecret，无法使用微信登录", status_code=503)
 
         data = await _http_get_json(
             "https://api.weixin.qq.com/sns/jscode2session",
@@ -111,7 +111,7 @@ class WechatMiniAuthenticator(ThirdPartyAuthenticator):
 
         openid = data.get("openid")
         if not openid:
-            raise CustomException(msg="微信返回数据不完整，登录失败")
+            raise BusinessError(msg="微信返回数据不完整，登录失败", status_code=502)
 
         return ThirdPartyUserInfo(
             provider=self.provider.value,
@@ -127,7 +127,7 @@ class WechatMiniAuthenticator(ThirdPartyAuthenticator):
         """微信接口以 errcode/errmsg 返回错误。"""
         if data.get("errcode"):
             logger.error(f"{action} 失败: {data.get('errcode')} {data.get('errmsg')}")
-            raise CustomException(msg=f"{action}失败: {data.get('errmsg') or data.get('errcode')}")
+            raise BusinessError(msg=f"{action}失败: {data.get('errmsg') or data.get('errcode')}", status_code=502)
 
 
 class WechatOpenAuthenticator(ThirdPartyAuthenticator):
@@ -141,9 +141,9 @@ class WechatOpenAuthenticator(ThirdPartyAuthenticator):
 
     async def authenticate(self, credential: ThirdPartyCredential) -> ThirdPartyUserInfo:
         if not credential.code:
-            raise CustomException(msg="微信登录凭证 code 不能为空")
+            raise BusinessError(msg="微信登录凭证 code 不能为空")
         if not self.is_configured():
-            raise CustomException(msg="未配置微信开放平台 AppID/AppSecret，无法使用微信登录")
+            raise BusinessError(msg="未配置微信开放平台 AppID/AppSecret，无法使用微信登录", status_code=503)
 
         token_data = await _http_get_json(
             "https://api.weixin.qq.com/sns/oauth2/access_token",
@@ -158,7 +158,7 @@ class WechatOpenAuthenticator(ThirdPartyAuthenticator):
 
         openid = token_data.get("openid")
         if not openid:
-            raise CustomException(msg="微信返回数据不完整，登录失败")
+            raise BusinessError(msg="微信返回数据不完整，登录失败", status_code=502)
 
         nickname = credential.nickname
         avatar = credential.avatar
@@ -193,7 +193,7 @@ class WechatMpAuthenticator(ThirdPartyAuthenticator):
     provider = ThirdPartyProvider.WECHAT_MP
 
     async def authenticate(self, credential: ThirdPartyCredential) -> ThirdPartyUserInfo:
-        raise CustomException(msg="微信公众号登录尚未接入，请使用其他登录方式")
+        raise BusinessError(msg="微信公众号登录尚未接入，请使用其他登录方式", status_code=503)
 
 
 _apple_jwk_client: jwt.PyJWKClient | None = None
@@ -222,15 +222,15 @@ class AppleAuthenticator(ThirdPartyAuthenticator):
 
     async def authenticate(self, credential: ThirdPartyCredential) -> ThirdPartyUserInfo:
         if not credential.identity_token:
-            raise CustomException(msg="苹果登录凭证 identityToken 不能为空")
+            raise BusinessError(msg="苹果登录凭证 identityToken 不能为空")
         if not self.is_configured():
-            raise CustomException(msg="未配置 APP_APPLE_CLIENT_ID，无法使用苹果登录")
+            raise BusinessError(msg="未配置 APP_APPLE_CLIENT_ID，无法使用苹果登录", status_code=503)
 
         claims = await asyncio.to_thread(self._decode_identity_token, credential.identity_token)
 
         openid = claims.get("sub")
         if not openid:
-            raise CustomException(msg="苹果身份令牌缺少 sub 声明，登录失败")
+            raise BusinessError(msg="苹果身份令牌缺少 sub 声明，登录失败", status_code=401)
 
         return ThirdPartyUserInfo(
             provider=self.provider.value,
@@ -254,7 +254,7 @@ class AppleAuthenticator(ThirdPartyAuthenticator):
             )
         except jwt.PyJWTError as e:
             logger.error(f"苹果 identityToken 校验失败: {e!s}")
-            raise CustomException(msg="苹果身份令牌校验失败，请重新登录")
+            raise BusinessError(msg="苹果身份令牌校验失败，请重新登录", status_code=401)
 
 
 _AUTHENTICATOR_REGISTRY: dict[str, type[ThirdPartyAuthenticator]] = {}
@@ -289,12 +289,12 @@ def get_authenticator(provider: ThirdPartyProvider | str) -> ThirdPartyAuthentic
     - ThirdPartyAuthenticator: 渠道实例。
 
     异常:
-    - CustomException: 渠道未注册。
+    - BusinessError: 渠道未注册。
     """
     name = provider.value if isinstance(provider, ThirdPartyProvider) else str(provider)
     authenticator_cls = _AUTHENTICATOR_REGISTRY.get(name)
     if authenticator_cls is None:
-        raise CustomException(msg=f"暂不支持的第三方登录渠道: {name}")
+        raise BusinessError(msg=f"暂不支持的第三方登录渠道: {name}")
     return authenticator_cls()
 
 

@@ -60,7 +60,7 @@ async def clear_online_controller(
 
 @OnlineRouter.get("/stats", summary="获取仪表盘统计数据", response_model=ResponseSchema[DashboardStatsSchema])
 async def get_dashboard_stats_controller(
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     redis: Annotated[Redis, Depends(redis_getter)],
     _auth: Annotated[AuthSchema, Security(AuthPermission(["module_monitor:dashboard:query"]))],
 ) -> JSONResponse:

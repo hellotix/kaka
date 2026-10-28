@@ -6,11 +6,11 @@ from redis.asyncio.client import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_schema import AuthSchema, BatchSetAvailable, PageResultSchema
-from app.core.exceptions import CustomException
 from app.core.logger import logger
 from app.utils.common_util import search_to_dict
 from app.utils.password_util import PwdUtil
 
+from ...exceptions import BusinessError
 from ..auth.crud import AppLoginLogCRUD
 from ..auth.schema import AppLoginLogOutSchema, AppLoginLogQueryParam
 from ..auth.service import AppLoginService
@@ -56,7 +56,7 @@ class AppUserService:
         """获取C端用户详情。"""
         obj = await self.users.get(id=id)
         if not obj:
-            raise CustomException(msg="该用户不存在")
+            raise BusinessError(msg="该用户不存在", status_code=404)
         return AppUserOutSchema.model_validate(obj)
 
     async def get_list(
@@ -115,7 +115,7 @@ class AppUserService:
         payload: dict[str, Any] = data.model_dump(exclude_none=True)
         password = payload.pop("password", None)
         if not (payload.get("username") or payload.get("mobile")):
-            raise CustomException(msg="创建失败，用户名与手机号至少填写一项")
+            raise BusinessError(msg="创建失败，用户名与手机号至少填写一项")
 
         await self._ensure_unique(
             username=payload.get("username"),
@@ -154,12 +154,12 @@ class AppUserService:
     async def delete(self, ids: list[int]) -> None:
         """删除C端用户（软删除）并强制下线全部会话。"""
         if not ids:
-            raise CustomException(msg="删除失败，删除对象不能为空")
+            raise BusinessError(msg="删除失败，删除对象不能为空")
         objs = await self.users.get_list(search={"id": ("in", ids)})
         obj_map = {o.id: o for o in objs}
         for id_ in ids:
             if id_ not in obj_map:
-                raise CustomException(msg="删除失败，该用户不存在")
+                raise BusinessError(msg="删除失败，该用户不存在", status_code=404)
 
         await self.users.delete(ids=ids)
         for id_ in ids:
@@ -168,7 +168,7 @@ class AppUserService:
     async def set_available(self, data: BatchSetAvailable) -> None:
         """批量启用/禁用C端用户，禁用时强制下线。"""
         if not data.ids:
-            raise CustomException(msg="操作失败，对象不能为空")
+            raise BusinessError(msg="操作失败，对象不能为空")
         await self.users.set(ids=data.ids, status=data.status)
         if data.status == 1:
             for id_ in data.ids:
@@ -185,7 +185,7 @@ class AppUserService:
         """解绑C端用户的第三方登录。"""
         obj = await self.oauths.get(id=id)
         if not obj:
-            raise CustomException(msg="解绑失败，该绑定不存在")
+            raise BusinessError(msg="解绑失败，该绑定不存在", status_code=404)
         await self.oauths.delete(ids=[id])
 
     # ── 会话 ──────────────────────────────────────────────────────────
@@ -205,9 +205,9 @@ class AppUserService:
         if session_id:
             info = await self.sessions.get(session_id)
             if not info:
-                raise CustomException(msg="会话不存在或已下线")
+                raise BusinessError(msg="会话不存在或已下线", status_code=404)
             if info.user_id != id:
-                raise CustomException(msg="该会话不属于此用户")
+                raise BusinessError(msg="该会话不属于此用户", status_code=403)
             await self.sessions.remove(session_id)
             return 1
         return await self.sessions.remove_by_user(id)
@@ -218,7 +218,7 @@ class AppUserService:
         """取用户，不存在则抛业务异常。"""
         obj = await self.users.get(id=id)
         if not obj:
-            raise CustomException(msg="该用户不存在")
+            raise BusinessError(msg="该用户不存在", status_code=404)
         return obj
 
     async def _ensure_unique(
@@ -239,7 +239,7 @@ class AppUserService:
                 continue
             exists = await self.users.get(**{field: value})
             if exists and exists.id != exclude_id:
-                raise CustomException(msg=f"{label}已被占用")
+                raise BusinessError(msg=f"{label}已被占用", status_code=409)
 
     async def _sync_session_info(self, user: AppUserModel) -> None:
         """资料变更后同步在线会话中的展示信息。"""
@@ -275,11 +275,11 @@ class AppUserProfileService:
         """修改当前登录用户资料。"""
         changes = data.model_dump(exclude_unset=True, exclude_none=True)
         if not changes:
-            raise CustomException(msg="没有需要修改的内容")
+            raise BusinessError(msg="没有需要修改的内容")
         if changes.get("email"):
             exists = await self.users.get(email=changes["email"])
             if exists and exists.id != self.ctx.user_id:
-                raise CustomException(msg="该邮箱已被其他账号使用")
+                raise BusinessError(msg="该邮箱已被其他账号使用", status_code=409)
 
         obj = await self.users.update(id=self.ctx.user_id, data=data)
 

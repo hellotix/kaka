@@ -22,7 +22,7 @@ async def gen_table_list_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_generator:gencode:query"]))],
     page: Annotated[PaginationQueryParam, Depends()],
     search: Annotated[GenTableQueryParam, Query()],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     order_by = [{"created_time": "desc"}]
     if page.order_by:
@@ -41,7 +41,7 @@ async def get_gen_db_table_list_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_generator:dblist:query"]))],
     page: Annotated[PaginationQueryParam, Depends()],
     search: Annotated[GenTableQueryParam, Query()],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     result_dict = await GenTableService(auth, db).get_gen_db_table_page(
         page_no=page.page_no,
@@ -55,7 +55,7 @@ async def get_gen_db_table_list_controller(
 async def import_gen_table_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_generator:gencode:import"]))],
     table_names: Annotated[list[str], Body(description="表名列表")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     svc = GenTableService(auth, db)
     add_gen_table_list = await svc.get_gen_db_table_list_by_name(table_names)
@@ -67,7 +67,7 @@ async def import_gen_table_controller(
 async def gen_table_detail_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_generator:gencode:query"]))],
     table_id: Annotated[int, Path(description="业务表ID")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     result = await GenTableService(auth, db).get_gen_table_detail(table_id)
     return SuccessResponse(data=result, msg="获取业务表详细信息成功")
@@ -77,7 +77,7 @@ async def gen_table_detail_controller(
 async def create_table_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_generator:gencode:create"]))],
     body: Annotated[GenCreateTableSqlBody, Body(description="创建表结构参数")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     result = await GenTableService(auth, db).create_table(body.sql)
     return SuccessResponse(msg="创建表结构成功", data=result)
@@ -88,7 +88,7 @@ async def update_gen_table_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_generator:gencode:update"]))],
     table_id: Annotated[int, Path(description="业务表ID")],
     data: Annotated[GenTableSchema, Body(description="业务表信息")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     result_dict = await GenTableService(auth, db).update_gen_table(data, table_id)
     return SuccessResponse(data=result_dict, msg="编辑业务表信息成功")
@@ -98,7 +98,7 @@ async def update_gen_table_controller(
 async def delete_gen_table_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_generator:gencode:delete"]))],
     ids: Annotated[list[int], Body(description="业务表ID列表")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     result = await GenTableService(auth, db).delete_gen_table(ids)
     return SuccessResponse(msg="删除业务表信息成功", data=result)
@@ -108,7 +108,7 @@ async def delete_gen_table_controller(
 async def batch_gen_code_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_generator:gencode:operate"]))],
     table_names: Annotated[list[str], Body(description="表名列表")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> StreamResponse:
     batch_gen_code_result, failed_tables = await GenTableService(auth, db).batch_gen_code(table_names)
     headers = {"Content-Disposition": "attachment; filename=code.zip"}
@@ -126,7 +126,7 @@ async def batch_gen_code_controller(
 async def gen_code_local_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_generator:gencode:code"]))],
     table_name: Annotated[str, Path(description="表名")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     result = await GenTableService(auth, db).generate_code(table_name)
     return SuccessResponse(msg="生成代码到指定路径成功", data=result)
@@ -136,7 +136,7 @@ async def gen_code_local_controller(
 async def preview_code_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_generator:gencode:query"]))],
     table_id: Annotated[int, Path(description="业务表ID")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     result = await GenTableService(auth, db).preview_code(table_id)
     return SuccessResponse(data=result, msg="预览代码成功")
@@ -146,7 +146,7 @@ async def preview_code_controller(
 async def sync_db_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_generator:db:sync"]))],
     table_name: Annotated[str, Path(description="表名")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     result = await GenTableService(auth, db).sync_db(table_name)
     return SuccessResponse(msg="同步数据库成功", data=result)
@@ -156,7 +156,7 @@ async def sync_db_controller(
 async def sync_db_preview_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_generator:db:sync"]))],
     table_name: Annotated[str, Path(description="表名")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     result = await GenTableService(auth, db).sync_db_preview(table_name)
     return SuccessResponse(msg="获取同步差异预览成功", data=result)

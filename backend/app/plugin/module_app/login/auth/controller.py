@@ -58,7 +58,7 @@ async def get_login_config_controller() -> JSONResponse:
 async def register_controller(
     request: Request,
     data: Annotated[AppRegisterSchema, Body(description="注册参数")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     redis: Annotated[Redis, Depends(redis_getter)],
 ) -> JSONResponse:
     service = AppLoginService(db, redis)
@@ -70,7 +70,7 @@ async def register_controller(
 async def login_by_password_controller(
     request: Request,
     data: Annotated[AppPasswordLoginSchema, Body(description="登录参数")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     redis: Annotated[Redis, Depends(redis_getter)],
 ) -> JSONResponse:
     service = AppLoginService(db, redis)
@@ -82,7 +82,7 @@ async def login_by_password_controller(
 async def login_by_sms_controller(
     request: Request,
     data: Annotated[AppSmsLoginSchema, Body(description="登录参数")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     redis: Annotated[Redis, Depends(redis_getter)],
 ) -> JSONResponse:
     service = AppLoginService(db, redis)
@@ -94,7 +94,7 @@ async def login_by_sms_controller(
 async def login_by_wechat_controller(
     request: Request,
     data: Annotated[AppWechatLoginSchema, Body(description="微信登录参数")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     redis: Annotated[Redis, Depends(redis_getter)],
 ) -> JSONResponse:
     """小程序端传 ``provider=wechat_mini``，App/网页扫码传 ``provider=wechat_open``。"""
@@ -112,7 +112,7 @@ async def login_by_wechat_controller(
 async def login_by_apple_controller(
     request: Request,
     data: Annotated[AppAppleLoginSchema, Body(description="苹果登录参数")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     redis: Annotated[Redis, Depends(redis_getter)],
 ) -> JSONResponse:
     service = AppLoginService(db, redis)
@@ -142,7 +142,7 @@ async def send_sms_code_controller(
 @AppAuthRouter.post("/password/reset", summary="短信验证码重置密码", response_model=ResponseSchema[None])
 async def reset_password_controller(
     data: Annotated[AppResetPasswordSchema, Body(description="重置密码参数")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     redis: Annotated[Redis, Depends(redis_getter)],
 ) -> JSONResponse:
     service = AppLoginService(db, redis)
@@ -153,7 +153,7 @@ async def reset_password_controller(
 @AppAuthRouter.post("/refresh", summary="刷新令牌", response_model=ResponseSchema[AppTokenOutSchema])
 async def refresh_token_controller(
     data: Annotated[AppRefreshTokenSchema, Body(description="刷新令牌参数")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     redis: Annotated[Redis, Depends(redis_getter)],
 ) -> JSONResponse:
     service = AppLoginService(db, redis)
@@ -164,7 +164,7 @@ async def refresh_token_controller(
 @AppAuthRouter.post("/logout", summary="退出登录", response_model=ResponseSchema[None])
 async def logout_controller(
     user: CurrentAppUser,
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     redis: Annotated[Redis, Depends(redis_getter)],
 ) -> JSONResponse:
     await AppLoginService(db, redis).logout(session_id=user.session_id)
@@ -174,7 +174,7 @@ async def logout_controller(
 @AppAuthRouter.get("/sessions", summary="获取当前账号在线会话", response_model=ResponseSchema[list[AppSessionInfo]])
 async def list_sessions_controller(
     user: CurrentAppUser,
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     redis: Annotated[Redis, Depends(redis_getter)],
 ) -> JSONResponse:
     sessions = await AppLoginService(db, redis).list_sessions(user_id=user.user_id)
@@ -184,7 +184,7 @@ async def list_sessions_controller(
 @AppAuthRouter.delete("/sessions/others", summary="下线当前账号的其他会话", response_model=ResponseSchema[int])
 async def remove_other_sessions_controller(
     user: CurrentAppUser,
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     redis: Annotated[Redis, Depends(redis_getter)],
 ) -> JSONResponse:
     count = await AppLoginService(db, redis).remove_other_sessions(user.user_id, user.session_id)
@@ -195,7 +195,7 @@ async def remove_other_sessions_controller(
 async def remove_session_controller(
     user: CurrentAppUser,
     session_id: Annotated[str, Path(description="会话ID")],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     redis: Annotated[Redis, Depends(redis_getter)],
 ) -> JSONResponse:
     await AppLoginService(db, redis).remove_session(user.user_id, session_id)

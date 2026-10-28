@@ -95,6 +95,22 @@ class CustomOAuth2PasswordRequestForm(OAuth2PasswordRequestForm):
 # OAuth2认证配置
 OAuth2Schema = CustomOAuth2PasswordBearer(token_url="system/auth/login", description="认证")
 
+# 身份域声明：管理后台签发的令牌从不携带这两个键（载荷只有 sub / is_refresh / exp），
+# C端（app/plugin/module_app/login）签发时必带 typ=app、iss=kaka-app。
+# 因此「载荷里出现 iss 或 typ」就等于「这不是后台的令牌」。
+#
+# 为什么要在这里显式拒绝，而不是靠后面的会话查询兜住
+# ----------------------------------------------------
+# 两端共用 settings.SECRET_KEY，所以 C端令牌在**验签这一关是过得去的**，
+# 后台靠「user_session:{session_id} 在 Redis 里查不到」把它挡成 401。
+# 那是个巧合式防御：一旦以后新增任何「只验签、不查会话」的入口
+# （无状态校验、服务间调用、报表导出之类），C端令牌会立刻变成合法后台凭证，
+# 而且不会有任何报错提示你。鉴权边界必须是断言，不能是副作用。
+#
+# 这里判「有没有这些声明」而不是判「值是否等于 app」：将来再加第三方身份域（小程序、
+# 开放平台）也会一并被拒，不需要回来改这行。
+FOREIGN_TOKEN_CLAIMS: frozenset[str] = frozenset({"iss", "typ"})
+
 
 def create_access_token(payload: JWTPayloadSchema) -> str:
     """生成JWT访问令牌
@@ -141,6 +157,11 @@ def decode_access_token(token: str, verify_exp: bool = True) -> JWTPayloadSchema
         online_user_info = payload.get("sub")
         if not online_user_info:
             raise CustomException(msg="无效认证,请重新登录", code=RET.TOKEN_EXPIRED.code, status_code=401)
+
+        # 身份域校验：载荷带 C端专属声明（见 FOREIGN_TOKEN_CLAIMS）说明这不是后台令牌，直接拒。
+        # 不依赖后续「Redis 查不到会话」来兜底，理由见常量处的注释。
+        if FOREIGN_TOKEN_CLAIMS & payload.keys():
+            raise CustomException(msg="非法凭证,该令牌不属于管理后台", code=RET.INVALID_CREDENTIALS.code, status_code=401)
 
         return JWTPayloadSchema(**payload)
 

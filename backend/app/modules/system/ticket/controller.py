@@ -19,7 +19,7 @@ TicketRouter = APIRouter(route_class=OperationLogRoute, prefix="/ticket", tags=[
 @TicketRouter.get("/stats", summary="工单状态统计", response_model=ResponseSchema[TicketStatsSchema])
 async def ticket_stats_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:ticket:query"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
 ) -> JSONResponse:
     result: TicketStatsSchema = await TicketService(auth, db).stats()
     return SuccessResponse(data=result, msg="查询成功")
@@ -28,7 +28,7 @@ async def ticket_stats_controller(
 @TicketRouter.get("/list", summary="工单列表", response_model=ResponseSchema[PageResultSchema[TicketOutSchema]])
 async def ticket_list_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:ticket:query"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     page: Annotated[PaginationQueryParam, Depends()],
     search: Annotated[TicketQueryParam, Query()],
 ) -> JSONResponse:
@@ -44,7 +44,7 @@ async def ticket_list_controller(
 @TicketRouter.get("/detail/{id}", summary="获取工单详情", response_model=ResponseSchema[TicketOutSchema])
 async def ticket_detail_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:ticket:detail"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     id: Annotated[int, Path(description="工单ID", ge=1)],
 ) -> JSONResponse:
     result: TicketOutSchema = await TicketService(auth, db).detail(id=id)
@@ -54,7 +54,7 @@ async def ticket_detail_controller(
 @TicketRouter.post("/create", status_code=status.HTTP_201_CREATED, summary="创建工单", response_model=ResponseSchema[TicketOutSchema])
 async def ticket_create_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:ticket:create"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     data: Annotated[TicketCreateSchema, Body(description="工单创建参数")],
 ) -> JSONResponse:
     result: TicketOutSchema = await TicketService(auth, db).create(data=data)
@@ -64,7 +64,7 @@ async def ticket_create_controller(
 @TicketRouter.put("/update/{id}", summary="更新工单", response_model=ResponseSchema[TicketOutSchema])
 async def ticket_update_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:ticket:update"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     id: Annotated[int, Path(description="工单ID", ge=1)],
     data: Annotated[TicketUpdateSchema, Body(description="工单更新参数")],
 ) -> JSONResponse:
@@ -75,7 +75,7 @@ async def ticket_update_controller(
 @TicketRouter.put("/batch", summary="批量更新工单", response_model=ResponseSchema)
 async def ticket_batch_update_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:ticket:update"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     data: Annotated[TicketBatchSchema, Body(description="工单批量更新参数")],
 ) -> JSONResponse:
     await TicketService(auth, db).batch(data=data)
@@ -85,7 +85,7 @@ async def ticket_batch_update_controller(
 @TicketRouter.delete("/delete", summary="删除工单", response_model=ResponseSchema[None])
 async def ticket_delete_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:ticket:delete"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     ids: Annotated[list[int], Body(description="工单ID列表")],
 ) -> JSONResponse:
     await TicketService(auth, db).delete(ids=ids)
@@ -95,7 +95,7 @@ async def ticket_delete_controller(
 @TicketRouter.post("/export", summary="导出工单")
 async def ticket_export_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:ticket:export"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     search: Annotated[TicketQueryParam, Body()],
 ) -> StreamingResponse:
     ticket_list: list[TicketOutSchema] = await TicketService(auth, db).get_list(search=search)
@@ -111,7 +111,7 @@ async def ticket_export_controller(
 @TicketRouter.get("/{ticket_id}/comments", summary="工单评论列表", response_model=ResponseSchema[PageResultSchema[TicketCommentOutSchema]])
 async def ticket_comment_list_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:ticket:detail"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     ticket_id: Annotated[int, Path(description="工单ID", ge=1)],
     page: Annotated[PaginationQueryParam, Depends()],
 ) -> JSONResponse:
@@ -122,7 +122,7 @@ async def ticket_comment_list_controller(
 @TicketRouter.post("/{ticket_id}/comments", status_code=status.HTTP_201_CREATED, summary="创建评论", response_model=ResponseSchema[TicketCommentOutSchema])
 async def ticket_comment_create_controller(
     auth: Annotated[AuthSchema, Security(AuthPermission(["module_system:ticket:detail"]))],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     ticket_id: Annotated[int, Path(description="工单ID", ge=1)],
     data: Annotated[TicketCommentCreateSchema, Body(description="评论内容")],
 ) -> JSONResponse:

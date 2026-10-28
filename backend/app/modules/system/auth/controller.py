@@ -38,7 +38,7 @@ AuthRouter = APIRouter(route_class=OperationLogRoute, prefix="/auth", tags=["认
 async def login_for_access_token_controller(
     request: Request,
     redis: Annotated[Redis, Depends(redis_getter)],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     login_form: Annotated[CustomOAuth2PasswordRequestForm, Depends()],
 ) -> JSONResponse | LoginOutSchema:
     login_result: LoginOutSchema = await LoginService.authenticate_user(request=request, redis=redis, login_form=login_form, db=db)
@@ -52,7 +52,7 @@ async def login_for_access_token_controller(
 
 @AuthRouter.post("/token/refresh", summary="刷新token", response_model=ResponseSchema[JWTOutSchema])
 async def get_new_token_controller(
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     redis: Annotated[Redis, Depends(redis_getter)],
     payload: Annotated[str, Body(description="刷新token参数")],
 ) -> JSONResponse:
@@ -111,7 +111,7 @@ async def oauth_login_redirect_controller(
 async def oauth_callback_controller(
     request: Request,
     redis: Annotated[Redis, Depends(redis_getter)],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     provider: Annotated[OAuthProvider, Path(description="wechat | qq | github | gitee")],
     code: Annotated[str | None, Query(description="OAuth 授权码")] = None,
     state: Annotated[str | None, Query(description="OAuth 状态参数")] = None,
@@ -137,7 +137,7 @@ async def oauth_callback_controller(
 async def wx_mini_login_controller(
     request: Request,
     redis: Annotated[Redis, Depends(redis_getter)],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     body: Annotated[WxLoginSchema, Body(description="微信小程序登录参数")],
 ) -> JSONResponse:
     """微信小程序登录：前端 uni.login 的 code 换取 openid 后签发 JWT。"""
@@ -156,7 +156,7 @@ async def wx_mini_login_controller(
 async def wx_mini_phone_login_controller(
     request: Request,
     redis: Annotated[Redis, Depends(redis_getter)],
-    db: Annotated[AsyncSession, Depends(db_getter)],
+    db: Annotated[AsyncSession, Depends(db_getter, scope="function")],
     body: Annotated[WxPhoneLoginSchema, Body(description="微信小程序手机号登录参数")],
 ) -> JSONResponse:
     """微信小程序手机号登录：getPhoneNumber 回调的 code 换取手机号后签发 JWT。"""

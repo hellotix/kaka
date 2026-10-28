@@ -81,9 +81,19 @@ class InitializeData:
         else:
             # 先把数据库带到最新版本，否则 autogenerate 会因
             # "Target database is not up to date" 无法对比模型与库结构
-            await InitializeData.__clear_unresolvable_alembic_version(alembic_cfg)
-            await asyncio.to_thread(command.upgrade, alembic_cfg, "head")
-            logger.info("✅ 数据库迁移已应用（alembic upgrade head）")
+            has_version = await InitializeData.__clear_unresolvable_alembic_version(alembic_cfg)
+            if has_version:
+                await asyncio.to_thread(command.upgrade, alembic_cfg, "head")
+                logger.info("✅ 数据库迁移已应用（alembic upgrade head）")
+            elif any(p.name != "__init__.py" for p in ALEMBIC_VERSION_DIR.glob("*.py")):
+                # 库里已有业务表、却没有任何可用的迁移版本记录。此时 upgrade head 会把
+                # 基线迁移（down_revision=None）从头重放一遍——基线只是某个时点的历史快照，
+                # 里面的 op.drop_table 会作用到当前库上，删掉并不属于本项目的表
+                # （例如误把 DATABASE_NAME 指向 MySQL 自带的 mysql 系统库时，会直接抹掉
+                # user/db/tables_priv 等权限表，导致整个实例无法登录）。
+                # 正确做法是把现状标记为 head，差异交给下面的 dev autogenerate 按模型对齐。
+                await asyncio.to_thread(command.stamp, alembic_cfg, "head")
+                logger.warning("⚠️ 数据库已有表但无迁移版本记录，已 stamp 为 head（跳过基线迁移重放）")
 
         # dev 环境：模型有变更时自动生成迁移文件（无变更时 env.py 的 process_revision_directives 会拦截，不产出文件）
         if settings.ENVIRONMENT == EnvironmentEnum.DEV:
@@ -97,13 +107,17 @@ class InitializeData:
                 logger.info("✅ dev 环境自动迁移检查完成（模型无变更）")
 
     @staticmethod
-    async def __clear_unresolvable_alembic_version(alembic_cfg) -> None:
+    async def __clear_unresolvable_alembic_version(alembic_cfg) -> bool:
         """清掉数据库里无法被仓库迁移脚本解析的版本号（僵尸 revision）。
 
         本仓库不提交迁移历史（versions/ 仅保留 __init__.py），库里却可能残留早前
         dev 自动生成、随后被当作未跟踪文件清理掉的迁移版本号。此时 upgrade 会抛
         "Can't locate revision identified by 'xxx'"，让整个后端启动失败。
         这里只删除解析不了的版本号，保留可解析的，交由后续自动迁移按当前模型重新对齐。
+
+        返回:
+        - bool: 清理后库里是否仍留有可用的版本记录。False 表示不能直接 upgrade head
+          （那会从头重放基线迁移），调用方应改为 stamp。
         """
         from alembic.script import ScriptDirectory
         from sqlalchemy import text
@@ -112,15 +126,15 @@ class InitializeData:
         async with async_engine.begin() as conn:
             has_version_table = await conn.run_sync(lambda sync_conn: inspect(sync_conn).has_table("alembic_version"))
             if not has_version_table:
-                return
+                return False
             current = {row[0] for row in await conn.execute(text("select version_num from alembic_version"))}
             stale = current - known
-            if not stale:
-                return
-            for rev in stale:
-                await conn.execute(text("delete from alembic_version where version_num = :rev"), {"rev": rev})
-            hint = "；仓库存在迁移历史时请手动核对是否需要 alembic stamp" if known else ""
-            logger.warning(f"⚠️ 已清理无法解析的迁移版本记录 {sorted(stale)}（对应脚本已不存在）{hint}")
+            if stale:
+                for rev in stale:
+                    await conn.execute(text("delete from alembic_version where version_num = :rev"), {"rev": rev})
+                hint = "；仓库存在迁移历史时请手动核对是否需要 alembic stamp" if known else ""
+                logger.warning(f"⚠️ 已清理无法解析的迁移版本记录 {sorted(stale)}（对应脚本已不存在）{hint}")
+            return bool(current - stale)
 
     @staticmethod
     def __autogen_migration(alembic_cfg) -> bool | None:
@@ -147,8 +161,11 @@ class InitializeData:
         if not new_files:
             return False
 
+        # env.py 开了 render_as_batch=True，MySQL 下的 ALTER 也会被渲染成
+        # `with op.batch_alter_table(...) as batch_op: batch_op.drop_xxx(...)`，
+        # 因此必须同时匹配 batch_op.drop_*，否则这层保护形同虚设。
         # drop_* 覆盖 drop_table/drop_column/drop_index/drop_constraint 等；op.execute 拦手写 DROP 语句
-        dangerous = re.compile(r"""^\s*op\.drop_\w+\(|op\.execute\(["'].*\bDROP\b""", re.MULTILINE)
+        dangerous = re.compile(r"""^\s*(?:batch_)?op\.drop_\w+\(|op\.execute\(["'].*\bDROP\b""", re.MULTILINE)
         for path in new_files:
             content = path.read_text(encoding="utf-8")
             # 仅检查 upgrade 段（downgrade 中的 DROP 是正常回滚逻辑）
